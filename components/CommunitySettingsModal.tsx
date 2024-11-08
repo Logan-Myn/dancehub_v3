@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
 import { storage, auth } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-hot-toast";
+import { DollarSign, ExternalLink, Loader2 } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 
 interface CustomLink {
   title: string;
@@ -39,6 +41,7 @@ interface CommunitySettingsModalProps {
   }) => void;
   customLinks?: CustomLink[];
   onCustomLinksUpdate?: (links: CustomLink[]) => void;
+  stripeAccountId?: string | null;
 }
 
 const categories = [
@@ -70,11 +73,57 @@ export default function CommunitySettingsModal({
   onCommunityUpdate,
   customLinks = [],
   onCustomLinksUpdate = () => {},
+  stripeAccountId,
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
   const [description, setDescription] = useState(communityDescription);
   const [links, setLinks] = useState<CustomLink[]>(customLinks);
+  const [isConnectingStripe, setIsConnectingStripe] = useState(false);
+  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(true);
+  const [price, setPrice] = useState<number>(0);
+  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
+  const [stripeAccountStatus, setStripeAccountStatus] = useState<{
+    isEnabled: boolean;
+    needsSetup: boolean;
+    accountId?: string;
+    details?: {
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      requirements?: string[];
+    };
+  }>({
+    isEnabled: false,
+    needsSetup: true,
+  });
+
+  // Fetch Stripe account status when component mounts
+  useEffect(() => {
+    async function fetchStripeStatus() {
+      if (!stripeAccountId) {
+        setIsLoadingStripeStatus(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/stripe/account-status/${stripeAccountId}`);
+        const data = await response.json();
+        
+        setStripeAccountStatus({
+          isEnabled: data.chargesEnabled && data.payoutsEnabled,
+          needsSetup: !data.detailsSubmitted,
+          accountId: stripeAccountId,
+          details: data,
+        });
+      } catch (error) {
+        console.error('Error fetching Stripe status:', error);
+      } finally {
+        setIsLoadingStripeStatus(false);
+      }
+    }
+
+    fetchStripeStatus();
+  }, [stripeAccountId]);
 
   const handleAddLink = () => {
     setLinks([...links, { title: '', url: '' }]);
@@ -197,6 +246,152 @@ export default function CommunitySettingsModal({
       toast.error(error.message || 'Failed to upload image. Please try again.');
     }
   };
+
+  const handleStripeConnect = async () => {
+    try {
+      setIsConnectingStripe(true);
+      const response = await fetch('/api/stripe/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          communityId,
+          userId: auth.currentUser?.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to connect Stripe');
+      }
+
+      const { url } = await response.json();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error connecting Stripe:', error);
+      toast.error('Failed to connect Stripe');
+    } finally {
+      setIsConnectingStripe(false);
+    }
+  };
+
+  const handlePriceUpdate = async () => {
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/update-price`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          price,
+          enabled: isMembershipEnabled,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update price');
+      }
+
+      toast.success('Price updated successfully');
+    } catch (error) {
+      console.error('Error updating price:', error);
+      toast.error('Failed to update price');
+    }
+  };
+
+  const renderSubscriptions = () => (
+    <div className="space-y-6">
+      {isLoadingStripeStatus ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        </div>
+      ) : (
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-medium mb-4">Membership Revenue</h3>
+          
+          {stripeAccountStatus.isEnabled ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center text-sm text-green-600">
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Stripe account connected
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Stripe Dashboard
+                </Button>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Enable Paid Membership
+                  </label>
+                  <Switch
+                    checked={isMembershipEnabled}
+                    onCheckedChange={setIsMembershipEnabled}
+                  />
+                </div>
+
+                {isMembershipEnabled && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Monthly Membership Price
+                    </label>
+                    <div className="mt-1 relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 sm:text-sm">€</span>
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={price}
+                        onChange={(e) => setPrice(Number(e.target.value))}
+                        className="pl-7"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <Button
+                      onClick={handlePriceUpdate}
+                      className="mt-4 w-full"
+                    >
+                      Update Price
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Connect your Stripe account to start accepting payments from your community members.
+              </p>
+              
+              <Button
+                onClick={handleStripeConnect}
+                disabled={isConnectingStripe}
+                className="w-full"
+              >
+                {isConnectingStripe ? (
+                  'Connecting...'
+                ) : (
+                  <>
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Connect Stripe Account
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Transition.Root show={isOpen} as={React.Fragment}>
@@ -387,6 +582,8 @@ export default function CommunitySettingsModal({
                         </Button>
                       </div>
                     )}
+
+                    {activeCategory === "subscriptions" && renderSubscriptions()}
 
                     {/* Add other category content here */}
                   </div>
