@@ -301,95 +301,84 @@ export default function CommunitySettingsModal({
 
   const renderSubscriptions = () => (
     <div className="space-y-6">
-      {isLoadingStripeStatus ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-medium">Community Membership</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Stripe Dashboard
+          </Button>
         </div>
-      ) : (
-        <div className="bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-medium mb-4">Membership Revenue</h3>
-          
-          {stripeAccountStatus.isEnabled ? (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center text-sm text-green-600">
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Stripe account connected
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Stripe Dashboard
-                </Button>
-              </div>
 
-              <div className="space-y-4 pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">
-                    Enable Paid Membership
-                  </label>
-                  <Switch
-                    checked={isMembershipEnabled}
-                    onCheckedChange={setIsMembershipEnabled}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium">Paid Membership</h4>
+              <p className="text-sm text-gray-500">Enable paid membership for your community</p>
+            </div>
+            <Switch
+              checked={isMembershipEnabled}
+              onCheckedChange={setIsMembershipEnabled}
+            />
+          </div>
+
+          {isMembershipEnabled && (
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Monthly Membership Price
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-500 sm:text-sm">€</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    className="pl-7"
+                    placeholder="0.00"
                   />
                 </div>
-
-                {isMembershipEnabled && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Monthly Membership Price
-                    </label>
-                    <div className="mt-1 relative rounded-md shadow-sm">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">€</span>
-                      </div>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={price}
-                        onChange={(e) => setPrice(Number(e.target.value))}
-                        className="pl-7"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <Button
-                      onClick={handlePriceUpdate}
-                      className="mt-4 w-full"
-                    >
-                      Update Price
-                    </Button>
-                  </div>
-                )}
+                <p className="mt-1 text-sm text-gray-500">
+                  Set the monthly price for your community membership
+                </p>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Connect your Stripe account to start accepting payments from your community members.
-              </p>
-              
+
+              <div className="bg-blue-50 p-4 rounded-md">
+                <h5 className="font-medium text-blue-800 mb-2">What members get:</h5>
+                <ul className="space-y-2 text-sm text-blue-700">
+                  <li>• Access to all community content</li>
+                  <li>• Participation in discussions</li>
+                  <li>• Access to exclusive events</li>
+                  <li>• Direct messaging with other members</li>
+                </ul>
+              </div>
+
               <Button
-                onClick={handleStripeConnect}
-                disabled={isConnectingStripe}
+                onClick={handlePriceUpdate}
                 className="w-full"
               >
-                {isConnectingStripe ? (
-                  'Connecting...'
-                ) : (
-                  <>
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Connect Stripe Account
-                  </>
-                )}
+                Update Membership Price
               </Button>
             </div>
           )}
+
+          {!isMembershipEnabled && (
+            <div className="bg-gray-100 p-4 rounded-md">
+              <p className="text-sm text-gray-600">
+                Your community is currently free to join. Enable paid membership to start monetizing your community.
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 
