@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { communitySlug, userId } = params;
 
-    // First get the community by slug
+    // Get community by slug
     const communitiesSnapshot = await adminDb
       .collection('communities')
       .where('slug', '==', communitySlug)
@@ -23,10 +23,11 @@ export async function GET(
     }
 
     const communityDoc = communitiesSnapshot.docs[0];
-    const communityData = communityDoc.data();
-    const isMember = communityData?.members?.includes(userId) || false;
+    const members = communityDoc.data().members || [];
 
-    return NextResponse.json({ isMember });
+    return NextResponse.json({
+      isMember: members.includes(userId),
+    });
   } catch (error) {
     console.error('Error checking membership:', error);
     return NextResponse.json(

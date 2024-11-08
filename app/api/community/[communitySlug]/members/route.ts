@@ -20,7 +20,7 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // First get the community by slug
+    // Get community by slug
     const communitiesSnapshot = await adminDb
       .collection('communities')
       .where('slug', '==', communitySlug)
@@ -35,8 +35,7 @@ export async function GET(
     }
 
     const communityDoc = communitiesSnapshot.docs[0];
-    const communityData = communityDoc.data();
-    const memberIds = communityData?.members || [];
+    const memberIds = communityDoc.data().members || [];
 
     // Fetch user profiles from Firebase Auth
     const members = await Promise.all(

@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Query the community by slug
+    // Get community by slug
     const communitiesSnapshot = await adminDb
       .collection('communities')
       .where('slug', '==', communitySlug)
@@ -26,7 +26,7 @@ export async function GET(
     const communityData = {
       id: communityDoc.id,
       ...communityDoc.data(),
-      membersCount: (communityDoc.data().members || []).length,
+      membersCount: communityDoc.data().members?.length || 0,
     };
 
     return NextResponse.json(communityData);

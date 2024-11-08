@@ -182,24 +182,30 @@ export default function CommunityPage() {
                   </div>
 
                   <div className="mt-4 flex items-center space-x-2">
-                    {members.slice(0, 5).map((member) => (
-                      <div key={member.id} className="relative group">
-                        <Image
-                          src={member.imageUrl}
-                          alt={member.displayName || "Member"}
-                          width={32}
-                          height={32}
-                          className="rounded-full"
-                        />
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                          {member.displayName}
-                        </div>
-                      </div>
-                    ))}
-                    {members.length > 5 && (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
-                        +{members.length - 5}
-                      </div>
+                    {Array.isArray(members) && members.length > 0 ? (
+                      <>
+                        {members.slice(0, 5).map((member) => (
+                          <div key={member.id} className="relative group">
+                            <Image
+                              src={member.imageUrl}
+                              alt={member.displayName || "Member"}
+                              width={32}
+                              height={32}
+                              className="rounded-full"
+                            />
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {member.displayName}
+                            </div>
+                          </div>
+                        ))}
+                        {members.length > 5 && (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
+                            +{members.length - 5}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-500">No members yet</div>
                     )}
                   </div>
 
