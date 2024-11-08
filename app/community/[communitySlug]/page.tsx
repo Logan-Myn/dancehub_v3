@@ -29,7 +29,9 @@ export default function CommunityPage() {
   const { user } = useAuth();
   const [community, setCommunity] = useState<Community | null>(null);
   const [isMember, setIsMember] = useState(false);
-  const [members, setMembers] = useState<{ id: string; imageUrl: string }[]>([]);
+  const [members, setMembers] = useState<{
+      displayName: string | undefined; id: string; imageUrl: string 
+}[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
