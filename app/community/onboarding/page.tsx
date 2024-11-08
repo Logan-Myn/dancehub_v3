@@ -1,13 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from 'next/navigation';
-import { Rocket, Heart, Smile, DollarSign, Smartphone, Globe } from 'lucide-react';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import { Rocket, Heart, Smile, DollarSign, Smartphone, Globe } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import OnboardingForm from '@/app/community/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
 

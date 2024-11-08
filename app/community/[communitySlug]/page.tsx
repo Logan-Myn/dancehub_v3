@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import Navbar from "@/app/components/Navbar";
 import CommunitySettingsModal from "@/components/CommunitySettingsModal";
+import Image from "next/image";
 
 interface Community {
   id: string;
@@ -115,10 +116,12 @@ export default function CommunityPage() {
               <div className="bg-white shadow-md rounded-lg p-4 mb-6">
                 <div className="flex items-center space-x-4 cursor-pointer">
                   {user?.photoURL ? (
-                    <img
+                    <Image
                       src={user.photoURL}
                       alt={user.displayName || "User"}
-                      className="w-10 h-10 rounded-full"
+                      width={40}
+                      height={40}
+                      className="rounded-full"
                     />
                   ) : (
                     <UserCircle2 className="w-10 h-10 text-gray-400" />
@@ -181,10 +184,12 @@ export default function CommunityPage() {
                   <div className="mt-4 flex items-center space-x-2">
                     {members.slice(0, 5).map((member) => (
                       <div key={member.id} className="relative group">
-                        <img
+                        <Image
                           src={member.imageUrl}
-                          alt={member.displayName}
-                          className="w-8 h-8 rounded-full object-cover"
+                          alt={member.displayName || "Member"}
+                          width={32}
+                          height={32}
+                          className="rounded-full"
                         />
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                           {member.displayName}
