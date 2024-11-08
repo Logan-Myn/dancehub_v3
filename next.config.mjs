@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       {
@@ -9,11 +10,12 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**.googleusercontent.com',  // For Google user profile images
+        hostname: '**.googleusercontent.com',
         pathname: '**',
       }
     ],
   },
+  distDir: '.next',
 };
 
 export default nextConfig;
