@@ -24,11 +24,14 @@ export async function POST(request: Request) {
         updatedAt: new Date().toISOString(),
       });
 
-    // Create an account link for onboarding
+    // Make sure we have the base URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com';
+
+    // Create an account link for onboarding with full URLs
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/community/${communityId}/settings?tab=subscriptions`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/community/${communityId}/settings?tab=subscriptions&setup=complete`,
+      refresh_url: `${baseUrl}/community/${communityId}?tab=subscriptions`,
+      return_url: `${baseUrl}/community/${communityId}?tab=subscriptions&setup=complete`,
       type: 'account_onboarding',
     });
 
