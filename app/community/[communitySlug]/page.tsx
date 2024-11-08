@@ -22,6 +22,7 @@ interface Community {
   price?: number;
   currency?: string;
   customLinks?: { title: string; url: string }[];
+  stripeAccountId?: string | null;
 }
 
 export default function CommunityPage() {
@@ -254,6 +255,7 @@ export default function CommunityPage() {
           communityDescription={community.description || ""}
           imageUrl={community.imageUrl || ""}
           customLinks={community.customLinks || []}
+          stripeAccountId={community.stripeAccountId}
           onImageUpdate={(newImageUrl) => {
             setCommunity((prev) =>
               prev ? { ...prev, imageUrl: newImageUrl } : null

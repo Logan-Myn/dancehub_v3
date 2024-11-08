@@ -6,6 +6,19 @@ export async function POST(request: Request) {
   try {
     const { communityId, userId } = await request.json();
 
+    // First get the community slug
+    const communityDoc = await adminDb
+      .collection('communities')
+      .doc(communityId)
+      .get();
+
+    if (!communityDoc.exists) {
+      throw new Error('Community not found');
+    }
+
+    const communityData = communityDoc.data();
+    const communitySlug = communityData?.slug;
+
     // Create a Stripe Connect account
     const account = await stripe.accounts.create({
       type: 'standard',
@@ -27,11 +40,11 @@ export async function POST(request: Request) {
     // Make sure we have the base URL
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com';
 
-    // Create an account link for onboarding with full URLs
+    // Create an account link for onboarding with full URLs using the slug
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${baseUrl}/community/${communityId}?tab=subscriptions`,
-      return_url: `${baseUrl}/community/${communityId}?tab=subscriptions&setup=complete`,
+      refresh_url: `${baseUrl}/community/${communitySlug}?tab=subscriptions`,
+      return_url: `${baseUrl}/community/${communitySlug}?tab=subscriptions&setup=complete`,
       type: 'account_onboarding',
     });
 
