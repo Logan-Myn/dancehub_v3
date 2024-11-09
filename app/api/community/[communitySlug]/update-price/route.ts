@@ -37,33 +37,47 @@ export async function POST(
     // If membership is enabled and there's a price, create or update Stripe price
     let stripePriceId = null;
     if (enabled && price > 0) {
-      // Create a new product
-      const product = await stripe.products.create({
-        name: `${communityData.name} Membership`,
-        metadata: {
+      // First, create a product for the community if it doesn't exist
+      let productId = communityData.stripeProductId;
+      
+      if (!productId) {
+        const product = await stripe.products.create({
+          name: `${communityData.name} Membership`,
           description: `Monthly membership for ${communityData.name}`,
-        }
-      });
+        }, {
+          stripeAccount: communityData.stripeAccountId,
+        });
+        productId = product.id;
+      }
 
-      // Create price linked to the product with transfer data
+      // Create a new price in Stripe
       const stripePrice = await stripe.prices.create({
+        product: productId,
         unit_amount: price * 100, // Convert to cents
         currency: 'eur',
         recurring: { interval: 'month' },
-        product: product.id,
-        transfer_lookup_key: communityData.stripeAccountId // Use this instead of transfer_data
+      }, {
+        stripeAccount: communityData.stripeAccountId,
       });
       
       stripePriceId = stripePrice.id;
-    }
 
-    // Update community document
-    await communityDoc.ref.update({
-      membershipEnabled: enabled,
-      membershipPrice: enabled ? price : null,
-      stripePriceId: stripePriceId, // Store the Stripe price ID
-      updatedAt: new Date().toISOString(),
-    });
+      // Update community document with both product and price IDs
+      await communityDoc.ref.update({
+        membershipEnabled: enabled,
+        membershipPrice: price,
+        stripeProductId: productId,
+        stripePriceId: stripePriceId,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      // If disabling membership or price is 0, just update the membership status
+      await communityDoc.ref.update({
+        membershipEnabled: enabled,
+        membershipPrice: enabled ? price : null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({ 
       success: true,
