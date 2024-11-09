@@ -11,6 +11,9 @@ import CommunityNavbar from "@/components/CommunityNavbar";
 import Navbar from "@/app/components/Navbar";
 import CommunitySettingsModal from "@/components/CommunitySettingsModal";
 import Image from "next/image";
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import PaymentModal from "@/components/PaymentModal";
 
 interface Community {
   id: string;
@@ -23,6 +26,8 @@ interface Community {
   currency?: string;
   customLinks?: { title: string; url: string }[];
   stripeAccountId?: string | null;
+  membershipEnabled?: boolean;
+  membershipPrice?: number;
 }
 
 export default function CommunityPage() {
@@ -36,6 +41,8 @@ export default function CommunityPage() {
 }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -74,7 +81,60 @@ export default function CommunityPage() {
     }
 
     try {
-      await fetch(`/api/community/${communitySlug}/join`, {
+      if (community?.membershipEnabled && community?.membershipPrice && community.membershipPrice > 0) {
+        // Handle paid membership
+        const response = await fetch(`/api/community/${communitySlug}/join-paid`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.uid,
+            email: user.email,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create payment');
+        }
+
+        const { clientSecret } = await response.json();
+        setPaymentClientSecret(clientSecret);
+        setShowPaymentModal(true);
+      } else {
+        // Handle free membership
+        const response = await fetch(`/api/community/${communitySlug}/join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId: user.uid }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to join community');
+        }
+
+        setIsMember(true);
+        toast.success('Successfully joined the community!');
+      }
+    } catch (error) {
+      console.error('Error joining community:', error);
+      toast.error('Failed to join community');
+    }
+  };
+
+  const handlePaymentSuccess = () => {
+    setIsMember(true);
+    setShowPaymentModal(false);
+    toast.success('Successfully joined the community!');
+  };
+
+  const handleLeaveCommunity = async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/leave`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,11 +142,24 @@ export default function CommunityPage() {
         body: JSON.stringify({ userId: user.uid }),
       });
 
-      setIsMember(true);
-      toast.success('Successfully joined the community!');
+      if (!response.ok) {
+        throw new Error('Failed to leave community');
+      }
+
+      // Update local state
+      setIsMember(false);
+      setMembers(prev => prev.filter(member => member.id !== user.uid));
+      if (community) {
+        setCommunity({
+          ...community,
+          membersCount: (community.membersCount || 1) - 1,
+        });
+      }
+
+      toast.success('Successfully left the community');
     } catch (error) {
-      console.error('Error joining community:', error);
-      toast.error('Failed to join community');
+      console.error('Error leaving community:', error);
+      toast.error('Failed to leave community');
     }
   };
 
@@ -219,7 +292,7 @@ export default function CommunityPage() {
                     </Button>
                   ) : isMember ? (
                     <Button
-                      onClick={() => {}} // Will add leave functionality later
+                      onClick={handleLeaveCommunity}
                       className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
                     >
                       Leave Community
@@ -273,6 +346,15 @@ export default function CommunityPage() {
           }}
         />
       )}
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        clientSecret={paymentClientSecret}
+        communitySlug={communitySlug}
+        price={community?.membershipPrice || 0}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 } 
