@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 
+// Initialize Stripe outside the component
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentFormProps {
@@ -30,20 +31,17 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
     setIsLoading(true);
 
     try {
-      const { error, paymentIntent } = await stripe.confirmPayment({
+      const { error } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/community/${communitySlug}?success=true`,
         },
-        redirect: 'if_required',
       });
 
       if (error) {
         toast.error(error.message || 'Payment failed');
-      } else if (paymentIntent.status === 'succeeded') {
-        // Payment successful
+      } else {
         onSuccess();
-        toast.success('Successfully joined the community!');
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -61,7 +59,7 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
         disabled={!stripe || isLoading} 
         className="w-full"
       >
-        {isLoading ? 'Processing...' : `Pay €${price}`}
+        {isLoading ? 'Processing...' : `Pay €${price}/month`}
       </Button>
     </form>
   );
@@ -86,13 +84,20 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   if (!clientSecret) return null;
 
+  const options = {
+    clientSecret,
+    appearance: {
+      theme: 'stripe' as const,
+    },
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Join Community</DialogTitle>
         </DialogHeader>
-        <Elements stripe={stripePromise} options={{ clientSecret }}>
+        <Elements stripe={stripePromise} options={options}>
           <PaymentForm 
             clientSecret={clientSecret}
             communitySlug={communitySlug}

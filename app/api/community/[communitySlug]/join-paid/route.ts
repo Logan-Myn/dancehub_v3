@@ -71,10 +71,15 @@ export async function POST(
     );
 
     const invoice = subscription.latest_invoice as any;
+    const clientSecret = invoice.payment_intent.client_secret;
+
+    if (!clientSecret) {
+      throw new Error('No client secret received from Stripe');
+    }
 
     return NextResponse.json({
       subscriptionId: subscription.id,
-      clientSecret: invoice.payment_intent.client_secret,
+      clientSecret,
     });
   } catch (error) {
     console.error('Error creating subscription:', error);
