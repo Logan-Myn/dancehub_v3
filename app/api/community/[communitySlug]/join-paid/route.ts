@@ -26,53 +26,49 @@ export async function POST(
 
     const communityDoc = communitiesSnapshot.docs[0];
     const communityData = communityDoc.data();
-    const { stripeAccountId, membershipPrice } = communityData;
+    const { stripeAccountId, stripePriceId, membershipPrice } = communityData;
 
-    if (!stripeAccountId || !membershipPrice) {
+    if (!stripeAccountId || !stripePriceId) {
       return NextResponse.json(
         { error: 'Community is not set up for payments' },
         { status: 400 }
       );
     }
 
-    // Create or get a price for the subscription
-    let priceId = communityData.stripePriceId;
-    if (!priceId) {
-      const price = await stripe.prices.create({
-        unit_amount: membershipPrice * 100,
-        currency: 'eur',
-        recurring: { interval: 'month' },
-        product_data: {
-          name: `${communityData.name} Membership`,
+    // Create a customer on the connected account
+    const customer = await stripe.customers.create(
+      {
+        email,
+        metadata: {
+          userId,
+          communityId: communityDoc.id,
         },
-      });
-      priceId = price.id;
-
-      // Save the price ID to the community document
-      await communityDoc.ref.update({ stripePriceId: priceId });
-    }
-
-    // Create a customer first
-    const customer = await stripe.customers.create({
-      email: email
-    });
-
-    // Create a subscription with customer instead of email
-    const subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: priceId }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      metadata: {
-        userId,
-        communityId: communityDoc.id,
       },
-      transfer_data: {
-        destination: stripeAccountId,
+      {
+        stripeAccount: stripeAccountId,
+      }
+    );
+
+    // Create a subscription with the stored price ID
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: customer.id,
+        items: [{ price: stripePriceId }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { 
+          save_default_payment_method: 'on_subscription',
+          payment_method_types: ['card'],
+        },
+        metadata: {
+          userId,
+          communityId: communityDoc.id,
+        },
+        expand: ['latest_invoice.payment_intent'],
       },
-      application_fee_percent: 10, // 10% platform fee
-      expand: ['latest_invoice.payment_intent'],
-    });
+      {
+        stripeAccount: stripeAccountId,
+      }
+    );
 
     const invoice = subscription.latest_invoice as any;
 
