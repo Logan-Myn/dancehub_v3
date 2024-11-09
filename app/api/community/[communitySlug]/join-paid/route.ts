@@ -35,30 +35,55 @@ export async function POST(
       );
     }
 
-    // Create a payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: membershipPrice * 100, // Convert to cents
-      currency: 'eur',
-      automatic_payment_methods: {
-        enabled: true,
-      },
+    // Create or get a price for the subscription
+    let priceId = communityData.stripePriceId;
+    if (!priceId) {
+      const price = await stripe.prices.create({
+        unit_amount: membershipPrice * 100,
+        currency: 'eur',
+        recurring: { interval: 'month' },
+        product_data: {
+          name: `${communityData.name} Membership`,
+        },
+      });
+      priceId = price.id;
+
+      // Save the price ID to the community document
+      await communityDoc.ref.update({ stripePriceId: priceId });
+    }
+
+    // Create a customer first
+    const customer = await stripe.customers.create({
+      email: email
+    });
+
+    // Create a subscription with customer instead of email
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: priceId }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: { save_default_payment_method: 'on_subscription' },
       metadata: {
         userId,
         communityId: communityDoc.id,
       },
-      application_fee_amount: 500, // 5€ platform fee
       transfer_data: {
         destination: stripeAccountId,
       },
+      application_fee_percent: 10, // 10% platform fee
+      expand: ['latest_invoice.payment_intent'],
     });
 
+    const invoice = subscription.latest_invoice as any;
+
     return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
+      subscriptionId: subscription.id,
+      clientSecret: invoice.payment_intent.client_secret,
     });
   } catch (error) {
-    console.error('Error creating payment:', error);
+    console.error('Error creating subscription:', error);
     return NextResponse.json(
-      { error: 'Failed to create payment' },
+      { error: 'Failed to create subscription' },
       { status: 500 }
     );
   }

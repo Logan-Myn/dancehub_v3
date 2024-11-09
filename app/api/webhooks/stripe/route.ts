@@ -21,29 +21,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
-    if (event.type === 'payment_intent.succeeded') {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const { userId, communityId } = paymentIntent.metadata;
+    switch (event.type) {
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+          const { userId, communityId } = subscription.metadata;
 
-      // Add user to community members
-      await adminDb
-        .collection('communities')
-        .doc(communityId)
-        .update({
-          members: FieldValue.arrayUnion(userId),
+          // Add user to community members if not already a member
+          await adminDb
+            .collection('communities')
+            .doc(communityId)
+            .update({
+              members: FieldValue.arrayUnion(userId),
+              updatedAt: new Date().toISOString(),
+            });
+
+          // Update or create membership record
+          await adminDb.collection('memberships').doc(`${communityId}_${userId}`).set({
+            userId,
+            communityId,
+            subscriptionId: subscription.id,
+            status: 'active',
+            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        }
+        break;
+
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object as Stripe.Subscription;
+        const { userId: deletedUserId, communityId: deletedCommunityId } = deletedSubscription.metadata;
+
+        // Remove user from community members
+        await adminDb
+          .collection('communities')
+          .doc(deletedCommunityId)
+          .update({
+            members: FieldValue.arrayRemove(deletedUserId),
+            updatedAt: new Date().toISOString(),
+          });
+
+        // Update membership status
+        await adminDb.collection('memberships').doc(`${deletedCommunityId}_${deletedUserId}`).update({
+          status: 'cancelled',
           updatedAt: new Date().toISOString(),
         });
-
-      // You could also store subscription/payment details in a separate collection
-      await adminDb.collection('memberships').add({
-        userId,
-        communityId,
-        paymentIntentId: paymentIntent.id,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      });
+        break;
     }
 
     return NextResponse.json({ received: true });
