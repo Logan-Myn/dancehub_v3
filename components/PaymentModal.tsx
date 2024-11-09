@@ -2,13 +2,10 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
-
-// Initialize Stripe outside the component
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -69,6 +66,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   clientSecret: string | null;
+  stripeAccountId: string | null;
   communitySlug: string;
   price: number;
   onSuccess: () => void;
@@ -78,13 +76,18 @@ export default function PaymentModal({
   isOpen, 
   onClose, 
   clientSecret, 
+  stripeAccountId,
   communitySlug,
   price,
   onSuccess 
 }: PaymentModalProps) {
-  if (!clientSecret) return null;
+  if (!clientSecret || !stripeAccountId) return null;
 
-  const options = {
+  const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!, {
+    stripeAccount: stripeAccountId,
+  });
+
+  const options: StripeElementsOptions = {
     clientSecret,
     appearance: {
       theme: 'stripe' as const,

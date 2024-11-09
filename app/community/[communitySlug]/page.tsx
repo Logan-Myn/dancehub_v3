@@ -43,6 +43,7 @@ export default function CommunityPage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -98,8 +99,9 @@ export default function CommunityPage() {
           throw new Error('Failed to create payment');
         }
 
-        const { clientSecret } = await response.json();
+        const { clientSecret, stripeAccountId } = await response.json();
         setPaymentClientSecret(clientSecret);
+        setStripeAccountId(stripeAccountId);
         setShowPaymentModal(true);
       } else {
         // Handle free membership
@@ -351,6 +353,7 @@ export default function CommunityPage() {
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
         clientSecret={paymentClientSecret}
+        stripeAccountId={stripeAccountId}
         communitySlug={communitySlug}
         price={community?.membershipPrice || 0}
         onSuccess={handlePaymentSuccess}

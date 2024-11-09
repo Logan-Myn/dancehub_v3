@@ -80,6 +80,7 @@ export async function POST(
     return NextResponse.json({
       subscriptionId: subscription.id,
       clientSecret,
+      stripeAccountId,
     });
   } catch (error) {
     console.error('Error creating subscription:', error);
