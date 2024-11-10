@@ -21,6 +21,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
+    const { stripeAccountId } = (event.data.object as any).metadata || {};
+
     switch (event.type) {
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
@@ -33,12 +35,6 @@ export async function POST(request: Request) {
 
         const { userId, communityId } = paymentIntent.metadata;
 
-        // Validate userId and communityId are non-empty strings
-        if (!userId || !communityId || typeof userId !== 'string' || typeof communityId !== 'string') {
-          console.error('Invalid metadata values:', { userId, communityId });
-          return NextResponse.json({ error: 'Invalid metadata values' }, { status: 400 });
-        }
-
         // Add user to community members
         await adminDb
           .collection('communities')
@@ -48,7 +44,7 @@ export async function POST(request: Request) {
             updatedAt: new Date().toISOString(),
           });
 
-        // Create membership record with a valid document ID
+        // Create membership record
         const membershipId = `${communityId}_${userId}`;
         await adminDb
           .collection('memberships')
@@ -59,6 +55,7 @@ export async function POST(request: Request) {
             status: 'active',
             startDate: new Date().toISOString(),
             paymentIntentId: paymentIntent.id,
+            subscriptionId: paymentIntent.metadata.subscriptionId,
             amount: paymentIntent.amount,
             currency: paymentIntent.currency,
           });
@@ -67,9 +64,14 @@ export async function POST(request: Request) {
       case 'invoice.payment_succeeded':
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
-          
-          // Validate subscription metadata
+          // Get subscription from the connected account
+          const subscription = await stripe.subscriptions.retrieve(
+            invoice.subscription as string,
+            {
+              stripeAccount: stripeAccountId,
+            }
+          );
+
           if (!subscription.metadata?.userId || !subscription.metadata?.communityId) {
             console.error('Missing metadata in subscription:', subscription.id);
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
@@ -77,7 +79,6 @@ export async function POST(request: Request) {
 
           const subMembershipId = `${subscription.metadata.communityId}_${subscription.metadata.userId}`;
           
-          // Update membership record
           await adminDb
             .collection('memberships')
             .doc(subMembershipId)

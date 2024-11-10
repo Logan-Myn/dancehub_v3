@@ -26,9 +26,9 @@ export async function POST(
 
     const communityDoc = communitiesSnapshot.docs[0];
     const communityData = communityDoc.data();
-    const { stripeAccountId, stripePriceId, membershipPrice } = communityData;
+    const { stripeAccountId, membershipPrice } = communityData;
 
-    if (!stripeAccountId || !stripePriceId) {
+    if (!stripeAccountId || !membershipPrice) {
       return NextResponse.json(
         { error: 'Community is not set up for payments' },
         { status: 400 }
@@ -42,6 +42,7 @@ export async function POST(
         metadata: {
           userId,
           communityId: communityDoc.id,
+          communitySlug,
         },
       },
       {
@@ -49,11 +50,11 @@ export async function POST(
       }
     );
 
-    // Create a subscription with the stored price ID
+    // Create a subscription with trial period
     const subscription = await stripe.subscriptions.create(
       {
         customer: customer.id,
-        items: [{ price: stripePriceId }],
+        items: [{ price: communityData.stripePriceId }],
         payment_behavior: 'default_incomplete',
         payment_settings: { 
           save_default_payment_method: 'on_subscription',
@@ -62,6 +63,8 @@ export async function POST(
         metadata: {
           userId,
           communityId: communityDoc.id,
+          communitySlug,
+          stripeAccountId,
         },
         expand: ['latest_invoice.payment_intent'],
       },
@@ -71,15 +74,28 @@ export async function POST(
     );
 
     const invoice = subscription.latest_invoice as any;
-    const clientSecret = invoice.payment_intent.client_secret;
+    const paymentIntent = invoice.payment_intent;
 
-    if (!clientSecret) {
-      throw new Error('No client secret received from Stripe');
-    }
+    // Update payment intent with metadata
+    await stripe.paymentIntents.update(
+      paymentIntent.id,
+      {
+        metadata: {
+          userId,
+          communityId: communityDoc.id,
+          communitySlug,
+          subscriptionId: subscription.id,
+          stripeAccountId,
+        },
+      },
+      {
+        stripeAccount: stripeAccountId,
+      }
+    );
 
     return NextResponse.json({
       subscriptionId: subscription.id,
-      clientSecret,
+      clientSecret: paymentIntent.client_secret,
       stripeAccountId,
     });
   } catch (error) {
