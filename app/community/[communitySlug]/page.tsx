@@ -14,6 +14,9 @@ import Image from "next/image";
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import PaymentModal from "@/components/PaymentModal";
+import Thread from '@/components/Thread';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import ThreadCard from '@/components/ThreadCard';
 
 interface Community {
   id: string;
@@ -30,6 +33,21 @@ interface Community {
   membershipPrice?: number;
 }
 
+interface Thread {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  userId: string;
+  likesCount: number;
+  commentsCount: number;
+  category?: string;
+  author: {
+    name: string;
+    image: string;
+  };
+}
+
 export default function CommunityPage() {
   const params = useParams();
   const communitySlug = params?.communitySlug as string;
@@ -44,6 +62,8 @@ export default function CommunityPage() {
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
+  const [threads, setThreads] = useState<Thread[]>([]);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -61,6 +81,10 @@ export default function CommunityPage() {
         // Fetch members
         const membersData = await fetch(`/api/community/${communitySlug}/members`).then(res => res.json());
         setMembers(membersData);
+
+        // Fetch threads
+        const threadsData = await fetch(`/api/community/${communitySlug}/threads`).then(res => res.json());
+        setThreads(threadsData);
 
       } catch (error) {
         console.error('Error fetching community data:', error);
@@ -194,6 +218,24 @@ export default function CommunityPage() {
     }
   };
 
+  const handleNewThread = async (newThread: any) => {
+    // Get the author data
+    const threadWithAuthor = {
+      ...newThread,
+      author: {
+        name: user?.displayName || 'Anonymous',
+        image: user?.photoURL || '',
+      },
+      createdAt: new Date().toISOString(),
+      likesCount: 0,
+      commentsCount: 0,
+    };
+
+    // Add the new thread to the beginning of the list
+    setThreads(prevThreads => [threadWithAuthor, ...prevThreads]);
+    setIsWriting(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -218,30 +260,51 @@ export default function CommunityPage() {
           <div className="flex space-x-8">
             {/* Main Content Area */}
             <div className="w-3/4">
-              <div className="bg-white shadow-md rounded-lg p-4 mb-6">
-                <div className="flex items-center space-x-4 cursor-pointer">
-                  {user?.photoURL ? (
-                    <Image
-                      src={user.photoURL}
-                      alt={user.displayName || "User"}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
-                  ) : (
-                    <UserCircle2 className="w-10 h-10 text-gray-400" />
-                  )}
-                  <div className="flex-grow border-b border-gray-300 pb-2">
-                    <span className="text-gray-500 font-roboto text-xl">Write something...</span>
+              <div className="bg-white rounded-lg shadow p-4 mb-6">
+                {isWriting ? (
+                  <Thread
+                    communityId={community.id}
+                    userId={user?.uid || ''}
+                    communityName={community.name}
+                    onSave={handleNewThread}
+                    onCancel={() => setIsWriting(false)}
+                  />
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={user?.photoURL || ''}
+                        alt={user?.displayName || 'User'}
+                      />
+                      <AvatarFallback>
+                        {user?.displayName?.[0] || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div
+                      onClick={() => user ? setIsWriting(true) : toast.error('Please sign in to post')}
+                      className="flex-grow cursor-text rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition-colors"
+                    >
+                      Write something...
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Threads will go here in the next step */}
-              <div className="space-y-6">
-                <div className="bg-white shadow-md rounded-lg p-6">
-                  <p className="text-gray-500">No posts yet</p>
-                </div>
+              {/* Threads will be displayed here */}
+              <div className="space-y-4">
+                {threads.map((thread) => (
+                  <ThreadCard
+                    key={thread.id}
+                    title={thread.title}
+                    content={thread.content}
+                    author={thread.author}
+                    createdAt={thread.createdAt}
+                    likesCount={thread.likesCount}
+                    commentsCount={thread.commentsCount}
+                    category={thread.category}
+                    communityName={community.name}
+                  />
+                ))}
               </div>
             </div>
 
