@@ -3,7 +3,14 @@ import { adminDb, adminAuth } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
   try {
-    const { content, communityId, userId, title } = await request.json();
+    const { 
+      content, 
+      communityId, 
+      userId, 
+      title,
+      categoryId,
+      categoryName 
+    } = await request.json();
 
     // Get user data
     const userRecord = await adminAuth.getUser(userId);
@@ -13,6 +20,8 @@ export async function POST(request: Request) {
       communityId,
       userId,
       title,
+      categoryId,
+      category: categoryName,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       likes: [],

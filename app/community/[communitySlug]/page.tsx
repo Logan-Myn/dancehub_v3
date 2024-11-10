@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -46,6 +46,7 @@ interface Thread {
   likesCount: number;
   commentsCount: number;
   category?: string;
+  categoryId?: string;
   author: {
     name: string;
     image: string;
@@ -225,13 +226,16 @@ export default function CommunityPage() {
   };
 
   const handleNewThread = async (newThread: any) => {
-    // Get the author data
     const threadWithAuthor = {
       ...newThread,
       author: {
         name: user?.displayName || 'Anonymous',
         image: user?.photoURL || '',
       },
+      categoryId: newThread.categoryId,
+      category: community?.threadCategories?.find(
+        cat => cat.id === newThread.categoryId
+      )?.name,
       createdAt: new Date().toISOString(),
       likesCount: 0,
       commentsCount: 0,
@@ -242,10 +246,17 @@ export default function CommunityPage() {
     setIsWriting(false);
   };
 
-  // Filter threads based on selected category
-  const filteredThreads = selectedCategory
-    ? threads.filter(thread => thread.category === selectedCategory)
-    : threads;
+  // Update the filtering logic to use category IDs
+  const filteredThreads = useMemo(() => {
+    if (!selectedCategory) {
+      return threads;
+    }
+
+    return threads.filter(thread => {
+      // Check if the thread's category matches the selected category ID
+      return thread.categoryId === selectedCategory;
+    });
+  }, [threads, selectedCategory]);
 
   if (isLoading) {
     return (
@@ -323,10 +334,17 @@ export default function CommunityPage() {
                     likesCount={thread.likesCount}
                     commentsCount={thread.commentsCount}
                     category={thread.category}
-                    communityName={community.name}
+                    categoryType={community.threadCategories?.find(
+                      cat => cat.id === thread.categoryId
+                    )?.iconType}
                     onClick={() => setSelectedThread(thread)}
                   />
                 ))}
+                {filteredThreads.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No threads in this category yet.
+                  </div>
+                )}
               </div>
             </div>
 

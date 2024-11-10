@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { ThumbsUp, MessageSquare } from "lucide-react";
+import { ThumbsUp, MessageSquare, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
+import { CATEGORY_ICONS } from "@/lib/constants";
 
 interface ThreadCardProps {
   title: string;
@@ -13,7 +14,8 @@ interface ThreadCardProps {
   likesCount: number;
   commentsCount: number;
   category?: string;
-  communityName: string;
+  categoryId?: string;
+  categoryType?: string;
   onClick: () => void;
 }
 
@@ -25,9 +27,12 @@ export default function ThreadCard({
   likesCount,
   commentsCount,
   category,
-  communityName,
+  categoryType,
   onClick,
 }: ThreadCardProps) {
+  const iconConfig = CATEGORY_ICONS.find(i => i.label === categoryType);
+  const IconComponent = iconConfig?.icon || MessageCircle;
+
   return (
     <div 
       className="bg-white rounded-lg shadow p-4 mb-4 cursor-pointer hover:shadow-md transition-shadow"
@@ -43,24 +48,30 @@ export default function ThreadCard({
           <div className="flex items-center space-x-2">
             <span className="font-medium">{author.name}</span>
             <span className="text-gray-500">·</span>
-            <span className="text-gray-500">{formatDistanceToNow(new Date(createdAt))} ago</span>
+            <span className="text-gray-500">
+              {formatDistanceToNow(new Date(createdAt))} ago
+            </span>
             {category && (
               <>
                 <span className="text-gray-500">in</span>
-                <span className="text-blue-600">{category}</span>
+                <div className="flex items-center space-x-1">
+                  <IconComponent 
+                    className="h-4 w-4"
+                    style={{ color: iconConfig?.color }}
+                  />
+                  <span style={{ color: iconConfig?.color }}>{category}</span>
+                </div>
               </>
             )}
-          </div>
-          <div className="text-sm text-gray-500">
-            in {communityName}
           </div>
         </div>
       </div>
 
       {/* Thread content */}
       <h2 className="text-xl font-semibold mb-2">{title}</h2>
-      <div className="prose prose-sm max-w-none mb-4" 
-           dangerouslySetInnerHTML={{ __html: content }} 
+      <div 
+        className="prose prose-sm max-w-none mb-4" 
+        dangerouslySetInnerHTML={{ __html: content }} 
       />
 
       {/* Interaction buttons */}

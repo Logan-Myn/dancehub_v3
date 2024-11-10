@@ -14,10 +14,10 @@ import {
   Video, 
   BarChart2, 
   Smile, 
-  GiftIcon,
-  MessageCircle
+  MessageCircle,
 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { CATEGORY_ICONS } from "@/lib/constants";
 
 interface ThreadProps {
   communityId: string;
@@ -27,12 +27,6 @@ interface ThreadProps {
   onSave: (newThread: any) => void;
   onCancel: () => void;
 }
-
-const CATEGORY_ICONS = [
-  { label: 'general', icon: MessageCircle, color: '#1a1a1a' },
-  { label: 'question', icon: Video, color: '#ff0000' },
-  // Add more category icons as needed
-];
 
 export default function Thread({ 
   communityId, 
@@ -44,8 +38,8 @@ export default function Thread({
 }: ThreadProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -63,6 +57,11 @@ export default function Thread({
       return;
     }
 
+    if (!selectedCategory) {
+      toast.error('Please select a category');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -76,6 +75,10 @@ export default function Thread({
           content: editor.getHTML(),
           communityId,
           userId,
+          categoryId: selectedCategory,
+          categoryName: community.threadCategories?.find(
+            (cat: { id: string; name: string }) => cat.id === selectedCategory
+          )?.name,
         }),
       });
 
@@ -88,6 +91,7 @@ export default function Thread({
       toast.success('Thread created successfully');
       editor.commands.clearContent();
       setTitle('');
+      setSelectedCategory('');
       onSave(newThread);
     } catch (error) {
       console.error('Error creating thread:', error);
@@ -99,16 +103,41 @@ export default function Thread({
 
   return (
     <div className="space-y-4">
-      {/* Header with user info and posting info */}
+      {/* Header with user info and category selection */}
       <div className="flex items-center space-x-2">
         <Avatar className="h-10 w-10">
           <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
           <AvatarFallback>{user?.displayName?.[0] || 'U'}</AvatarFallback>
         </Avatar>
-        <div className="text-sm">
+        <div className="text-sm flex items-center space-x-2">
           <span className="font-medium">{user?.displayName}</span>
-          <span className="text-gray-500"> posting in </span>
-          <span className="font-medium">{communityName}</span>
+          <span className="text-gray-500">posting in</span>
+          <Select
+            value={selectedCategory}
+            onValueChange={setSelectedCategory}
+          >
+            <SelectTrigger className="w-[200px] border-none bg-transparent hover:bg-gray-50 focus:ring-0">
+              <SelectValue placeholder="Choose a category" />
+            </SelectTrigger>
+            <SelectContent>
+              {community.threadCategories?.map((category: any) => {
+                const iconConfig = CATEGORY_ICONS.find(i => i.label === category.iconType);
+                const IconComponent = iconConfig?.icon || MessageCircle;
+                
+                return (
+                  <SelectItem key={category.id} value={category.id}>
+                    <div className="flex items-center space-x-2">
+                      <IconComponent 
+                        className="h-4 w-4"
+                        style={{ color: iconConfig?.color }}
+                      />
+                      <span>{category.name}</span>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -142,12 +171,6 @@ export default function Thread({
           <button className="text-gray-500 hover:text-gray-700">
             <Smile className="h-5 w-5" />
           </button>
-          <button className="text-gray-500 hover:text-gray-700">
-            <GiftIcon className="h-5 w-5" />
-          </button>
-          <div className="text-sm text-gray-500">
-            Select a category ▼
-          </div>
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -165,40 +188,6 @@ export default function Thread({
             {isSubmitting ? 'Posting...' : 'POST'}
           </Button>
         </div>
-      </div>
-
-      {/* Category selector */}
-      <div className="flex items-center justify-between mt-4">
-        <Select
-          value={selectedCategory}
-          onValueChange={setSelectedCategory}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select a category" />
-          </SelectTrigger>
-          <SelectContent>
-            {community.threadCategories?.map((category: {
-              id: string;
-              name: string;
-              iconType: string;
-            }) => {
-              const iconConfig = CATEGORY_ICONS.find(i => i.label === category.iconType);
-              const IconComponent = iconConfig?.icon || MessageCircle;
-              
-              return (
-                <SelectItem key={category.id} value={category.id}>
-                  <div className="flex items-center space-x-2">
-                    <IconComponent 
-                      className="h-4 w-4"
-                      style={{ color: iconConfig?.color }}
-                    />
-                    <span>{category.name}</span>
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
       </div>
     </div>
   );
