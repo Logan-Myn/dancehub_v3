@@ -17,8 +17,11 @@ import {
 import { storage, auth } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-hot-toast";
-import { DollarSign, ExternalLink, Loader2 } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
+import { CATEGORY_ICONS } from "@/lib/constants";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ThreadCategory } from "@/types/community";
 
 interface CustomLink {
   title: string;
@@ -42,9 +45,11 @@ interface CommunitySettingsModalProps {
   customLinks?: CustomLink[];
   onCustomLinksUpdate?: (links: CustomLink[]) => void;
   stripeAccountId?: string | null;
+  threadCategories?: ThreadCategory[];
+  onThreadCategoriesUpdate?: (categories: ThreadCategory[]) => void;
 }
 
-const categories = [
+const navigationCategories = [
   { id: "dashboard", name: "Dashboard", icon: Squares2X2Icon },
   { id: "general", name: "General", icon: Cog6ToothIcon },
   { id: "members", name: "Members", icon: UserGroupIcon },
@@ -74,6 +79,8 @@ export default function CommunitySettingsModal({
   customLinks = [],
   onCustomLinksUpdate = () => {},
   stripeAccountId,
+  threadCategories = [],
+  onThreadCategoriesUpdate = () => {},
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
@@ -96,6 +103,7 @@ export default function CommunitySettingsModal({
     isEnabled: false,
     needsSetup: true,
   });
+  const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -306,6 +314,45 @@ export default function CommunitySettingsModal({
     }
   };
 
+  const handleAddCategory = () => {
+    const newCategory: ThreadCategory = {
+      id: crypto.randomUUID(),
+      name: '',
+      iconType: CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
+    };
+    setCategories([...categories, newCategory]);
+  };
+
+  const handleRemoveCategory = (id: string) => {
+    setCategories(categories.filter(cat => cat.id !== id));
+  };
+
+  const handleCategoryChange = (id: string, field: keyof ThreadCategory, value: string) => {
+    setCategories(categories.map(cat => 
+      cat.id === id ? { ...cat, [field]: value } : cat
+    ));
+  };
+
+  const handleSaveCategories = async () => {
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/categories`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ categories }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update categories');
+
+      onThreadCategoriesUpdate(categories);
+      toast.success('Categories updated successfully');
+    } catch (error) {
+      console.error('Error updating categories:', error);
+      toast.error('Failed to update categories');
+    }
+  };
+
   const renderSubscriptions = () => (
     <div className="space-y-6">
       <div className="bg-gray-50 rounded-lg p-6">
@@ -410,6 +457,86 @@ export default function CommunitySettingsModal({
     </div>
   );
 
+  const renderThreadCategories = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-medium">Thread Categories</h3>
+        <Button
+          onClick={handleAddCategory}
+          variant="outline"
+          size="sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Category
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        {categories.map((category) => {
+          const selectedIcon = CATEGORY_ICONS.find(i => i.label === category.iconType);
+          const IconComponent = selectedIcon?.icon || MessageCircle;
+
+          return (
+            <div key={category.id} className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 p-2 rounded bg-gray-50">
+                <IconComponent 
+                  className="h-5 w-5"
+                  style={{ color: selectedIcon?.color }}
+                />
+              </div>
+              <Input
+                placeholder="Category name"
+                value={category.name}
+                onChange={(e) => handleCategoryChange(category.id, 'name', e.target.value)}
+                className="flex-1"
+              />
+              <Select
+                value={category.iconType}
+                onValueChange={(value) => handleCategoryChange(category.id, 'iconType', value)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select icon" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_ICONS.map((icon) => (
+                    <SelectItem key={icon.label} value={icon.label}>
+                      <div className="flex items-center space-x-2">
+                        <icon.icon className="h-4 w-4" style={{ color: icon.color }} />
+                        <span>{icon.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRemoveCategory(category.id)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      {categories.length > 0 && (
+        <Button
+          onClick={handleSaveCategories}
+          className="w-full"
+        >
+          Save Categories
+        </Button>
+      )}
+
+      {categories.length === 0 && (
+        <p className="text-sm text-gray-500 text-center">
+          No categories yet. Add some to help organize threads in your community.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <Transition.Root show={isOpen} as={React.Fragment}>
       <Dialog as="div" className="relative z-10" onClose={onClose}>
@@ -460,7 +587,7 @@ export default function CommunitySettingsModal({
                       </h3>
                     </div>
                     <nav className="mt-6 px-2">
-                      {categories.map((category) => (
+                      {navigationCategories.map((category) => (
                         <button
                           key={category.id}
                           onClick={() => setActiveCategory(category.id)}
@@ -483,7 +610,7 @@ export default function CommunitySettingsModal({
                   {/* Main content */}
                   <div className="w-3/4 p-6 overflow-y-auto">
                     <h2 className="text-2xl font-semibold mb-4">
-                      {categories.find((c) => c.id === activeCategory)?.name}
+                      {navigationCategories.find((c) => c.id === activeCategory)?.name}
                     </h2>
 
                     {activeCategory === "general" && (
@@ -601,6 +728,8 @@ export default function CommunitySettingsModal({
                     )}
 
                     {activeCategory === "subscriptions" && renderSubscriptions()}
+
+                    {activeCategory === "thread_categories" && renderThreadCategories()}
 
                     {/* Add other category content here */}
                   </div>

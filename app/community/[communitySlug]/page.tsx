@@ -18,6 +18,8 @@ import Thread from '@/components/Thread';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import ThreadCard from '@/components/ThreadCard';
 import ThreadModal from '@/components/ThreadModal';
+import { ThreadCategory } from "@/types/community";
+import ThreadCategories from '@/components/ThreadCategories';
 
 interface Community {
   id: string;
@@ -32,6 +34,7 @@ interface Community {
   stripeAccountId?: string | null;
   membershipEnabled?: boolean;
   membershipPrice?: number;
+  threadCategories?: ThreadCategory[];
 }
 
 interface Thread {
@@ -66,6 +69,7 @@ export default function CommunityPage() {
   const [isWriting, setIsWriting] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -238,6 +242,11 @@ export default function CommunityPage() {
     setIsWriting(false);
   };
 
+  // Filter threads based on selected category
+  const filteredThreads = selectedCategory
+    ? threads.filter(thread => thread.category === selectedCategory)
+    : threads;
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -268,6 +277,7 @@ export default function CommunityPage() {
                     communityId={community.id}
                     userId={user?.uid || ''}
                     communityName={community.name}
+                    community={community}
                     onSave={handleNewThread}
                     onCancel={() => setIsWriting(false)}
                   />
@@ -292,9 +302,18 @@ export default function CommunityPage() {
                 )}
               </div>
 
-              {/* Threads will be displayed here */}
+              {/* Categories filter */}
+              {community.threadCategories && community.threadCategories.length > 0 && (
+                <ThreadCategories
+                  categories={community.threadCategories}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                />
+              )}
+
+              {/* Threads list */}
               <div className="space-y-4">
-                {threads.map((thread) => (
+                {filteredThreads.map((thread) => (
                   <ThreadCard
                     key={thread.id}
                     title={thread.title}
@@ -426,6 +445,7 @@ export default function CommunityPage() {
           imageUrl={community.imageUrl || ""}
           customLinks={community.customLinks || []}
           stripeAccountId={community.stripeAccountId}
+          threadCategories={community.threadCategories}
           onImageUpdate={(newImageUrl) => {
             setCommunity((prev) =>
               prev ? { ...prev, imageUrl: newImageUrl } : null
@@ -439,6 +459,11 @@ export default function CommunityPage() {
           onCustomLinksUpdate={(newLinks) => {
             setCommunity((prev) =>
               prev ? { ...prev, customLinks: newLinks } : null
+            );
+          }}
+          onThreadCategoriesUpdate={(categories) => {
+            setCommunity((prev) =>
+              prev ? { ...prev, threadCategories: categories } : null
             );
           }}
         />

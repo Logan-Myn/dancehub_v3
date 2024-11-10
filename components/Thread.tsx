@@ -14,27 +14,38 @@ import {
   Video, 
   BarChart2, 
   Smile, 
-  GiftIcon 
+  GiftIcon,
+  MessageCircle
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ThreadProps {
   communityId: string;
   userId: string;
   communityName: string;
+  community: any;
   onSave: (newThread: any) => void;
   onCancel: () => void;
 }
+
+const CATEGORY_ICONS = [
+  { label: 'general', icon: MessageCircle, color: '#1a1a1a' },
+  { label: 'question', icon: Video, color: '#ff0000' },
+  // Add more category icons as needed
+];
 
 export default function Thread({ 
   communityId, 
   userId, 
   communityName,
+  community,
   onSave, 
   onCancel 
 }: ThreadProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState('');
   const { user } = useAuth();
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -154,6 +165,40 @@ export default function Thread({
             {isSubmitting ? 'Posting...' : 'POST'}
           </Button>
         </div>
+      </div>
+
+      {/* Category selector */}
+      <div className="flex items-center justify-between mt-4">
+        <Select
+          value={selectedCategory}
+          onValueChange={setSelectedCategory}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Select a category" />
+          </SelectTrigger>
+          <SelectContent>
+            {community.threadCategories?.map((category: {
+              id: string;
+              name: string;
+              iconType: string;
+            }) => {
+              const iconConfig = CATEGORY_ICONS.find(i => i.label === category.iconType);
+              const IconComponent = iconConfig?.icon || MessageCircle;
+              
+              return (
+                <SelectItem key={category.id} value={category.id}>
+                  <div className="flex items-center space-x-2">
+                    <IconComponent 
+                      className="h-4 w-4"
+                      style={{ color: iconConfig?.color }}
+                    />
+                    <span>{category.name}</span>
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
