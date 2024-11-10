@@ -52,6 +52,7 @@ interface Thread {
     image: string;
   };
   likes?: string[];
+  comments?: any[];
 }
 
 export default function CommunityPage() {
@@ -283,6 +284,31 @@ export default function CommunityPage() {
           likes: liked 
             ? [...(prev.likes || []), user!.uid]
             : (prev.likes || []).filter(id => id !== user!.uid),
+        } : null
+      );
+    }
+  };
+
+  const handleCommentUpdate = (threadId: string, newComment: any) => {
+    setThreads(prevThreads =>
+      prevThreads.map(thread =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              comments: [...(thread.comments || []), newComment],
+              commentsCount: (thread.commentsCount || 0) + 1,
+            }
+          : thread
+      )
+    );
+
+    // Also update selected thread if open
+    if (selectedThread?.id === threadId) {
+      setSelectedThread(prev =>
+        prev ? {
+          ...prev,
+          comments: [...(prev.comments || []), newComment],
+          commentsCount: (prev.commentsCount || 0) + 1,
         } : null
       );
     }
@@ -541,6 +567,7 @@ export default function CommunityPage() {
             )?.iconType,
           }}
           onLikeUpdate={handleLikeUpdate}
+          onCommentUpdate={handleCommentUpdate}
         />
       )}
     </div>
