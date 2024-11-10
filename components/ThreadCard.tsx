@@ -5,7 +5,7 @@ import { CATEGORY_ICONS } from "@/lib/constants";
 import { formatDisplayName } from "@/lib/utils";
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'react-toastify';
+import { toast } from 'react-hot-toast';
 
 interface ThreadCardProps {
   title: string;
