@@ -331,6 +331,12 @@ export default function CommunityPage() {
     }
   };
 
+  // Add handleThreadDelete function
+  const handleThreadDelete = (threadId: string) => {
+    setThreads(prevThreads => prevThreads.filter(thread => thread.id !== threadId));
+    setSelectedThread(null);
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -586,6 +592,7 @@ export default function CommunityPage() {
           onLikeUpdate={handleLikeUpdate}
           onCommentUpdate={handleCommentUpdate}
           onThreadUpdate={handleThreadUpdate}
+          onDelete={handleThreadDelete}
         />
       )}
     </div>

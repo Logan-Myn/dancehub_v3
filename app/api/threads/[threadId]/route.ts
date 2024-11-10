@@ -33,4 +33,24 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { threadId: string } }
+) {
+  try {
+    const { threadId } = params;
+
+    // Delete the thread
+    await adminDb.collection('threads').doc(threadId).delete();
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting thread:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete thread' },
+      { status: 500 }
+    );
+  }
 } 
