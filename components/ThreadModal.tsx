@@ -4,7 +4,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThumbsUp, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
-import { Button } from "./ui/button";
+import { formatDisplayName } from "@/lib/utils";
+import { CATEGORY_ICONS } from "@/lib/constants";
 
 interface ThreadModalProps {
   isOpen: boolean;
@@ -21,11 +22,17 @@ interface ThreadModalProps {
     likesCount: number;
     commentsCount: number;
     category?: string;
-    communityName: string;
+    categoryType?: string;
   };
 }
 
 export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProps) {
+  const formattedAuthorName = formatDisplayName(thread.author.name);
+  
+  // Get the icon configuration for the category
+  const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.categoryType);
+  const IconComponent = iconConfig?.icon || MessageSquare;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[700px] p-0">
@@ -33,12 +40,12 @@ export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProp
           {/* Author info and metadata */}
           <div className="flex items-center space-x-2 mb-4">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={thread.author.image} alt={thread.author.name} />
-              <AvatarFallback>{thread.author.name[0]}</AvatarFallback>
+              <AvatarImage src={thread.author.image} alt={formattedAuthorName} />
+              <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <span className="font-medium">{thread.author.name}</span>
+                <span className="font-medium">{formattedAuthorName}</span>
                 <span className="text-gray-500">·</span>
                 <span className="text-gray-500">
                   {formatDistanceToNow(new Date(thread.createdAt))} ago
@@ -46,12 +53,17 @@ export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProp
                 {thread.category && (
                   <>
                     <span className="text-gray-500">in</span>
-                    <span className="text-blue-600">{thread.category}</span>
+                    <div className="flex items-center space-x-1">
+                      <IconComponent 
+                        className="h-4 w-4"
+                        style={{ color: iconConfig?.color }}
+                      />
+                      <span style={{ color: iconConfig?.color }}>
+                        {thread.category}
+                      </span>
+                    </div>
                   </>
                 )}
-              </div>
-              <div className="text-sm text-gray-500">
-                in {thread.communityName}
               </div>
             </div>
           </div>
@@ -74,8 +86,6 @@ export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProp
               <span>{thread.commentsCount}</span>
             </button>
           </div>
-
-          {/* Comments section could be added here */}
         </div>
       </DialogContent>
     </Dialog>

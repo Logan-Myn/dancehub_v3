@@ -503,7 +503,9 @@ export default function CommunityPage() {
           onClose={() => setSelectedThread(null)}
           thread={{
             ...selectedThread,
-            communityName: community.name,
+            categoryType: community.threadCategories?.find(
+              cat => cat.id === selectedThread.categoryId
+            )?.iconType,
           }}
         />
       )}

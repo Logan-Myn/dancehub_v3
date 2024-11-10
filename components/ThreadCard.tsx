@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThumbsUp, MessageSquare, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { CATEGORY_ICONS } from "@/lib/constants";
+import { formatDisplayName } from "@/lib/utils";
 
 interface ThreadCardProps {
   title: string;
@@ -32,6 +33,7 @@ export default function ThreadCard({
 }: ThreadCardProps) {
   const iconConfig = CATEGORY_ICONS.find(i => i.label === categoryType);
   const IconComponent = iconConfig?.icon || MessageCircle;
+  const formattedAuthorName = formatDisplayName(author.name);
 
   return (
     <div 
@@ -41,12 +43,12 @@ export default function ThreadCard({
       {/* Author info and metadata */}
       <div className="flex items-center space-x-2 mb-3">
         <Avatar className="h-10 w-10">
-          <AvatarImage src={author.image} alt={author.name} />
-          <AvatarFallback>{author.name[0]}</AvatarFallback>
+          <AvatarImage src={author.image} alt={formattedAuthorName} />
+          <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
           <div className="flex items-center space-x-2">
-            <span className="font-medium">{author.name}</span>
+            <span className="font-medium">{formattedAuthorName}</span>
             <span className="text-gray-500">·</span>
             <span className="text-gray-500">
               {formatDistanceToNow(new Date(createdAt))} ago
