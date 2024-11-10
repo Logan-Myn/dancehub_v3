@@ -8,7 +8,7 @@ import { formatDisplayName } from "@/lib/utils";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Comment from "./Comment";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
@@ -49,12 +49,37 @@ interface ThreadModalProps {
         image: string;
       };
       createdAt: string;
+      replies?: any[];
+      parentId?: string;
     }[];
   };
   onLikeUpdate: (threadId: string, newLikesCount: number, liked: boolean) => void;
   onCommentUpdate?: (threadId: string, newComment: any) => void;
-  onThreadUpdate?: (threadId: string, updates: { title: string; content: string }) => void;
+  onThreadUpdate?: (threadId: string, updates: { 
+    title?: string; 
+    content?: string; 
+    comments?: any[];
+    commentsCount?: number;
+  }) => void;
   onDelete?: (threadId: string) => void;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  author: {
+    name: string;
+    image: string;
+  };
+  createdAt: string;
+  replies?: Comment[];
+  parentId?: string;
+}
+
+interface CommentProps extends Comment {
+  threadId: string;
+  onReply: (commentId: string, content: string) => Promise<void>;
+  replies?: CommentProps[];
 }
 
 export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onCommentUpdate, onThreadUpdate, onDelete }: ThreadModalProps) {
@@ -214,6 +239,84 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     }
   };
 
+  const handleReply = async (commentId: string, content: string) => {
+    try {
+      const response = await fetch(`/api/threads/${thread.id}/comments/${commentId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          userId: user?.uid,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to post reply');
+
+      const newReply = await response.json();
+
+      // Create a new comments array with the reply added
+      const updatedComments = [...(thread.comments || []), newReply];
+
+      // Update the thread with new comments
+      onThreadUpdate?.(thread.id, {
+        ...thread,
+        comments: updatedComments,
+        commentsCount: (thread.commentsCount || 0) + 1,
+      });
+
+      return newReply;
+    } catch (error) {
+      console.error('Error posting reply:', error);
+      throw error;
+    }
+  };
+
+  // Organize comments into a hierarchical structure
+  const organizeComments = (rawComments: any) => {
+    // Ensure comments is an array and handle undefined/null cases
+    const comments = Array.isArray(rawComments) ? rawComments : [];
+    
+    const commentMap = new Map();
+    const topLevelComments: Comment[] = [];
+
+    // First pass: Create a map of all comments
+    for (const comment of comments) {
+      commentMap.set(comment.id, { ...comment, replies: [] });
+    }
+
+    // Second pass: Organize into hierarchy
+    for (const comment of comments) {
+      const commentWithReplies = commentMap.get(comment.id);
+      if (comment.parentId) {
+        // This is a reply - add it to its parent's replies
+        const parent = commentMap.get(comment.parentId);
+        if (parent) {
+          parent.replies.push(commentWithReplies);
+        }
+      } else {
+        // This is a top-level comment
+        topLevelComments.push(commentWithReplies);
+      }
+    }
+
+    return topLevelComments;
+  };
+
+  const organizedComments = useMemo(() => 
+    organizeComments(thread.comments),
+    [thread.comments]
+  );
+
+  // Add this helper function before the return statement
+  const mapCommentToProps = (comment: Comment): CommentProps => ({
+    ...comment,
+    threadId: thread.id,
+    onReply: handleReply,
+    replies: comment.replies?.map(mapCommentToProps)
+  });
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -349,17 +452,15 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 </form>
               </div>
 
-              {/* Comments list */}
+              {/* Comments list - now using organized comments */}
               <div className="space-y-4">
-                {thread.comments?.map((comment) => (
+                {organizedComments.map((comment) => (
                   <Comment
                     key={comment.id}
-                    author={comment.author}
-                    content={comment.content}
-                    createdAt={comment.createdAt}
+                    {...mapCommentToProps(comment)}
                   />
                 ))}
-                {!thread.comments?.length && (
+                {!organizedComments.length && (
                   <p className="text-gray-500 text-sm text-center">No comments yet</p>
                 )}
               </div>

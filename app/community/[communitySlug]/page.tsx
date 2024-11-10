@@ -314,7 +314,7 @@ export default function CommunityPage() {
     }
   };
 
-  const handleThreadUpdate = (threadId: string, updates: { title: string; content: string }) => {
+  const handleThreadUpdate = (threadId: string, updates: any) => {
     setThreads(prevThreads =>
       prevThreads.map(thread =>
         thread.id === threadId
