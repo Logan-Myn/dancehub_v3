@@ -17,6 +17,7 @@ import PaymentModal from "@/components/PaymentModal";
 import Thread from '@/components/Thread';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import ThreadCard from '@/components/ThreadCard';
+import ThreadModal from '@/components/ThreadModal';
 
 interface Community {
   id: string;
@@ -64,6 +65,7 @@ export default function CommunityPage() {
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [isWriting, setIsWriting] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -303,6 +305,7 @@ export default function CommunityPage() {
                     commentsCount={thread.commentsCount}
                     category={thread.category}
                     communityName={community.name}
+                    onClick={() => setSelectedThread(thread)}
                   />
                 ))}
               </div>
@@ -450,6 +453,17 @@ export default function CommunityPage() {
         price={community?.membershipPrice || 0}
         onSuccess={handlePaymentSuccess}
       />
+
+      {selectedThread && (
+        <ThreadModal
+          isOpen={!!selectedThread}
+          onClose={() => setSelectedThread(null)}
+          thread={{
+            ...selectedThread,
+            communityName: community.name,
+          }}
+        />
+      )}
     </div>
   );
 } 

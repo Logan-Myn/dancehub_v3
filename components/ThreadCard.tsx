@@ -14,6 +14,7 @@ interface ThreadCardProps {
   commentsCount: number;
   category?: string;
   communityName: string;
+  onClick: () => void;
 }
 
 export default function ThreadCard({
@@ -24,10 +25,14 @@ export default function ThreadCard({
   likesCount,
   commentsCount,
   category,
-  communityName
+  communityName,
+  onClick,
 }: ThreadCardProps) {
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
+    <div 
+      className="bg-white rounded-lg shadow p-4 mb-4 cursor-pointer hover:shadow-md transition-shadow"
+      onClick={onClick}
+    >
       {/* Author info and metadata */}
       <div className="flex items-center space-x-2 mb-3">
         <Avatar className="h-10 w-10">
