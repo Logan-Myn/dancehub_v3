@@ -24,7 +24,20 @@ export async function POST(request: Request) {
     switch (event.type) {
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        
+        // Validate metadata exists
+        if (!paymentIntent.metadata?.userId || !paymentIntent.metadata?.communityId) {
+          console.error('Missing metadata in payment intent:', paymentIntent.id);
+          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        }
+
         const { userId, communityId } = paymentIntent.metadata;
+
+        // Validate userId and communityId are non-empty strings
+        if (!userId || !communityId || typeof userId !== 'string' || typeof communityId !== 'string') {
+          console.error('Invalid metadata values:', { userId, communityId });
+          return NextResponse.json({ error: 'Invalid metadata values' }, { status: 400 });
+        }
 
         // Add user to community members
         await adminDb
@@ -35,51 +48,45 @@ export async function POST(request: Request) {
             updatedAt: new Date().toISOString(),
           });
 
-        // Create membership record
-        await adminDb.collection('memberships').doc(`${communityId}_${userId}`).set({
-          userId,
-          communityId,
-          status: 'active',
-          startDate: new Date().toISOString(),
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency,
-        });
+        // Create membership record with a valid document ID
+        const membershipId = `${communityId}_${userId}`;
+        await adminDb
+          .collection('memberships')
+          .doc(membershipId)
+          .set({
+            userId,
+            communityId,
+            status: 'active',
+            startDate: new Date().toISOString(),
+            paymentIntentId: paymentIntent.id,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency,
+          });
         break;
 
       case 'invoice.payment_succeeded':
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription) {
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
-          const { userId: subUserId, communityId: subCommunityId } = subscription.metadata;
+          
+          // Validate subscription metadata
+          if (!subscription.metadata?.userId || !subscription.metadata?.communityId) {
+            console.error('Missing metadata in subscription:', subscription.id);
+            return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+          }
 
-          // Update membership record with new payment
-          await adminDb.collection('memberships').doc(`${subCommunityId}_${subUserId}`).update({
-            status: 'active',
-            lastPaymentDate: new Date().toISOString(),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-          });
+          const subMembershipId = `${subscription.metadata.communityId}_${subscription.metadata.userId}`;
+          
+          // Update membership record
+          await adminDb
+            .collection('memberships')
+            .doc(subMembershipId)
+            .update({
+              status: 'active',
+              lastPaymentDate: new Date().toISOString(),
+              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            });
         }
-        break;
-
-      case 'customer.subscription.deleted':
-        const deletedSubscription = event.data.object as Stripe.Subscription;
-        const { userId: deletedUserId, communityId: deletedCommunityId } = deletedSubscription.metadata;
-
-        // Remove user from community
-        await adminDb
-          .collection('communities')
-          .doc(deletedCommunityId)
-          .update({
-            members: FieldValue.arrayRemove(deletedUserId),
-            updatedAt: new Date().toISOString(),
-          });
-
-        // Update membership status
-        await adminDb.collection('memberships').doc(`${deletedCommunityId}_${deletedUserId}`).update({
-          status: 'cancelled',
-          cancelledAt: new Date().toISOString(),
-        });
         break;
     }
 
