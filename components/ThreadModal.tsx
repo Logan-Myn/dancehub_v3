@@ -6,6 +6,9 @@ import { ThumbsUp, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName } from "@/lib/utils";
 import { CATEGORY_ICONS } from "@/lib/constants";
+import { toast } from "react-hot-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 
 interface ThreadModalProps {
   isOpen: boolean;
@@ -23,15 +26,46 @@ interface ThreadModalProps {
     commentsCount: number;
     category?: string;
     categoryType?: string;
+    likes?: string[];
   };
+  onLikeUpdate: (threadId: string, newLikesCount: number, liked: boolean) => void;
 }
 
-export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProps) {
-  const formattedAuthorName = formatDisplayName(thread.author.name);
+export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate }: ThreadModalProps) {
+  const { user } = useAuth();
+  const [isLiking, setIsLiking] = useState(false);
+  const isLiked = user ? thread.likes?.includes(user.uid) : false;
   
-  // Get the icon configuration for the category
+  const formattedAuthorName = formatDisplayName(thread.author.name);
   const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.categoryType);
   const IconComponent = iconConfig?.icon || MessageSquare;
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!user) {
+      toast.error('Please sign in to like threads');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/threads/${thread.id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+
+      if (!response.ok) throw new Error('Failed to like thread');
+
+      const data = await response.json();
+      onLikeUpdate(thread.id, data.likesCount, data.liked);
+    } catch (error) {
+      console.error('Error liking thread:', error);
+      toast.error('Failed to like thread');
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -77,7 +111,12 @@ export default function ThreadModal({ isOpen, onClose, thread }: ThreadModalProp
 
           {/* Interaction buttons */}
           <div className="flex items-center space-x-4 text-gray-500 border-t pt-4">
-            <button className="flex items-center space-x-1 hover:text-gray-700">
+            <button 
+              onClick={handleLike}
+              className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
+                isLiked ? 'text-blue-500' : ''
+              }`}
+            >
               <ThumbsUp className="h-5 w-5" />
               <span>{thread.likesCount}</span>
             </button>

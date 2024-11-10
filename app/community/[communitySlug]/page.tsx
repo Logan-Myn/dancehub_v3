@@ -51,6 +51,7 @@ interface Thread {
     name: string;
     image: string;
   };
+  likes?: string[];
 }
 
 export default function CommunityPage() {
@@ -258,6 +259,35 @@ export default function CommunityPage() {
     });
   }, [threads, selectedCategory]);
 
+  const handleLikeUpdate = (threadId: string, newLikesCount: number, liked: boolean) => {
+    setThreads(prevThreads =>
+      prevThreads.map(thread =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              likesCount: newLikesCount,
+              likes: liked 
+                ? [...(thread.likes || []), user!.uid]
+                : (thread.likes || []).filter(id => id !== user!.uid),
+            }
+          : thread
+      )
+    );
+
+    // Also update selected thread if open
+    if (selectedThread?.id === threadId) {
+      setSelectedThread(prev => 
+        prev ? {
+          ...prev,
+          likesCount: newLikesCount,
+          likes: liked 
+            ? [...(prev.likes || []), user!.uid]
+            : (prev.likes || []).filter(id => id !== user!.uid),
+        } : null
+      );
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -327,6 +357,7 @@ export default function CommunityPage() {
                 {filteredThreads.map((thread) => (
                   <ThreadCard
                     key={thread.id}
+                    id={thread.id}
                     title={thread.title}
                     content={thread.content}
                     author={thread.author}
@@ -338,6 +369,8 @@ export default function CommunityPage() {
                       cat => cat.id === thread.categoryId
                     )?.iconType}
                     onClick={() => setSelectedThread(thread)}
+                    likes={thread.likes}
+                    onLikeUpdate={handleLikeUpdate}
                   />
                 ))}
                 {filteredThreads.length === 0 && (
@@ -507,6 +540,7 @@ export default function CommunityPage() {
               cat => cat.id === selectedThread.categoryId
             )?.iconType,
           }}
+          onLikeUpdate={handleLikeUpdate}
         />
       )}
     </div>

@@ -3,6 +3,9 @@ import { ThumbsUp, MessageSquare, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { formatDisplayName } from "@/lib/utils";
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'react-toastify';
 
 interface ThreadCardProps {
   title: string;
@@ -18,6 +21,9 @@ interface ThreadCardProps {
   categoryId?: string;
   categoryType?: string;
   onClick: () => void;
+  id: string;
+  likes?: string[];
+  onLikeUpdate?: (threadId: string, newLikesCount: number, liked: boolean) => void;
 }
 
 export default function ThreadCard({
@@ -30,10 +36,49 @@ export default function ThreadCard({
   category,
   categoryType,
   onClick,
+  id,
+  likes = [],
+  onLikeUpdate,
 }: ThreadCardProps) {
+  const { user } = useAuth();
+  const [isLiking, setIsLiking] = useState(false);
+  const isLiked = user ? likes.includes(user.uid) : false;
+
   const iconConfig = CATEGORY_ICONS.find(i => i.label === categoryType);
   const IconComponent = iconConfig?.icon || MessageCircle;
   const formattedAuthorName = formatDisplayName(author.name);
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening thread modal when clicking like
+
+    if (!user) {
+      toast.error('Please sign in to like threads');
+      return;
+    }
+
+    if (isLiking) return;
+
+    setIsLiking(true);
+    try {
+      const response = await fetch(`/api/threads/${id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+
+      if (!response.ok) throw new Error('Failed to like thread');
+
+      const data = await response.json();
+      onLikeUpdate?.(id, data.likesCount, data.liked);
+    } catch (error) {
+      console.error('Error liking thread:', error);
+      toast.error('Failed to like thread');
+    } finally {
+      setIsLiking(false);
+    }
+  };
 
   return (
     <div 
@@ -78,8 +123,14 @@ export default function ThreadCard({
 
       {/* Interaction buttons */}
       <div className="flex items-center space-x-4 text-gray-500">
-        <button className="flex items-center space-x-1 hover:text-gray-700">
-          <ThumbsUp className="h-5 w-5" />
+        <button 
+          onClick={handleLike}
+          className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
+            isLiked ? 'text-blue-500' : ''
+          }`}
+          disabled={isLiking}
+        >
+          <ThumbsUp className={`h-5 w-5 ${isLiking ? 'animate-pulse' : ''}`} />
           <span>{likesCount}</span>
         </button>
         <button className="flex items-center space-x-1 hover:text-gray-700">
