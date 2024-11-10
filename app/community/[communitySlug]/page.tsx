@@ -314,6 +314,23 @@ export default function CommunityPage() {
     }
   };
 
+  const handleThreadUpdate = (threadId: string, updates: { title: string; content: string }) => {
+    setThreads(prevThreads =>
+      prevThreads.map(thread =>
+        thread.id === threadId
+          ? { ...thread, ...updates }
+          : thread
+      )
+    );
+
+    // Also update selected thread if open
+    if (selectedThread?.id === threadId) {
+      setSelectedThread(prev =>
+        prev ? { ...prev, ...updates } : null
+      );
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -568,6 +585,7 @@ export default function CommunityPage() {
           }}
           onLikeUpdate={handleLikeUpdate}
           onCommentUpdate={handleCommentUpdate}
+          onThreadUpdate={handleThreadUpdate}
         />
       )}
     </div>
