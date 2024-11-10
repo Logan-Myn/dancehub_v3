@@ -3,4 +3,5 @@ export interface ThreadCategory {
   name: string;
   iconType: string;
   description?: string;
+  creatorOnly?: boolean;
 } 

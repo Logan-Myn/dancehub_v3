@@ -17,7 +17,7 @@ import {
 import { storage, auth } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-hot-toast";
-import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -327,7 +327,7 @@ export default function CommunitySettingsModal({
     setCategories(categories.filter(cat => cat.id !== id));
   };
 
-  const handleCategoryChange = (id: string, field: keyof ThreadCategory, value: string) => {
+  const handleCategoryChange = (id: string, field: keyof ThreadCategory, value: string | boolean) => {
     setCategories(categories.map(cat => 
       cat.id === id ? { ...cat, [field]: value } : cat
     ));
@@ -477,44 +477,66 @@ export default function CommunitySettingsModal({
           const IconComponent = selectedIcon?.icon || MessageCircle;
 
           return (
-            <div key={category.id} className="flex items-center space-x-2">
-              <div className="flex items-center space-x-2 p-2 rounded bg-gray-50">
-                <IconComponent 
-                  className="h-5 w-5"
-                  style={{ color: selectedIcon?.color }}
+            <div key={category.id} className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 p-2 rounded bg-gray-50">
+                  <IconComponent 
+                    className="h-5 w-5"
+                    style={{ color: selectedIcon?.color }}
+                  />
+                </div>
+                <Input
+                  placeholder="Category name"
+                  value={category.name}
+                  onChange={(e) => handleCategoryChange(category.id, 'name', e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={category.iconType}
+                  onValueChange={(value) => handleCategoryChange(category.id, 'iconType', value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select icon" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_ICONS.map((icon) => (
+                      <SelectItem key={icon.label} value={icon.label}>
+                        <div className="flex items-center space-x-2">
+                          <icon.icon className="h-4 w-4" style={{ color: icon.color }} />
+                          <span>{icon.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveCategory(category.id)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Add posting permissions switch */}
+              <div className="flex items-center justify-between pl-12 pr-2 py-2 bg-gray-50 rounded">
+                <div className="flex items-center space-x-2">
+                  {category.creatorOnly ? (
+                    <Lock className="h-4 w-4 text-amber-600" />
+                  ) : (
+                    <Users className="h-4 w-4 text-green-600" />
+                  )}
+                  <span className="text-sm text-gray-600">
+                    {category.creatorOnly ? 'Creator only' : 'All members can post'}
+                  </span>
+                </div>
+                <Switch
+                  checked={!category.creatorOnly}
+                  onCheckedChange={(checked) => 
+                    handleCategoryChange(category.id, 'creatorOnly', !checked)
+                  }
                 />
               </div>
-              <Input
-                placeholder="Category name"
-                value={category.name}
-                onChange={(e) => handleCategoryChange(category.id, 'name', e.target.value)}
-                className="flex-1"
-              />
-              <Select
-                value={category.iconType}
-                onValueChange={(value) => handleCategoryChange(category.id, 'iconType', value)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select icon" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_ICONS.map((icon) => (
-                    <SelectItem key={icon.label} value={icon.label}>
-                      <div className="flex items-center space-x-2">
-                        <icon.icon className="h-4 w-4" style={{ color: icon.color }} />
-                        <span>{icon.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveCategory(category.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           );
         })}

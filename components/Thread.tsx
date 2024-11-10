@@ -124,6 +124,10 @@ export default function Thread({
                 const iconConfig = CATEGORY_ICONS.find(i => i.label === category.iconType);
                 const IconComponent = iconConfig?.icon || MessageCircle;
                 
+                if (category.creatorOnly && community.createdBy !== userId) {
+                  return null;
+                }
+                
                 return (
                   <SelectItem key={category.id} value={category.id}>
                     <div className="flex items-center space-x-2">
