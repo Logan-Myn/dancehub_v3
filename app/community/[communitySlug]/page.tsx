@@ -322,20 +322,12 @@ export default function CommunityPage() {
                       Manage Community
                     </Button>
                   ) : isMember ? (
-                    <div className="space-y-2">
-                      <Button
-                        onClick={handleLeaveCommunity}
-                        className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
-                      >
-                        Leave Community
-                      </Button>
-                      <Button
-                        onClick={handleCheckSubscription}
-                        className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800"
-                      >
-                        Check Subscription Status
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleLeaveCommunity}
+                      className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      Leave Community
+                    </Button>
                   ) : (
                     <Button
                       onClick={handleJoinCommunity}
@@ -395,15 +387,6 @@ export default function CommunityPage() {
         price={community?.membershipPrice || 0}
         onSuccess={handlePaymentSuccess}
       />
-
-      {user && (
-        <Button
-          onClick={handleCheckSubscription}
-          className="w-full mt-2 bg-gray-200 hover:bg-gray-300 text-gray-800"
-        >
-          Test Webhook Connection
-        </Button>
-      )}
     </div>
   );
 } 
