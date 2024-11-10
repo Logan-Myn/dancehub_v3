@@ -22,6 +22,21 @@ import { Switch } from "@/components/ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThreadCategory } from "@/types/community";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { DraggableCategory } from './DraggableCategory';
 
 interface CustomLink {
   title: string;
@@ -353,6 +368,26 @@ export default function CommunitySettingsModal({
     }
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setCategories((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
   const renderSubscriptions = () => (
     <div className="space-y-6">
       <div className="bg-gray-50 rounded-lg p-6">
@@ -471,76 +506,27 @@ export default function CommunitySettingsModal({
         </Button>
       </div>
 
-      <div className="space-y-4">
-        {categories.map((category) => {
-          const selectedIcon = CATEGORY_ICONS.find(i => i.label === category.iconType);
-          const IconComponent = selectedIcon?.icon || MessageCircle;
-
-          return (
-            <div key={category.id} className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-2 p-2 rounded bg-gray-50">
-                  <IconComponent 
-                    className="h-5 w-5"
-                    style={{ color: selectedIcon?.color }}
-                  />
-                </div>
-                <Input
-                  placeholder="Category name"
-                  value={category.name}
-                  onChange={(e) => handleCategoryChange(category.id, 'name', e.target.value)}
-                  className="flex-1"
-                />
-                <Select
-                  value={category.iconType}
-                  onValueChange={(value) => handleCategoryChange(category.id, 'iconType', value)}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select icon" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_ICONS.map((icon) => (
-                      <SelectItem key={icon.label} value={icon.label}>
-                        <div className="flex items-center space-x-2">
-                          <icon.icon className="h-4 w-4" style={{ color: icon.color }} />
-                          <span>{icon.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveCategory(category.id)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {/* Add posting permissions switch */}
-              <div className="flex items-center justify-between pl-12 pr-2 py-2 bg-gray-50 rounded">
-                <div className="flex items-center space-x-2">
-                  {category.creatorOnly ? (
-                    <Lock className="h-4 w-4 text-amber-600" />
-                  ) : (
-                    <Users className="h-4 w-4 text-green-600" />
-                  )}
-                  <span className="text-sm text-gray-600">
-                    {category.creatorOnly ? 'Creator only' : 'All members can post'}
-                  </span>
-                </div>
-                <Switch
-                  checked={!category.creatorOnly}
-                  onCheckedChange={(checked) => 
-                    handleCategoryChange(category.id, 'creatorOnly', !checked)
-                  }
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={categories.map(cat => cat.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4">
+            {categories.map((category) => (
+              <DraggableCategory
+                key={category.id}
+                category={category}
+                onRemove={handleRemoveCategory}
+                onChange={handleCategoryChange}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {categories.length > 0 && (
         <Button
