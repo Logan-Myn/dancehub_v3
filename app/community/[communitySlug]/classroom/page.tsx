@@ -119,7 +119,7 @@ export default function ClassroomPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {courses.map((course) => (
-              <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}`}>
+              <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}?isCreator=${isCreator}`}>
                 <CourseCard 
                   course={course} 
                   onClick={() => {}} // Empty onClick to satisfy prop requirement

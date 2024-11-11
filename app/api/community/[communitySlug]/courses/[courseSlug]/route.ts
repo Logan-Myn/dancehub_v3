@@ -40,7 +40,36 @@ export async function GET(
       );
     }
 
-    const course = courseDoc.docs[0].data();
+    const courseRef = courseDoc.docs[0].ref;
+
+    // Get the chapters subcollection
+    const chaptersSnapshot = await courseRef.collection("chapters").get();
+
+    const chapters = await Promise.all(
+      chaptersSnapshot.docs.map(async (chapterDoc) => {
+        const chapterData = chapterDoc.data();
+
+        // Get the lessons subcollection for each chapter
+        const lessonsSnapshot = await chapterDoc.ref.collection("lessons").get();
+
+        const lessons = lessonsSnapshot.docs.map((lessonDoc) => ({
+          id: lessonDoc.id,
+          ...lessonDoc.data(),
+        }));
+
+        return {
+          id: chapterDoc.id,
+          ...chapterData,
+          lessons,
+        };
+      })
+    );
+
+    const course = {
+      id: courseDoc.docs[0].id,
+      ...courseDoc.docs[0].data(),
+      chapters,
+    };
 
     return NextResponse.json(course);
   } catch (error) {
