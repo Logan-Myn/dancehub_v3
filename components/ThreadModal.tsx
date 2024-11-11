@@ -51,6 +51,8 @@ interface ThreadModalProps {
       createdAt: string;
       replies?: any[];
       parentId?: string;
+      likes?: string[];
+      likesCount?: number;
     }[];
   };
   onLikeUpdate: (threadId: string, newLikesCount: number, liked: boolean) => void;
@@ -74,6 +76,8 @@ interface Comment {
   createdAt: string;
   replies?: Comment[];
   parentId?: string;
+  likes?: string[];
+  likesCount?: number;
 }
 
 interface CommentProps extends Comment {
@@ -317,6 +321,45 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     replies: comment.replies?.map(mapCommentToProps)
   });
 
+  const handleCommentLikeUpdate = (commentId: string, newLikesCount: number, liked: boolean) => {
+    // Update the comments array with the new like state
+    const updatedComments = (thread.comments || []).map(comment => {
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          likes: liked 
+            ? [...(comment.likes || []), user!.uid]
+            : (comment.likes || []).filter(id => id !== user!.uid),
+          likesCount: newLikesCount
+        };
+      }
+      // Also check nested replies
+      if (comment.replies?.length) {
+        return {
+          ...comment,
+          replies: comment.replies.map(reply => 
+            reply.id === commentId
+              ? {
+                  ...reply,
+                  likes: liked 
+                    ? [...(reply.likes || []), user!.uid]
+                    : (reply.likes || []).filter((id: string) => id !== user!.uid),
+                  likesCount: newLikesCount
+                }
+              : reply
+          )
+        };
+      }
+      return comment;
+    });
+
+    // Update the thread with new comments
+    onThreadUpdate?.(thread.id, {
+      ...thread,
+      comments: updatedComments
+    });
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -452,12 +495,13 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 </form>
               </div>
 
-              {/* Comments list - now using organized comments */}
+              {/* Comments list - now passing handleCommentLikeUpdate */}
               <div className="space-y-4">
                 {organizedComments.map((comment) => (
                   <Comment
                     key={comment.id}
                     {...mapCommentToProps(comment)}
+                    onLikeUpdate={handleCommentLikeUpdate}
                   />
                 ))}
                 {!organizedComments.length && (

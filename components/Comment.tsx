@@ -8,6 +8,7 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
+import { ThumbsUp } from "lucide-react";
 
 interface CommentProps {
   id: string;
@@ -20,7 +21,10 @@ interface CommentProps {
   createdAt: string;
   replies?: CommentProps[];
   onReply: (commentId: string, content: string) => Promise<void>;
-  depth?: number; // Add depth prop to track nesting level
+  depth?: number;
+  likes?: string[];
+  likesCount?: number;
+  onLikeUpdate?: (commentId: string, newLikesCount: number, liked: boolean) => void;
 }
 
 export default function Comment({ 
@@ -31,15 +35,71 @@ export default function Comment({
   createdAt, 
   replies = [], 
   onReply,
-  depth = 0 // Default depth is 0 for top-level comments
+  depth = 0,
+  likes = [],
+  likesCount = 0,
+  onLikeUpdate,
 }: CommentProps) {
   const { user } = useAuth();
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [localLikes, setLocalLikes] = useState(likes);
+  const [localLikesCount, setLocalLikesCount] = useState(likesCount);
 
   const formattedAuthorName = formatDisplayName(author.name);
-  const maxDepth = 5; // Maximum nesting depth
+  const maxDepth = 5;
+  const isLiked = user ? localLikes.includes(user.uid) : false;
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!user) {
+      toast.error('Please sign in to like comments');
+      return;
+    }
+
+    if (isLiking) return;
+
+    setIsLiking(true);
+
+    const newLikes = isLiked
+      ? localLikes.filter(id => id !== user.uid)
+      : [...localLikes, user.uid];
+    
+    setLocalLikes(newLikes);
+    setLocalLikesCount(newLikes.length);
+    onLikeUpdate?.(id, newLikes.length, !isLiked);
+
+    try {
+      const response = await fetch(`/api/threads/${threadId}/comments/${id}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to like comment');
+      }
+
+      const data = await response.json();
+      
+      setLocalLikes(isLiked ? localLikes.filter(id => id !== user.uid) : [...localLikes, user.uid]);
+      setLocalLikesCount(data.likesCount);
+      onLikeUpdate?.(id, data.likesCount, data.liked);
+    } catch (error) {
+      setLocalLikes(likes);
+      setLocalLikesCount(likesCount);
+      onLikeUpdate?.(id, likesCount, isLiked);
+      console.error('Error liking comment:', error);
+      toast.error('Failed to like comment');
+    } finally {
+      setIsLiking(false);
+    }
+  };
 
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,8 +145,18 @@ export default function Comment({
           </div>
           <p className="mt-1 text-gray-800">{content}</p>
           
-          {/* Reply button and form */}
-          <div className="mt-2">
+          <div className="mt-2 flex items-center space-x-4">
+            <button 
+              onClick={handleLike}
+              className={`flex items-center space-x-1 text-sm ${
+                isLiked ? 'text-blue-500' : 'text-gray-500'
+              } hover:text-blue-500 transition-colors`}
+              disabled={isLiking}
+            >
+              <ThumbsUp className="h-4 w-4" />
+              <span>{localLikesCount}</span>
+            </button>
+
             {!isReplying && depth < maxDepth && (
               <Button
                 variant="ghost"
@@ -97,40 +167,39 @@ export default function Comment({
                 Reply
               </Button>
             )}
-            
-            {isReplying && (
-              <form onSubmit={handleSubmitReply} className="mt-2">
-                <Textarea
-                  value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
-                  placeholder="Write a reply..."
-                  className="min-h-[80px] mb-2"
-                />
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setIsReplying(false);
-                      setReplyContent('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={isSubmitting || !replyContent.trim()}
-                  >
-                    {isSubmitting ? 'Posting...' : 'Post'}
-                  </Button>
-                </div>
-              </form>
-            )}
           </div>
 
-          {/* Nested replies */}
+          {isReplying && (
+            <form onSubmit={handleSubmitReply} className="mt-2">
+              <Textarea
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                placeholder="Write a reply..."
+                className="min-h-[80px] mb-2"
+              />
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsReplying(false);
+                    setReplyContent('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmitting || !replyContent.trim()}
+                >
+                  {isSubmitting ? 'Posting...' : 'Post'}
+                </Button>
+              </div>
+            </form>
+          )}
+
           {replies && replies.length > 0 && (
             <div className="mt-4">
               {replies.map((reply) => (
@@ -139,6 +208,7 @@ export default function Comment({
                   {...reply}
                   depth={depth + 1}
                   onReply={onReply}
+                  onLikeUpdate={onLikeUpdate}
                 />
               ))}
             </div>
