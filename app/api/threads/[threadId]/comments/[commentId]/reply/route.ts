@@ -8,7 +8,7 @@ export async function POST(
 ) {
   try {
     const { content, userId } = await request.json();
-    const { threadId, commentId } = params;
+    const { threadId } = params;
 
     // Get user data
     const userRecord = await adminAuth.getUser(userId);
@@ -22,24 +22,25 @@ export async function POST(
         image: userRecord.photoURL || '',
       },
       createdAt: new Date().toISOString(),
-      parentId: commentId,
+      parentId: params.commentId,
     };
 
     // Get the thread document
     const threadRef = adminDb.collection('threads').doc(threadId);
     const threadDoc = await threadRef.get();
-    
+
     if (!threadDoc.exists) {
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
     }
 
+    // Get current comments array
     const threadData = threadDoc.data();
     const comments = threadData?.comments || [];
-    
-    // Add the reply to the comments array
-    const updatedComments = comments.concat(reply);
 
-    // Update the thread with the new comments array
+    // Add new reply to the comments array
+    const updatedComments = [...comments, reply];
+
+    // Update the thread with the new reply
     await threadRef.update({
       comments: updatedComments,
       commentsCount: FieldValue.increment(1),
