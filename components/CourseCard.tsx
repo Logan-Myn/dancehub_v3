@@ -3,11 +3,15 @@ import Image from "next/image";
 
 interface CourseCardProps {
   course: Course;
+  onClick: () => void;
 }
 
-export default function CourseCard({ course }: CourseCardProps) {
+export default function CourseCard({ course, onClick }: CourseCardProps) {
   return (
-    <div className="bg-white shadow-md rounded-lg overflow-hidden">
+    <div 
+      className="bg-white shadow-md rounded-lg overflow-hidden cursor-pointer transition-shadow duration-200 ease-in-out hover:shadow-lg"
+      onClick={onClick}
+    >
       <Image
         src={course.imageUrl}
         alt={course.title}

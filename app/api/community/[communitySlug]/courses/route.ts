@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { storage } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
+import { slugify } from "@/lib/utils";
 
 export async function GET(
   request: Request,
@@ -78,6 +79,9 @@ export async function POST(
     const description = formData.get('description') as string;
     const imageFile = formData.get('image') as File;
 
+    // Generate the slug from the title
+    const slug = slugify(title);
+
     // Upload the image to Firebase Storage
     const imageName = `${uuidv4()}.${imageFile.name.split('.').pop()}`;
     const bucket = storage.bucket();
@@ -114,6 +118,7 @@ export async function POST(
         title,
         description,
         imageUrl,
+        slug,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });

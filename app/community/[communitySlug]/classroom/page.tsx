@@ -9,6 +9,8 @@ import CommunityNavbar from "@/components/CommunityNavbar";
 import Navbar from "@/app/components/Navbar";
 import CourseCard from "@/components/CourseCard";
 import CreateCourseModal from "@/components/CreateCourseModal";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 interface Community {
   id: string;
@@ -24,6 +26,7 @@ interface Course {
   createdAt: string;
   updatedAt: string;
   image?: File;
+  slug: string;
 }
 
 export default function ClassroomPage() {
@@ -116,7 +119,12 @@ export default function ClassroomPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+              <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}`}>
+                <CourseCard 
+                  course={course} 
+                  onClick={() => {}} // Empty onClick to satisfy prop requirement
+                />
+              </Link>
             ))}
           </div>
         </div>
