@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebase-admin";
 
 export async function PATCH(
   request: Request,
@@ -9,14 +9,11 @@ export async function PATCH(
     const { title, content } = await request.json();
     const { threadId } = params;
 
-    const threadRef = adminDb.collection('threads').doc(threadId);
+    const threadRef = adminDb.collection("threads").doc(threadId);
     const threadDoc = await threadRef.get();
 
     if (!threadDoc.exists) {
-      return NextResponse.json(
-        { error: 'Thread not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
     await threadRef.update({
@@ -27,9 +24,9 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error updating thread:', error);
+    console.error("Error updating thread:", error);
     return NextResponse.json(
-      { error: 'Failed to update thread' },
+      { error: "Failed to update thread" },
       { status: 500 }
     );
   }
@@ -43,14 +40,14 @@ export async function DELETE(
     const { threadId } = params;
 
     // Delete the thread
-    await adminDb.collection('threads').doc(threadId).delete();
+    await adminDb.collection("threads").doc(threadId).delete();
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting thread:', error);
+    console.error("Error deleting thread:", error);
     return NextResponse.json(
-      { error: 'Failed to delete thread' },
+      { error: "Failed to delete thread" },
       { status: 500 }
     );
   }
-} 
+}

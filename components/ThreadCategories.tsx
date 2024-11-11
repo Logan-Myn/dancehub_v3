@@ -20,7 +20,7 @@ export default function ThreadCategories({
       <button
         onClick={() => onSelectCategory(null)}
         className={cn(
-          "flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors",
+          "flex items-center px-4 py-2 rounded-full font-medium transition-colors text-base",
           !selectedCategory 
             ? "bg-gray-900 text-white" 
             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -40,7 +40,7 @@ export default function ThreadCategories({
             key={category.id}
             onClick={() => onSelectCategory(category.id)}
             className={cn(
-              "flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
+              "flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap text-base",
               selectedCategory === category.id
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 hover:bg-gray-200"

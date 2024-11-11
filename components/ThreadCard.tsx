@@ -18,7 +18,6 @@ interface ThreadCardProps {
   likesCount: number;
   commentsCount: number;
   category?: string;
-  categoryId?: string;
   categoryType?: string;
   onClick: () => void;
   id: string;

@@ -334,6 +334,7 @@ export default function CommunitySettingsModal({
       id: crypto.randomUUID(),
       name: '',
       iconType: CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
+      color: '#000000',
     };
     setCategories([...categories, newCategory]);
   };

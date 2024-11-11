@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { NextResponse } from "next/server";
+import { adminDb, adminAuth } from "@/lib/firebase-admin";
 
 export async function GET(
   request: Request,
@@ -10,14 +10,14 @@ export async function GET(
 
     // Get community
     const communitiesSnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
+      .collection("communities")
+      .where("slug", "==", communitySlug)
       .limit(1)
       .get();
 
     if (communitiesSnapshot.empty) {
       return NextResponse.json(
-        { error: 'Community not found' },
+        { error: "Community not found" },
         { status: 404 }
       );
     }
@@ -26,9 +26,9 @@ export async function GET(
 
     // Get threads
     const threadsSnapshot = await adminDb
-      .collection('threads')
-      .where('communityId', '==', communityDoc.id)
-      .orderBy('createdAt', 'desc')
+      .collection("threads")
+      .where("communityId", "==", communityDoc.id)
+      .orderBy("createdAt", "desc")
       .get();
 
     // Get user data for each thread
@@ -41,8 +41,8 @@ export async function GET(
           id: doc.id,
           ...threadData,
           author: {
-            name: userRecord.displayName || 'Anonymous',
-            image: userRecord.photoURL || '',
+            name: userRecord.displayName || "Anonymous",
+            image: userRecord.photoURL || "",
           },
           createdAt: threadData.createdAt,
           likesCount: threadData.likes?.length || 0,
@@ -53,10 +53,10 @@ export async function GET(
 
     return NextResponse.json(threads);
   } catch (error) {
-    console.error('Error fetching threads:', error);
+    console.error("Error fetching threads:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch threads' },
+      { error: "Failed to fetch threads" },
       { status: 500 }
     );
   }
-} 
+}

@@ -11,15 +11,15 @@ import CommunityNavbar from "@/components/CommunityNavbar";
 import Navbar from "@/app/components/Navbar";
 import CommunitySettingsModal from "@/components/CommunitySettingsModal";
 import Image from "next/image";
-import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import PaymentModal from "@/components/PaymentModal";
-import Thread from '@/components/Thread';
+import Thread from "@/components/Thread";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import ThreadCard from '@/components/ThreadCard';
-import ThreadModal from '@/components/ThreadModal';
+import ThreadCard from "@/components/ThreadCard";
+import ThreadModal from "@/components/ThreadModal";
 import { ThreadCategory } from "@/types/community";
-import ThreadCategories from '@/components/ThreadCategories';
+import ThreadCategories from "@/components/ThreadCategories";
 
 interface Community {
   id: string;
@@ -78,26 +78,33 @@ export default function CommunityPage() {
     async function fetchCommunityData() {
       try {
         // Fetch community data from Firebase
-        const communityData = await fetch(`/api/community/${communitySlug}`).then(res => res.json());
+        const communityData = await fetch(
+          `/api/community/${communitySlug}`
+        ).then((res) => res.json());
         setCommunity(communityData);
 
         if (user?.uid) {
           // Check if user is a member
-          const membershipStatus = await fetch(`/api/community/${communitySlug}/membership/${user.uid}`).then(res => res.json());
+          const membershipStatus = await fetch(
+            `/api/community/${communitySlug}/membership/${user.uid}`
+          ).then((res) => res.json());
           setIsMember(membershipStatus.isMember);
         }
 
         // Fetch members
-        const membersData = await fetch(`/api/community/${communitySlug}/members`).then(res => res.json());
+        const membersData = await fetch(
+          `/api/community/${communitySlug}/members`
+        ).then((res) => res.json());
         setMembers(membersData);
 
         // Fetch threads
-        const threadsData = await fetch(`/api/community/${communitySlug}/threads`).then(res => res.json());
+        const threadsData = await fetch(
+          `/api/community/${communitySlug}/threads`
+        ).then((res) => res.json());
         setThreads(threadsData);
-
       } catch (error) {
-        console.error('Error fetching community data:', error);
-        toast.error('Failed to load community data');
+        console.error("Error fetching community data:", error);
+        toast.error("Failed to load community data");
       } finally {
         setIsLoading(false);
       }
@@ -243,19 +250,25 @@ export default function CommunityPage() {
       commentsCount: 0,
     };
 
-    // Add the new thread to the beginning of the list
-    setThreads(prevThreads => [threadWithAuthor, ...prevThreads]);
+    // Ensure threads is always an array before updating
+    setThreads(prevThreads => {
+      const threadsArray = Array.isArray(prevThreads) ? prevThreads : [];
+      return [threadWithAuthor, ...threadsArray];
+    });
+    
     setIsWriting(false);
   };
 
-  // Update the filtering logic to use category IDs
+  // Update the filtering logic to ensure we're working with an array
   const filteredThreads = useMemo(() => {
+    // Ensure threads is an array
+    const threadsArray = Array.isArray(threads) ? threads : [];
+    
     if (!selectedCategory) {
-      return threads;
+      return threadsArray;
     }
 
-    return threads.filter(thread => {
-      // Check if the thread's category matches the selected category ID
+    return threadsArray.filter(thread => {
       return thread.categoryId === selectedCategory;
     });
   }, [threads, selectedCategory]);
@@ -414,9 +427,11 @@ export default function CommunityPage() {
                     likesCount={thread.likesCount}
                     commentsCount={thread.commentsCount}
                     category={thread.category}
-                    categoryType={community.threadCategories?.find(
-                      cat => cat.id === thread.categoryId
-                    )?.iconType}
+                    categoryType={
+                      community.threadCategories?.find(
+                        (cat) => cat.id === thread.categoryId
+                      )?.iconType
+                    }
                     onClick={() => setSelectedThread(thread)}
                     likes={thread.likes}
                     onLikeUpdate={handleLikeUpdate}
