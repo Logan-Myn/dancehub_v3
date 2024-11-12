@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import { Button } from "@/components/ui/button";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Course } from "@/types/course";
 import { toast } from "react-toastify";
@@ -52,6 +52,15 @@ export default function CoursePage() {
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isEditMode, setIsEditMode] = useState(false);
+
+  const [expandedChapters, setExpandedChapters] = useState<{ [key: string]: boolean }>({});
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapters(prev => ({
+      ...prev,
+      [chapterId]: !prev[chapterId]
+    }));
+  };
 
   useEffect(() => {
     const auth = getAuth();
@@ -378,31 +387,41 @@ export default function CoursePage() {
 
               {chapters.map((chapter) => (
                 <div key={chapter.id} className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
+                  <div 
+                    className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                    onClick={() => toggleChapter(chapter.id)}
+                  >
                     <h3 className="text-lg font-medium">{chapter.title}</h3>
-                    {isCreator && isEditMode && (
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => setIsAddingLesson(chapter.id)}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteChapter(chapter.id)}
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isCreator && isEditMode && (
+                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            onClick={() => setIsAddingLesson(chapter.id)}
+                            size="sm"
+                            variant="ghost"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleDeleteChapter(chapter.id)}
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500 hover:text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {expandedChapters[chapter.id] ? (
+                        <ChevronUp className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                      )}
+                    </div>
                   </div>
 
                   {isAddingLesson === chapter.id && (
-                    <div className="ml-4 mb-2 p-2 bg-gray-50 rounded-md">
+                    <div className="ml-6 mb-2 p-2 bg-gray-50 rounded-md" onClick={(e) => e.stopPropagation()}>
                       <Input
                         value={newLessonTitle}
                         onChange={(e) => setNewLessonTitle(e.target.value)}
@@ -430,37 +449,39 @@ export default function CoursePage() {
                     </div>
                   )}
 
-                  <ul className="ml-4">
-                    {chapter.lessons.map((lesson) => (
-                      <li
-                        key={lesson.id}
-                        className="flex justify-between items-center py-1"
-                      >
-                        <span
-                          className={`cursor-pointer ${
-                            selectedLesson?.id === lesson.id
-                              ? "text-blue-500"
-                              : "text-gray-700"
-                          }`}
-                          onClick={() => setSelectedLesson(lesson)}
+                  {expandedChapters[chapter.id] && (
+                    <ul className="ml-6 space-y-1">
+                      {chapter.lessons.map((lesson) => (
+                        <li
+                          key={lesson.id}
+                          className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50"
                         >
-                          {lesson.title}
-                        </span>
-                        {isCreator && isEditMode && (
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleDeleteLesson(chapter.id, lesson.id)}
-                              size="sm"
-                              variant="ghost"
-                              className="text-red-500 hover:text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                          <span
+                            className={`cursor-pointer ${
+                              selectedLesson?.id === lesson.id
+                                ? "text-blue-500"
+                                : "text-gray-700"
+                            }`}
+                            onClick={() => setSelectedLesson(lesson)}
+                          >
+                            {lesson.title}
+                          </span>
+                          {isCreator && isEditMode && (
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={() => handleDeleteLesson(chapter.id, lesson.id)}
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-500 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ))}
 
