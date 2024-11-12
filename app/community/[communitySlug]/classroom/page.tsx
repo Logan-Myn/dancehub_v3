@@ -37,6 +37,7 @@ export default function ClassroomPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
+  const [isMember, setIsMember] = useState(false);
 
   useEffect(() => {
     async function fetchCommunityAndCourses() {
@@ -44,6 +45,14 @@ export default function ClassroomPage() {
         // Fetch community data
         const communityData = await fetch(`/api/community/${communitySlug}`).then((res) => res.json());
         setCommunity(communityData);
+
+        // Check if user is a member of the community
+        if (user?.uid) {
+          const membershipStatus = await fetch(
+            `/api/community/${communitySlug}/membership/${user.uid}`
+          ).then((res) => res.json());
+          setIsMember(membershipStatus.isMember);
+        }
 
         // Fetch courses data
         const coursesData = await fetch(`/api/community/${communitySlug}/courses`).then((res) => res.json());
@@ -59,7 +68,7 @@ export default function ClassroomPage() {
     if (communitySlug) {
       fetchCommunityAndCourses();
     }
-  }, [communitySlug]);
+  }, [communitySlug, user?.uid]);
 
   const handleCreateCourse = async (newCourse: Course) => {
     try {
@@ -117,16 +126,22 @@ export default function ClassroomPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {courses.map((course) => (
-              <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}?isCreator=${isCreator}`}>
-                <CourseCard 
-                  course={course} 
-                  onClick={() => {}} // Empty onClick to satisfy prop requirement
-                />
-              </Link>
-            ))}
-          </div>
+          {isMember ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {courses.map((course) => (
+                <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}`}>
+                  <CourseCard 
+                    course={course} 
+                    onClick={() => {}} // Empty onClick to satisfy prop requirement
+                  />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="text-xl">You need to be a member of this community to access the courses.</p>
+            </div>
+          )}
         </div>
       </main>
 

@@ -317,17 +317,7 @@ export default function CoursePage() {
 
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold">{course.title}</h1>
-            {isCreator && (
-              <Button
-                onClick={() => setIsEditMode(!isEditMode)}
-                className="bg-black hover:bg-gray-800 text-white"
-              >
-                {isEditMode ? "Done Editing" : "Edit Course"}
-              </Button>
-            )}
-          </div>
+          <h1 className="text-3xl font-bold mb-6">{course.title}</h1>
           <div className="flex">
             {/* Left section: Course index */}
             <div className="w-1/4">
