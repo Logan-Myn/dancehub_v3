@@ -249,15 +249,19 @@ export default function CoursePage() {
 
   const handleDeleteChapter = async (chapterId: string) => {
     const confirmDelete = window.confirm(
-      "Are you sure you want to delete this chapter? This action cannot be undone."
+      "Are you sure you want to delete this chapter and all its lessons? This action cannot be undone."
     );
     if (!confirmDelete) return;
 
     try {
+      const token = await user?.getIdToken();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}`,
         {
           method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
@@ -268,6 +272,12 @@ export default function CoursePage() {
       setChapters((prevChapters) =>
         prevChapters.filter((chapter) => chapter.id !== chapterId)
       );
+
+      // If the deleted chapter had the selected lesson, clear the selection
+      if (selectedLesson && chapters.find(c => c.id === chapterId)?.lessons.find(l => l.id === selectedLesson.id)) {
+        setSelectedLesson(null);
+      }
+
       toast.success("Chapter deleted successfully");
     } catch (error) {
       console.error("Error deleting chapter:", error);
@@ -282,10 +292,14 @@ export default function CoursePage() {
     if (!confirmDelete) return;
 
     try {
+      const token = await user?.getIdToken();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/${lessonId}`,
         {
           method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
@@ -305,6 +319,12 @@ export default function CoursePage() {
             : chapter
         )
       );
+
+      // If the deleted lesson was selected, clear the selection
+      if (selectedLesson?.id === lessonId) {
+        setSelectedLesson(null);
+      }
+
       toast.success("Lesson deleted successfully");
     } catch (error) {
       console.error("Error deleting lesson:", error);
@@ -329,12 +349,6 @@ export default function CoursePage() {
   }
 
   const isCreator = Boolean(user?.uid && community?.createdBy && user.uid === community.createdBy);
-  console.log('Debug creator status:', {
-    userUid: user?.uid,
-    communityCreatedBy: community?.createdBy,
-    isCreator,
-    authLoading
-  });
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
@@ -358,43 +372,9 @@ export default function CoursePage() {
           <div className="flex">
             {/* Left section: Course index */}
             <div className="w-1/4">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4">
                 <h2 className="text-xl font-semibold">Course Content</h2>
-                {isCreator && isEditMode && (
-                  <Button
-                    onClick={() => setIsAddingChapter(true)}
-                    className="bg-green-500 hover:bg-green-600 text-white"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Chapter
-                  </Button>
-                )}
               </div>
-
-              {isAddingChapter && (
-                <div className="mb-4 p-2 bg-gray-50 rounded-md">
-                  <Input
-                    value={newChapterTitle}
-                    onChange={(e) => setNewChapterTitle(e.target.value)}
-                    placeholder="Chapter title"
-                    className="mb-2"
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddChapter} size="sm">Save</Button>
-                    <Button 
-                      onClick={() => {
-                        setIsAddingChapter(false);
-                        setNewChapterTitle("");
-                      }}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {chapters.map((chapter) => (
                 <div key={chapter.id} className="mb-4">
@@ -483,6 +463,43 @@ export default function CoursePage() {
                   </ul>
                 </div>
               ))}
+
+              {isCreator && isEditMode && (
+                <div className="mt-6">
+                  {isAddingChapter ? (
+                    <div className="p-2 bg-gray-50 rounded-md">
+                      <Input
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                        placeholder="Chapter title"
+                        className="mb-2"
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={handleAddChapter} size="sm">Save</Button>
+                        <Button 
+                          onClick={() => {
+                            setIsAddingChapter(false);
+                            setNewChapterTitle("");
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => setIsAddingChapter(true)}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white"
+                      size="sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Chapter
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Center/right section: Course content */}
