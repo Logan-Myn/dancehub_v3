@@ -9,14 +9,18 @@ if (!getApps().length) {
     credential: credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     }),
   });
 }
 
 export async function PUT(
   req: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string; chapterId: string };
+  }
 ) {
   try {
     const { lessons } = await req.json();
@@ -40,7 +44,10 @@ export async function PUT(
       .where("slug", "==", params.communitySlug)
       .get();
 
-    if (communityDoc.empty || communityDoc.docs[0].data().createdBy !== userId) {
+    if (
+      communityDoc.empty ||
+      communityDoc.docs[0].data().createdBy !== userId
+    ) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
@@ -57,12 +64,12 @@ export async function PUT(
 
       // Get the current lesson data
       const lessonDoc = await lessonRef.get();
-      
+
       if (lessonDoc.exists) {
         // Merge the new order with existing data
         batch.set(
-          lessonRef, 
-          { 
+          lessonRef,
+          {
             order: index,
             // Preserve existing data
             ...lessonDoc.data(),
@@ -81,4 +88,4 @@ export async function PUT(
     console.error("[LESSONS_REORDER]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
-} 
+}

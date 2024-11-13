@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 
@@ -17,7 +18,10 @@ export async function GET(
 
     if (communityQuery.empty) {
       console.log("Community not found");
-      return NextResponse.json({ error: "Community not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
     const communityDoc = communityQuery.docs[0];
@@ -37,7 +41,7 @@ export async function GET(
     const courseDoc = courseQuery.docs[0];
     const courseData: any = {
       id: courseDoc.id,
-      ...courseDoc.data()
+      ...courseDoc.data(),
     };
 
     // Get all chapters
@@ -53,15 +57,15 @@ export async function GET(
           .orderBy("order")
           .get();
 
-        const lessons = lessonsSnapshot.docs.map(lessonDoc => ({
+        const lessons = lessonsSnapshot.docs.map((lessonDoc) => ({
           id: lessonDoc.id,
-          ...lessonDoc.data()
+          ...lessonDoc.data(),
         }));
 
         return {
           id: chapterDoc.id,
           ...chapterDoc.data(),
-          lessons
+          lessons,
         };
       })
     );

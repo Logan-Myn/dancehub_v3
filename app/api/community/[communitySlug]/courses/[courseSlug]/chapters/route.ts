@@ -35,10 +35,7 @@ export async function POST(
       .get();
 
     if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const courseRef = courseDoc.docs[0].ref;
@@ -50,7 +47,9 @@ export async function POST(
       .limit(1)
       .get();
 
-    const highestOrder = chaptersSnapshot.empty ? -1 : chaptersSnapshot.docs[0].data().order;
+    const highestOrder = chaptersSnapshot.empty
+      ? -1
+      : chaptersSnapshot.docs[0].data().order;
 
     // Create the new chapter with order
     const newChapterRef = await courseRef.collection("chapters").add({
@@ -78,7 +77,11 @@ export async function POST(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string; chapterId: string };
+  }
 ) {
   try {
     const { communitySlug, courseSlug, chapterId } = params;
@@ -110,10 +113,7 @@ export async function PUT(
       .get();
 
     if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const courseRef = courseDoc.docs[0].ref;
@@ -135,7 +135,11 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string; chapterId: string };
+  }
 ) {
   try {
     const { communitySlug, courseSlug, chapterId } = params;
@@ -166,10 +170,7 @@ export async function DELETE(
       .get();
 
     if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const courseRef = courseDoc.docs[0].ref;
@@ -185,4 +186,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

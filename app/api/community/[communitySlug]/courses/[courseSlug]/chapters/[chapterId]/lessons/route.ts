@@ -6,6 +6,7 @@ export async function POST(
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
 ) {
   try {
+    // Verify auth token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,12 +21,34 @@ export async function POST(
 
     const { title } = await req.json();
 
-    // Get the chapter document to get current lessons count for ordering
-    const chapterRef = adminDb
+    // Get community doc
+    const communityQuery = await adminDb
       .collection("communities")
-      .doc(params.communitySlug)
+      .where("slug", "==", params.communitySlug)
+      .limit(1)
+      .get();
+
+    if (communityQuery.empty) {
+      return NextResponse.json({ error: "Community not found" }, { status: 404 });
+    }
+
+    const communityDoc = communityQuery.docs[0];
+
+    // Get course doc
+    const courseQuery = await communityDoc.ref
       .collection("courses")
-      .doc(params.courseSlug)
+      .where("slug", "==", params.courseSlug)
+      .limit(1)
+      .get();
+
+    if (courseQuery.empty) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    const courseDoc = courseQuery.docs[0];
+
+    // Get chapter doc
+    const chapterRef = courseDoc.ref
       .collection("chapters")
       .doc(params.chapterId);
 
@@ -38,24 +61,24 @@ export async function POST(
     const lessonsSnapshot = await chapterRef.collection("lessons").get();
     const order = lessonsSnapshot.size; // New lesson will be last in order
 
-    // Create a new lesson document with a specific ID
-    const lessonRef = chapterRef.collection("lessons").doc();
-    await lessonRef.set({
-      id: lessonRef.id, // Store the ID in the document itself
+    // Create the new lesson
+    const lessonRef = await chapterRef.collection("lessons").add({
       title,
       content: "",
       videoAssetId: null,
       order,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      createdBy: decodedToken.uid,
     });
 
-    const newLesson = await lessonRef.get();
-    
-    return NextResponse.json({
-      id: newLesson.id,
-      ...newLesson.data(),
-    });
+    const lessonDoc = await lessonRef.get();
+    const lessonData = {
+      id: lessonDoc.id,
+      ...lessonDoc.data()
+    };
+
+    return NextResponse.json(lessonData);
   } catch (error) {
     console.error("Error creating lesson:", error);
     return NextResponse.json(
@@ -67,7 +90,16 @@ export async function POST(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
+  {
+    params,
+  }: {
+    params: {
+      communitySlug: string;
+      courseSlug: string;
+      chapterId: string;
+      lessonId: string;
+    };
+  }
 ) {
   try {
     const { communitySlug, courseSlug, chapterId, lessonId } = params;
@@ -99,10 +131,7 @@ export async function PUT(
       .get();
 
     if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const courseRef = courseDoc.docs[0].ref;
@@ -114,10 +143,7 @@ export async function PUT(
       .get();
 
     if (!chapterDoc.exists) {
-      return NextResponse.json(
-        { error: "Chapter not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
     // Update the lesson document
@@ -138,7 +164,16 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
+  {
+    params,
+  }: {
+    params: {
+      communitySlug: string;
+      courseSlug: string;
+      chapterId: string;
+      lessonId: string;
+    };
+  }
 ) {
   try {
     const { communitySlug, courseSlug, chapterId, lessonId } = params;
@@ -169,10 +204,7 @@ export async function DELETE(
       .get();
 
     if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const courseRef = courseDoc.docs[0].ref;
@@ -184,10 +216,7 @@ export async function DELETE(
       .get();
 
     if (!chapterDoc.exists) {
-      return NextResponse.json(
-        { error: "Chapter not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
     // Delete the lesson document
@@ -201,4 +230,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

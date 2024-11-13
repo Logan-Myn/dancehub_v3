@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { storage } from "@/lib/firebase-admin";
+import { getStorage } from "firebase-admin/storage";
 import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils";
+
+const storage = getStorage();
 
 export async function GET(
   request: Request,
@@ -97,7 +99,7 @@ export async function POST(
     blobWriter.end(imageBuffer);
 
     await new Promise((resolve, reject) => {
-      blobWriter.on('error', (err) => {
+      blobWriter.on('error', (err: Error) => {
         reject(err);
       });
       blobWriter.on('finish', resolve);
