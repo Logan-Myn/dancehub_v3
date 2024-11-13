@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 
@@ -18,10 +17,7 @@ export async function GET(
 
     if (communityQuery.empty) {
       console.log("Community not found");
-      return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
     const communityDoc = communityQuery.docs[0];
@@ -41,10 +37,10 @@ export async function GET(
     const courseDoc = courseQuery.docs[0];
     const courseData: any = {
       id: courseDoc.id,
-      ...courseDoc.data(),
+      ...courseDoc.data()
     };
 
-    // Get all chapters
+    // Get all chapters with their lessons
     const chaptersSnapshot = await courseDoc.ref
       .collection("chapters")
       .orderBy("order")
@@ -52,19 +48,32 @@ export async function GET(
 
     const chapters = await Promise.all(
       chaptersSnapshot.docs.map(async (chapterDoc) => {
+        // Get lessons for each chapter
         const lessonsSnapshot = await chapterDoc.ref
           .collection("lessons")
           .orderBy("order")
           .get();
 
-        const lessons = lessonsSnapshot.docs.map((lessonDoc) => ({
-          id: lessonDoc.id,
-          ...lessonDoc.data(),
-        }));
+        // Make sure to include all lesson data, including videoAssetId
+        const lessons = lessonsSnapshot.docs.map((lessonDoc) => {
+          const lessonData = lessonDoc.data();
+          console.log("Raw lesson data from Firestore:", lessonData);
+          return {
+            id: lessonDoc.id,
+            title: lessonData.title,
+            content: lessonData.content,
+            videoAssetId: lessonData.videoAssetId || null,
+            order: lessonData.order,
+            createdAt: lessonData.createdAt,
+            updatedAt: lessonData.updatedAt,
+            createdBy: lessonData.createdBy,
+          };
+        });
 
         return {
           id: chapterDoc.id,
-          ...chapterDoc.data(),
+          title: chapterDoc.data().title,
+          order: chapterDoc.data().order,
           lessons,
         };
       })
@@ -72,7 +81,11 @@ export async function GET(
 
     courseData.chapters = chapters;
 
-    console.log("API: Successfully fetched course data");
+    console.log("API: Successfully fetched course data with lessons:", {
+      chaptersCount: chapters.length,
+      lessonsCount: chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
+    });
+
     return NextResponse.json(courseData);
   } catch (error) {
     console.error("API Error:", error);

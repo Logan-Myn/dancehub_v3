@@ -50,7 +50,7 @@ interface Lesson {
   title: string;
   content: string;
   videoUrl?: string;
-  videoAssetId?: string;
+  videoAssetId?: string | null;
   completed?: boolean;
   order?: number;
 }
@@ -192,16 +192,27 @@ interface LessonEditorProps {
 
 function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
   const [content, setContent] = useState(lesson.content);
-  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(
-    lesson.videoAssetId
-  );
+  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(lesson.videoAssetId || undefined);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Add new function to handle immediate video update
+  const handleVideoUpload = async (assetId: string) => {
+    setVideoAssetId(assetId);
+    try {
+      // Save only the video update immediately
+      await onSave({ content, videoAssetId: assetId });
+      toast.success("Video uploaded successfully");
+    } catch (error) {
+      toast.error("Failed to save video");
+      setVideoAssetId(undefined); // Reset if save fails
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       await onSave({ content, videoAssetId });
-      toast.success("Lesson updated successfully");
+      toast.success("Lesson content updated successfully");
     } catch (error) {
       toast.error("Failed to update lesson");
     } finally {
@@ -216,10 +227,7 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Video Content</h3>
             <VideoUpload
-              onUploadComplete={(playbackId) => {
-                setVideoAssetId(playbackId);
-                toast.success("Video uploaded successfully");
-              }}
+              onUploadComplete={handleVideoUpload}
               onUploadError={(error) => toast.error(error)}
             />
             {/* Show video player if we have a video */}
@@ -242,12 +250,12 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
           </div>
 
           <div className="flex justify-end">
-            <Button
+            <Button 
               onClick={handleSave}
               disabled={isSaving}
               className="bg-blue-500 hover:bg-blue-600"
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save Content"}
             </Button>
           </div>
         </>
@@ -340,34 +348,49 @@ export default function CoursePage() {
             statusText: response.statusText,
             error: errorData,
           });
-          throw new Error(
-            `Failed to fetch course: ${response.status} ${errorData}`
-          );
+          throw new Error(`Failed to fetch course: ${response.status} ${errorData}`);
         }
 
         const courseData = await response.json();
-        console.log("Received course data:", courseData);
+        console.log("Raw course data from API:", courseData);
 
         if (courseData.error) {
           console.error("Course fetch error:", courseData.error);
           router.push(`/community/${communitySlug}/classroom`);
         } else {
-          const sortedChapters =
-            courseData.chapters
-              ?.map((chapter: Chapter) => ({
+          const sortedChapters = courseData.chapters
+            ?.map((chapter: Chapter) => {
+              console.log("Processing chapter:", chapter);
+              return {
                 ...chapter,
-                lessons:
-                  chapter.lessons?.sort(
-                    (a: Lesson, b: Lesson) => (a.order || 0) - (b.order || 0)
-                  ) || [],
-              }))
-              .sort(
-                (a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)
-              ) || [];
+                lessons: chapter.lessons?.map((lesson: Lesson) => {
+                  console.log("Processing lesson:", lesson);
+                  return {
+                    ...lesson,
+                    videoAssetId: lesson.videoAssetId || null,
+                  };
+                }).sort((a: Lesson, b: Lesson) => (a.order || 0) - (b.order || 0)) || [],
+              };
+            }).sort((a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)) || [];
+
+          console.log("Final processed chapters:", sortedChapters);
 
           setCourse(courseData);
           setChapters(sortedChapters);
-          setSelectedLesson(sortedChapters?.[0]?.lessons?.[0] || null);
+
+          // If there's a selected lesson, find and set it with the fresh data
+          if (selectedLesson) {
+            const updatedLesson = sortedChapters
+              .flatMap((chapter: Chapter) => chapter.lessons)
+              .find((lesson: Lesson) => lesson.id === selectedLesson.id);
+            if (updatedLesson) {
+              console.log("Setting selected lesson:", updatedLesson); // Debug log
+              setSelectedLesson(updatedLesson);
+            }
+          } else {
+            // Set the first lesson if none is selected
+            setSelectedLesson(sortedChapters?.[0]?.lessons?.[0] || null);
+          }
         }
       } catch (error) {
         console.error("Error in fetchCourse:", error);
@@ -780,7 +803,7 @@ export default function CoursePage() {
     }
   };
 
-  const renderLessonContent = () => {
+  const renderLessonContent = (): JSX.Element => {
     if (!selectedLesson) {
       return (
         <div className="flex items-center justify-center h-[400px]">
@@ -794,11 +817,9 @@ export default function CoursePage() {
         {/* Lesson Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold mb-2">
-              {selectedLesson.title}
-            </h2>
+            <h2 className="text-2xl font-semibold mb-2">{selectedLesson.title}</h2>
             <div className="flex items-center gap-2 text-sm text-gray-500">
-              {selectedLesson.videoUrl && (
+              {selectedLesson.videoAssetId && (
                 <div className="flex items-center gap-1">
                   <Play className="w-4 h-4" />
                   <span>Video lesson</span>
@@ -925,7 +946,7 @@ export default function CoursePage() {
             isCreator={isCreator}
           />
         ) : (
-          <>{/* ... existing video and content display ... */}</>
+          <div>{/* ... existing video and content display ... */}</div>
         )}
       </div>
     );

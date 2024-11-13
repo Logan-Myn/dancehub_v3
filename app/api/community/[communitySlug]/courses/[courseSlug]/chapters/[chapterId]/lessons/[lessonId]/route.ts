@@ -1,64 +1,81 @@
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/firebase-admin";
 
 export async function PUT(
-  req: Request,
+  request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
 ) {
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    console.log("Updating lesson with params:", params);
+    const { title, content, videoAssetId } = await request.json();
+    console.log("Update data received:", { title, content, videoAssetId });
 
-    const token = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(token);
-
-    if (!decodedToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { title, content, videoAssetId } = await req.json();
-
-    // Get reference to the lesson document
-    const lessonRef = adminDb
+    // Get the community document
+    const communityQuery = await adminDb
       .collection("communities")
-      .doc(params.communitySlug)
-      .collection("courses")
-      .doc(params.courseSlug)
-      .collection("chapters")
-      .doc(params.chapterId)
-      .collection("lessons")
-      .doc(params.lessonId);
+      .where("slug", "==", params.communitySlug)
+      .limit(1)
+      .get();
 
-    // Check if document exists
-    const lessonDoc = await lessonRef.get();
-    
-    if (!lessonDoc.exists) {
-      // Create the document if it doesn't exist
-      await lessonRef.set({
-        title: title || "",
-        content: content || "",
-        videoAssetId: videoAssetId || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    } else {
-      // Update existing document
-      await lessonRef.update({
-        title,
-        content,
-        videoAssetId,
-        updatedAt: new Date().toISOString(),
-      });
+    if (communityQuery.empty) {
+      return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
+    const communityDoc = communityQuery.docs[0];
+
+    // Get the course document
+    const courseQuery = await communityDoc.ref
+      .collection("courses")
+      .where("slug", "==", params.courseSlug)
+      .limit(1)
+      .get();
+
+    if (courseQuery.empty) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    const courseDoc = courseQuery.docs[0];
+
+    // Get the chapter document
+    const chapterRef = courseDoc.ref.collection("chapters").doc(params.chapterId);
+    const chapterDoc = await chapterRef.get();
+
+    if (!chapterDoc.exists) {
+      return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
+    }
+
+    // Reference to the lesson document
+    const lessonRef = chapterRef.collection("lessons").doc(params.lessonId);
+    const lessonDoc = await lessonRef.get();
+
+    if (!lessonDoc.exists) {
+      return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+    }
+
+    // Update data
+    const updateData: any = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (videoAssetId !== undefined) updateData.videoAssetId = videoAssetId;
+
+    console.log("Final update data:", updateData);
+
+    // Update the lesson
+    await lessonRef.update(updateData);
+
+    // Get the updated lesson data
     const updatedLesson = await lessonRef.get();
-    
-    return NextResponse.json({
+    const lessonData = {
       id: updatedLesson.id,
-      ...updatedLesson.data(),
-    });
+      ...updatedLesson.data()
+    };
+
+    console.log("Updated lesson data:", lessonData);
+
+    return NextResponse.json(lessonData);
   } catch (error) {
     console.error("Error updating lesson:", error);
     return NextResponse.json(
