@@ -1,74 +1,61 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
 export async function POST(
-  request: Request,
+  req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
 ) {
   try {
-    const { communitySlug, courseSlug, chapterId } = params;
-    const { title, content } = await request.json();
-
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
-
-    if (communitySnapshot.empty) {
-      return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
-      );
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const communityDoc = communitySnapshot.docs[0];
+    const token = authHeader.split("Bearer ")[1];
+    const decodedToken = await adminAuth.verifyIdToken(token);
 
-    // Get the course document
-    const courseDoc = await adminDb
+    if (!decodedToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { title } = await req.json();
+
+    // Get the chapter document to get current lessons count for ordering
+    const chapterRef = adminDb
       .collection("communities")
-      .doc(communityDoc.id)
+      .doc(params.communitySlug)
       .collection("courses")
-      .where("slug", "==", courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
-    }
-
-    const courseRef = courseDoc.docs[0].ref;
-
-    // Get the chapter document
-    const chapterDoc = await courseRef
+      .doc(params.courseSlug)
       .collection("chapters")
-      .doc(chapterId)
-      .get();
+      .doc(params.chapterId);
 
+    const chapterDoc = await chapterRef.get();
     if (!chapterDoc.exists) {
-      return NextResponse.json(
-        { error: "Chapter not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    // Create a new lesson document
-    const newLessonRef = await chapterDoc.ref.collection("lessons").add({
+    // Get current lessons to determine the order
+    const lessonsSnapshot = await chapterRef.collection("lessons").get();
+    const order = lessonsSnapshot.size; // New lesson will be last in order
+
+    // Create a new lesson document with a specific ID
+    const lessonRef = chapterRef.collection("lessons").doc();
+    await lessonRef.set({
+      id: lessonRef.id, // Store the ID in the document itself
       title,
-      content,
+      content: "",
+      videoAssetId: null,
+      order,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
 
-    const newLesson = {
-      id: newLessonRef.id,
-      title,
-      content,
-    };
-
-    return NextResponse.json(newLesson);
+    const newLesson = await lessonRef.get();
+    
+    return NextResponse.json({
+      id: newLesson.id,
+      ...newLesson.data(),
+    });
   } catch (error) {
     console.error("Error creating lesson:", error);
     return NextResponse.json(

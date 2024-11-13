@@ -1,61 +1,69 @@
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { credential } from "firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
-// Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  initializeApp({
-    credential: credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-export async function DELETE(
+export async function PUT(
   req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
 ) {
   try {
-    // Get the authorization token
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
     const token = authHeader.split("Bearer ")[1];
+    const decodedToken = await adminAuth.verifyIdToken(token);
 
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    const userId = decodedToken.uid;
-
-    const db = getFirestore();
-
-    // Check if user is the community creator
-    const communityDoc = await db
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .get();
-
-    if (communityDoc.empty || communityDoc.docs[0].data().createdBy !== userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!decodedToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Delete the lesson
-    await db
+    const { title, content, videoAssetId } = await req.json();
+
+    // Get reference to the lesson document
+    const lessonRef = adminDb
+      .collection("communities")
+      .doc(params.communitySlug)
       .collection("courses")
       .doc(params.courseSlug)
       .collection("chapters")
       .doc(params.chapterId)
       .collection("lessons")
-      .doc(params.lessonId)
-      .delete();
+      .doc(params.lessonId);
 
-    return NextResponse.json({ message: "Lesson deleted successfully" });
+    // Check if document exists
+    const lessonDoc = await lessonRef.get();
+    
+    if (!lessonDoc.exists) {
+      // Create the document if it doesn't exist
+      await lessonRef.set({
+        title: title || "",
+        content: content || "",
+        videoAssetId: videoAssetId || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      // Update existing document
+      await lessonRef.update({
+        title,
+        content,
+        videoAssetId,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const updatedLesson = await lessonRef.get();
+    
+    return NextResponse.json({
+      id: updatedLesson.id,
+      ...updatedLesson.data(),
+    });
   } catch (error) {
-    console.error("[LESSON_DELETE]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error updating lesson:", error);
+    return NextResponse.json(
+      { error: "Failed to update lesson" },
+      { status: 500 }
+    );
   }
 } 

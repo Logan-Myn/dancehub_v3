@@ -11,11 +11,33 @@ import { Input } from "@/components/ui/input";
 import { Course } from "@/types/course";
 import { toast } from "react-toastify";
 import { getAuth, User, onAuthStateChanged } from 'firebase/auth';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { DraggableItem } from '@/components/DraggableItem';
+import { Card } from "@/components/ui/card";
+import { Play, FileText, CheckCircle } from "lucide-react";
+import { VideoUpload } from '@/components/VideoUpload';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { MuxPlayer } from '@/components/MuxPlayer';
 
 interface Chapter {
   id: string;
   title: string;
   lessons: Lesson[];
+  order?: number;
 }
 
 interface Lesson {
@@ -23,13 +45,198 @@ interface Lesson {
   title: string;
   content: string;
   videoUrl?: string;
+  videoAssetId?: string;
   completed?: boolean;
+  order?: number;
 }
 
 interface Community {
   id: string;
   name: string;
   createdBy: string;
+}
+
+const VideoPlayer = ({ url }: { url: string }) => {
+  return (
+    <div className="relative pb-[56.25%] h-0">
+      <iframe
+        className="absolute top-0 left-0 w-full h-full rounded-lg"
+        src={url}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
+  );
+};
+
+interface AddLessonDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (lessonData: { title: string; content: string; videoAssetId?: string }) => void;
+  chapterId: string;
+}
+
+function AddLessonDialog({ isOpen, onClose, onSubmit, chapterId }: AddLessonDialogProps) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [videoAssetId, setVideoAssetId] = useState<string | undefined>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      await onSubmit({ title, content, videoAssetId });
+      setTitle("");
+      setContent("");
+      setVideoAssetId(undefined);
+      onClose();
+    } catch (error) {
+      console.error("Error creating lesson:", error);
+      toast.error("Failed to create lesson");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Add New Lesson</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="title" className="text-sm font-medium">
+              Lesson Title
+            </label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter lesson title"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Video Content (Optional)
+            </label>
+            <VideoUpload
+              onUploadComplete={(assetId) => {
+                setVideoAssetId(assetId);
+                toast.success("Video uploaded successfully");
+              }}
+              onUploadError={(error) => toast.error(error)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="content" className="text-sm font-medium">
+              Lesson Content
+            </label>
+            <Textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Enter lesson content"
+              rows={5}
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Lesson"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Add this new component for lesson editing
+interface LessonEditorProps {
+  lesson: Lesson;
+  onSave: (lessonData: { content: string; videoAssetId?: string }) => Promise<void>;
+  isCreator: boolean;
+}
+
+function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
+  const [content, setContent] = useState(lesson.content);
+  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(lesson.videoAssetId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave({ content, videoAssetId });
+      toast.success("Lesson updated successfully");
+    } catch (error) {
+      toast.error("Failed to update lesson");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {isCreator && (
+        <>
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Video Content</h3>
+            <VideoUpload
+              onUploadComplete={(playbackId) => {
+                setVideoAssetId(playbackId);
+                toast.success("Video uploaded successfully");
+              }}
+              onUploadError={(error) => toast.error(error)}
+            />
+            {/* Show video player if we have a video */}
+            {videoAssetId && (
+              <div className="mt-4">
+                <MuxPlayer
+                  playbackId={videoAssetId}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Lesson Content</h3>
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={10}
+              className="w-full"
+              placeholder="Enter lesson content..."
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Button 
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function CoursePage() {
@@ -55,6 +262,15 @@ export default function CoursePage() {
 
   const [expandedChapters, setExpandedChapters] = useState<{ [key: string]: boolean }>({});
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const toggleChapter = (chapterId: string) => {
     setExpandedChapters(prev => ({
       ...prev,
@@ -74,23 +290,60 @@ export default function CoursePage() {
   useEffect(() => {
     if (authLoading) return;
 
+    if (!communitySlug || !courseSlug) {
+      console.error("Missing slugs:", { communitySlug, courseSlug });
+      router.push('/');
+      return;
+    }
+
     async function fetchCourse() {
       try {
-        // Fetch course data
-        const courseData = await fetch(
-          `/api/community/${communitySlug}/courses/${courseSlug}`
-        ).then((res) => res.json());
+        const token = await user?.getIdToken();
+        console.log("Fetching course with:", {
+          communitySlug,
+          courseSlug,
+          hasToken: !!token
+        });
+
+        const response = await fetch(
+          `/api/community/${communitySlug}/courses/${courseSlug}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("Course fetch failed:", {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          });
+          throw new Error(`Failed to fetch course: ${response.status} ${errorData}`);
+        }
+
+        const courseData = await response.json();
+        console.log("Received course data:", courseData);
 
         if (courseData.error) {
-          // If course is not found, redirect to the classroom page
+          console.error("Course fetch error:", courseData.error);
           router.push(`/community/${communitySlug}/classroom`);
         } else {
+          const sortedChapters = courseData.chapters?.map((chapter: Chapter) => ({
+            ...chapter,
+            lessons: chapter.lessons?.sort((a: Lesson, b: Lesson) => 
+              (a.order || 0) - (b.order || 0)) || []
+          })).sort((a: Chapter, b: Chapter) => 
+            (a.order || 0) - (b.order || 0)) || [];
+
           setCourse(courseData);
-          setChapters(courseData.chapters || []);
-          setSelectedLesson(courseData.chapters?.[0]?.lessons?.[0] || null);
+          setChapters(sortedChapters);
+          setSelectedLesson(sortedChapters?.[0]?.lessons?.[0] || null);
         }
       } catch (error) {
-        console.error("Error fetching course data:", error);
+        console.error("Error in fetchCourse:", error);
         toast.error("Failed to load course data");
       } finally {
         setIsLoading(false);
@@ -148,18 +401,23 @@ export default function CoursePage() {
     }
   };
 
-  const handleAddLesson = async (chapterId: string) => {
-    if (!newLessonTitle.trim()) return;
+  // Replace the AddLessonDialog with inline lesson creation
+  const handleAddLesson = async (chapterId: string, title: string) => {
+    if (!title.trim()) return;
 
     try {
+      const token = await user?.getIdToken();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ title: newLessonTitle, content: "" }),
+          body: JSON.stringify({
+            title,
+          }),
         }
       );
 
@@ -168,19 +426,85 @@ export default function CoursePage() {
       }
 
       const newLesson = await response.json();
+
+      // Update chapters state with the new lesson
       setChapters((prevChapters) =>
         prevChapters.map((chapter) =>
           chapter.id === chapterId
-            ? { ...chapter, lessons: [...chapter.lessons, newLesson] }
+            ? {
+                ...chapter,
+                lessons: [...chapter.lessons, newLesson],
+              }
             : chapter
         )
       );
+
+      // Clear form and close dialog
       setNewLessonTitle("");
       setIsAddingLesson(null);
+
+      // Select the new lesson
+      setSelectedLesson(newLesson);
       toast.success("Lesson added successfully");
     } catch (error) {
       console.error("Error adding lesson:", error);
       toast.error("Failed to add lesson");
+    }
+  };
+
+  // Add this new function to handle lesson updates
+  const handleUpdateLesson = async (lessonData: { content: string; videoAssetId?: string }) => {
+    if (!selectedLesson) return;
+
+    const currentChapter = chapters.find(chapter =>
+      chapter.lessons.some(lesson => lesson.id === selectedLesson.id)
+    );
+    if (!currentChapter) return;
+
+    try {
+      const token = await user?.getIdToken();
+      const response = await fetch(
+        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${currentChapter.id}/lessons/${selectedLesson.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: selectedLesson.title,
+            content: lessonData.content,
+            videoAssetId: lessonData.videoAssetId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update lesson");
+      }
+
+      const updatedLesson = await response.json();
+      
+      // Update the chapters state with the new lesson data
+      setChapters((prevChapters) =>
+        prevChapters.map((chapter) =>
+          chapter.id === currentChapter.id
+            ? {
+                ...chapter,
+                lessons: chapter.lessons.map((lesson) =>
+                  lesson.id === selectedLesson.id ? updatedLesson : lesson
+                ),
+              }
+            : chapter
+        )
+      );
+      
+      // Update the selected lesson
+      setSelectedLesson(updatedLesson);
+      
+    } catch (error) {
+      console.error("Error updating lesson:", error);
+      throw error;
     }
   };
 
@@ -210,49 +534,6 @@ export default function CoursePage() {
     } catch (error) {
       console.error("Error updating chapter:", error);
       toast.error("Failed to update chapter");
-    }
-  };
-
-  const handleEditLesson = async (
-    chapterId: string,
-    lessonId: string,
-    title: string,
-    content: string
-  ) => {
-    try {
-      const response = await fetch(
-        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/${lessonId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ title, content }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to update lesson");
-      }
-
-      setChapters((prevChapters) =>
-        prevChapters.map((chapter) =>
-          chapter.id === chapterId
-            ? {
-                ...chapter,
-                lessons: chapter.lessons.map((lesson) =>
-                  lesson.id === lessonId
-                    ? { ...lesson, title, content }
-                    : lesson
-                ),
-              }
-            : chapter
-        )
-      );
-      toast.success("Lesson updated successfully");
-    } catch (error) {
-      console.error("Error updating lesson:", error);
-      toast.error("Failed to update lesson");
     }
   };
 
@@ -345,6 +626,272 @@ export default function CoursePage() {
     setIsEditMode(!isEditMode);
   };
 
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setChapters((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        
+        updateChaptersOrder(newOrder);
+        
+        return newOrder;
+      });
+    }
+  };
+
+  const handleLessonDragEnd = async (chapterId: string, event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setChapters((chapters) => {
+        const newChapters = chapters.map((chapter) => {
+          if (chapter.id !== chapterId) return chapter;
+
+          const lessons = [...chapter.lessons];
+          const oldIndex = lessons.findIndex((lesson) => lesson.id === active.id);
+          const newIndex = lessons.findIndex((lesson) => lesson.id === over.id);
+
+          const newLessons = arrayMove(lessons, oldIndex, newIndex);
+          
+          updateLessonsOrder(chapterId, newLessons);
+
+          return {
+            ...chapter,
+            lessons: newLessons,
+          };
+        });
+
+        return newChapters;
+      });
+    }
+  };
+
+  const updateChaptersOrder = async (chapters: Chapter[]) => {
+    if (!isCreator || !isEditMode || isSavingOrder) return;
+
+    try {
+      setIsSavingOrder(true);
+      const token = await user?.getIdToken();
+      const response = await fetch(
+        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/reorder`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ chapters }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update chapters order");
+      }
+
+      toast.success("Order updated", {
+        autoClose: 2000,
+        position: "bottom-right",
+      });
+    } catch (error) {
+      console.error("Error updating chapters order:", error);
+      toast.error("Failed to update order");
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const updateLessonsOrder = async (chapterId: string, lessons: Lesson[]) => {
+    if (!isCreator || !isEditMode || isSavingOrder) return;
+
+    try {
+      setIsSavingOrder(true);
+      const token = await user?.getIdToken();
+      const response = await fetch(
+        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/reorder`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ lessons }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update lessons order");
+      }
+
+      toast.success("Order updated", {
+        autoClose: 2000,
+        position: "bottom-right",
+      });
+    } catch (error) {
+      console.error("Error updating lessons order:", error);
+      toast.error("Failed to update order");
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const renderLessonContent = () => {
+    if (!selectedLesson) {
+      return (
+        <div className="flex items-center justify-center h-[400px]">
+          <p className="text-gray-500">Select a lesson to begin</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-8">
+        {/* Lesson Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold mb-2">{selectedLesson.title}</h2>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              {selectedLesson.videoUrl && (
+                <div className="flex items-center gap-1">
+                  <Play className="w-4 h-4" />
+                  <span>Video lesson</span>
+                </div>
+              )}
+              {selectedLesson.content && (
+                <div className="flex items-center gap-1">
+                  <FileText className="w-4 h-4" />
+                  <span>Reading material</span>
+                </div>
+              )}
+            </div>
+          </div>
+          {selectedLesson.completed && (
+            <div className="flex items-center gap-2 text-green-500">
+              <CheckCircle className="w-5 h-5" />
+              <span>Completed</span>
+            </div>
+          )}
+        </div>
+
+        {/* Video Content */}
+        {selectedLesson.videoAssetId && (
+          <Card className="p-4">
+            <MuxPlayer
+              playbackId={selectedLesson.videoAssetId}
+            />
+          </Card>
+        )}
+
+        {/* Text Content */}
+        {selectedLesson.content && (
+          <Card className="p-6 prose prose-slate max-w-none">
+            <div
+              dangerouslySetInnerHTML={{
+                __html: selectedLesson.content,
+              }}
+            />
+          </Card>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between pt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Find previous lesson logic
+              const currentChapter = chapters.find(chapter =>
+                chapter.lessons.some(lesson => lesson.id === selectedLesson.id)
+              );
+              if (!currentChapter) return;
+              
+              const currentLessonIndex = currentChapter.lessons.findIndex(
+                lesson => lesson.id === selectedLesson.id
+              );
+              
+              if (currentLessonIndex > 0) {
+                // Previous lesson in same chapter
+                setSelectedLesson(currentChapter.lessons[currentLessonIndex - 1]);
+              } else {
+                // Go to last lesson of previous chapter
+                const currentChapterIndex = chapters.findIndex(
+                  chapter => chapter.id === currentChapter.id
+                );
+                if (currentChapterIndex > 0) {
+                  const previousChapter = chapters[currentChapterIndex - 1];
+                  setSelectedLesson(
+                    previousChapter.lessons[previousChapter.lessons.length - 1]
+                  );
+                }
+              }
+            }}
+            disabled={
+              selectedLesson.id ===
+              chapters[0]?.lessons[0]?.id
+            }
+          >
+            Previous Lesson
+          </Button>
+          <Button
+            onClick={() => {
+              // Find next lesson logic
+              const currentChapter = chapters.find(chapter =>
+                chapter.lessons.some(lesson => lesson.id === selectedLesson.id)
+              );
+              if (!currentChapter) return;
+              
+              const currentLessonIndex = currentChapter.lessons.findIndex(
+                lesson => lesson.id === selectedLesson.id
+              );
+              
+              if (currentLessonIndex < currentChapter.lessons.length - 1) {
+                // Next lesson in same chapter
+                setSelectedLesson(currentChapter.lessons[currentLessonIndex + 1]);
+              } else {
+                // Go to first lesson of next chapter
+                const currentChapterIndex = chapters.findIndex(
+                  chapter => chapter.id === currentChapter.id
+                );
+                if (currentChapterIndex < chapters.length - 1) {
+                  const nextChapter = chapters[currentChapterIndex + 1];
+                  setSelectedLesson(nextChapter.lessons[0]);
+                }
+              }
+            }}
+            disabled={
+              selectedLesson.id ===
+              chapters[chapters.length - 1]?.lessons[
+                chapters[chapters.length - 1]?.lessons.length - 1
+              ]?.id
+            }
+          >
+            Next Lesson
+          </Button>
+        </div>
+
+        {isCreator && isEditMode ? (
+          <LessonEditor
+            lesson={selectedLesson}
+            onSave={handleUpdateLesson}
+            isCreator={isCreator}
+          />
+        ) : (
+          <>
+            {/* ... existing video and content display ... */}
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (isLoading || authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -385,105 +932,204 @@ export default function CoursePage() {
                 <h2 className="text-xl font-semibold">Course Content</h2>
               </div>
 
-              {chapters.map((chapter) => (
-                <div key={chapter.id} className="mb-4">
-                  <div 
-                    className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
-                    onClick={() => toggleChapter(chapter.id)}
+              {isCreator && isEditMode ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={chapters.map(chapter => chapter.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <h3 className="text-lg font-medium">{chapter.title}</h3>
-                    <div className="flex items-center gap-2">
-                      {isCreator && isEditMode && (
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            onClick={() => setIsAddingLesson(chapter.id)}
-                            size="sm"
-                            variant="ghost"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDeleteChapter(chapter.id)}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-500 hover:text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {expandedChapters[chapter.id] ? (
-                        <ChevronUp className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                      )}
-                    </div>
-                  </div>
+                    {chapters.map((chapter) => (
+                      <div key={chapter.id} className="mb-4">
+                        <DraggableItem id={chapter.id}>
+                          <div className="flex-1">
+                            <div 
+                              className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                              onClick={() => toggleChapter(chapter.id)}
+                            >
+                              <h3 className="text-lg font-medium">{chapter.title}</h3>
+                              <div className="flex items-center gap-2">
+                                {isCreator && isEditMode && (
+                                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                    <Button
+                                      onClick={() => setIsAddingLesson(chapter.id)}
+                                      size="sm"
+                                      variant="ghost"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      onClick={() => handleDeleteChapter(chapter.id)}
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-red-500 hover:text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                )}
+                                {expandedChapters[chapter.id] ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                )}
+                              </div>
+                            </div>
 
-                  {isAddingLesson === chapter.id && (
-                    <div className="ml-6 mb-2 p-2 bg-gray-50 rounded-md" onClick={(e) => e.stopPropagation()}>
-                      <Input
-                        value={newLessonTitle}
-                        onChange={(e) => setNewLessonTitle(e.target.value)}
-                        placeholder="Lesson title"
-                        className="mb-2"
-                      />
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={() => handleAddLesson(chapter.id)}
-                          size="sm"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setIsAddingLesson(null);
-                            setNewLessonTitle("");
-                          }}
-                          variant="outline"
-                          size="sm"
-                        >
-                          Cancel
-                        </Button>
+                            {expandedChapters[chapter.id] && (
+                              <>
+                                {isAddingLesson === chapter.id && (
+                                  <div className="ml-6 mb-2 p-2 bg-gray-50 rounded-md">
+                                    <Input
+                                      value={newLessonTitle}
+                                      onChange={(e) => setNewLessonTitle(e.target.value)}
+                                      placeholder="Lesson title"
+                                      className="mb-2"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        onClick={() => handleAddLesson(chapter.id, newLessonTitle)}
+                                        size="sm"
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        onClick={() => {
+                                          setIsAddingLesson(null);
+                                          setNewLessonTitle("");
+                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(event) => handleLessonDragEnd(chapter.id, event)}
+                                >
+                                  <SortableContext
+                                    items={chapter.lessons.map(lesson => lesson.id)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    <ul className="ml-6 space-y-1">
+                                      {chapter.lessons.map((lesson) => (
+                                        <DraggableItem key={lesson.id} id={lesson.id}>
+                                          <li className="flex-1 flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50">
+                                            <span
+                                              className={`cursor-pointer ${
+                                                selectedLesson?.id === lesson.id
+                                                  ? "text-blue-500"
+                                                  : "text-gray-700"
+                                              }`}
+                                              onClick={() => setSelectedLesson(lesson)}
+                                            >
+                                              {lesson.title}
+                                            </span>
+                                            {isCreator && isEditMode && (
+                                              <Button
+                                                onClick={() => handleDeleteLesson(chapter.id, lesson.id)}
+                                                size="sm"
+                                                variant="ghost"
+                                                className="text-red-500 hover:text-red-600"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </Button>
+                                            )}
+                                          </li>
+                                        </DraggableItem>
+                                      ))}
+                                    </ul>
+                                  </SortableContext>
+                                </DndContext>
+                              </>
+                            )}
+                          </div>
+                        </DraggableItem>
+                      </div>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                // Regular view when not in edit mode
+                chapters.map((chapter) => (
+                  <div key={chapter.id} className="mb-4">
+                    <div 
+                      className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                      onClick={() => toggleChapter(chapter.id)}
+                    >
+                      <h3 className="text-lg font-medium">{chapter.title}</h3>
+                      <div className="flex items-center gap-2">
+                        {isCreator && isEditMode && (
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              onClick={() => setIsAddingLesson(chapter.id)}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => handleDeleteChapter(chapter.id)}
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-500 hover:text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                        {expandedChapters[chapter.id] ? (
+                          <ChevronUp className="w-4 h-4 text-gray-500" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                        )}
                       </div>
                     </div>
-                  )}
 
-                  {expandedChapters[chapter.id] && (
-                    <ul className="ml-6 space-y-1">
-                      {chapter.lessons.map((lesson) => (
-                        <li
-                          key={lesson.id}
-                          className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50"
-                        >
-                          <span
-                            className={`cursor-pointer ${
-                              selectedLesson?.id === lesson.id
-                                ? "text-blue-500"
-                                : "text-gray-700"
-                            }`}
-                            onClick={() => setSelectedLesson(lesson)}
+                    {expandedChapters[chapter.id] && (
+                      <ul className="ml-6 space-y-1">
+                        {chapter.lessons.map((lesson) => (
+                          <li
+                            key={lesson.id}
+                            className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50"
                           >
-                            {lesson.title}
-                          </span>
-                          {isCreator && isEditMode && (
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={() => handleDeleteLesson(chapter.id, lesson.id)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-500 hover:text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
+                            <span
+                              className={`cursor-pointer ${
+                                selectedLesson?.id === lesson.id
+                                  ? "text-blue-500"
+                                  : "text-gray-700"
+                              }`}
+                              onClick={() => setSelectedLesson(lesson)}
+                            >
+                              {lesson.title}
+                            </span>
+                            {isCreator && isEditMode && (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleDeleteLesson(chapter.id, lesson.id)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-500 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))
+              )}
 
               {isCreator && isEditMode && (
                 <div className="mt-6">
@@ -524,13 +1170,10 @@ export default function CoursePage() {
             </div>
 
             {/* Center/right section: Course content */}
-            <div className="w-3/4">
-              <h1 className="text-3xl font-bold mb-4">{course.title}</h1>
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: selectedLesson?.content || "",
-                }}
-              />
+            <div className="w-3/4 pl-8">
+              <div className="bg-white rounded-lg shadow-sm p-8">
+                {renderLessonContent()}
+              </div>
             </div>
           </div>
         </div>

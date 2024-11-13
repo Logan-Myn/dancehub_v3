@@ -2,78 +2,76 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 
 export async function GET(
-  request: Request,
+  req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
-    const { communitySlug, courseSlug } = params;
+    console.log("API: Fetching course with params:", params);
 
-    // Get the community document
-    const communitySnapshot = await adminDb
+    // First get the community document
+    const communityQuery = await adminDb
       .collection("communities")
-      .where("slug", "==", communitySlug)
+      .where("slug", "==", params.communitySlug)
       .limit(1)
       .get();
 
-    if (communitySnapshot.empty) {
-      return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
-      );
+    if (communityQuery.empty) {
+      console.log("Community not found");
+      return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityDoc = communitySnapshot.docs[0];
+    const communityDoc = communityQuery.docs[0];
 
-    // Get the course document by slug
-    const courseDoc = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
+    // Then get the course using the community document reference
+    const courseQuery = await communityDoc.ref
       .collection("courses")
-      .where("slug", "==", courseSlug)
+      .where("slug", "==", params.courseSlug)
       .limit(1)
       .get();
 
-    if (courseDoc.empty) {
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+    if (courseQuery.empty) {
+      console.log("Course not found");
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseRef = courseDoc.docs[0].ref;
+    const courseDoc = courseQuery.docs[0];
+    const courseData: any = {
+      id: courseDoc.id,
+      ...courseDoc.data()
+    };
 
-    // Get the chapters subcollection
-    const chaptersSnapshot = await courseRef.collection("chapters").get();
+    // Get all chapters
+    const chaptersSnapshot = await courseDoc.ref
+      .collection("chapters")
+      .orderBy("order")
+      .get();
 
     const chapters = await Promise.all(
       chaptersSnapshot.docs.map(async (chapterDoc) => {
-        const chapterData = chapterDoc.data();
+        const lessonsSnapshot = await chapterDoc.ref
+          .collection("lessons")
+          .orderBy("order")
+          .get();
 
-        // Get the lessons subcollection for each chapter
-        const lessonsSnapshot = await chapterDoc.ref.collection("lessons").get();
-
-        const lessons = lessonsSnapshot.docs.map((lessonDoc) => ({
+        const lessons = lessonsSnapshot.docs.map(lessonDoc => ({
           id: lessonDoc.id,
-          ...lessonDoc.data(),
+          ...lessonDoc.data()
         }));
 
         return {
           id: chapterDoc.id,
-          ...chapterData,
-          lessons,
+          ...chapterDoc.data(),
+          lessons
         };
       })
     );
 
-    const course = {
-      id: courseDoc.docs[0].id,
-      ...courseDoc.docs[0].data(),
-      chapters,
-    };
+    courseData.chapters = chapters;
 
-    return NextResponse.json(course);
+    console.log("API: Successfully fetched course data");
+    return NextResponse.json(courseData);
   } catch (error) {
-    console.error("Error fetching course:", error);
+    console.error("API Error:", error);
     return NextResponse.json(
       { error: "Failed to fetch course" },
       { status: 500 }

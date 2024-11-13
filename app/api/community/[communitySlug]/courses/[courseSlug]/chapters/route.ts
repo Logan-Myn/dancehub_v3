@@ -43,16 +43,27 @@ export async function POST(
 
     const courseRef = courseDoc.docs[0].ref;
 
-    // Create a new chapter document
+    // Get the current highest order
+    const chaptersSnapshot = await courseRef
+      .collection("chapters")
+      .orderBy("order", "desc")
+      .limit(1)
+      .get();
+
+    const highestOrder = chaptersSnapshot.empty ? -1 : chaptersSnapshot.docs[0].data().order;
+
+    // Create the new chapter with order
     const newChapterRef = await courseRef.collection("chapters").add({
       title,
-      lessons: [],
+      order: highestOrder + 1,
+      createdAt: new Date().toISOString(),
     });
 
     const newChapter = {
       id: newChapterRef.id,
       title,
-      lessons: [],
+      order: highestOrder + 1,
+      createdAt: new Date().toISOString(),
     };
 
     return NextResponse.json(newChapter);
