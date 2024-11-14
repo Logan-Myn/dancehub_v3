@@ -61,12 +61,18 @@ export default function CommunityPage() {
   const { user } = useAuth();
   const [community, setCommunity] = useState<Community | null>(null);
   const [isMember, setIsMember] = useState(false);
-  const [members, setMembers] = useState<{
-      displayName: string | undefined; id: string; imageUrl: string 
-}[]>([]);
+  const [members, setMembers] = useState<
+    {
+      displayName: string | undefined;
+      id: string;
+      imageUrl: string;
+    }[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(
+    null
+  );
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [isWriting, setIsWriting] = useState(false);
@@ -117,26 +123,33 @@ export default function CommunityPage() {
 
   const handleJoinCommunity = async () => {
     if (!user) {
-      toast.error('Please sign in to join the community');
+      toast.error("Please sign in to join the community");
       return;
     }
 
     try {
-      if (community?.membershipEnabled && community?.membershipPrice && community.membershipPrice > 0) {
+      if (
+        community?.membershipEnabled &&
+        community?.membershipPrice &&
+        community.membershipPrice > 0
+      ) {
         // Handle paid membership
-        const response = await fetch(`/api/community/${communitySlug}/join-paid`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.uid,
-            email: user.email,
-          }),
-        });
+        const response = await fetch(
+          `/api/community/${communitySlug}/join-paid`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: user.uid,
+              email: user.email,
+            }),
+          }
+        );
 
         if (!response.ok) {
-          throw new Error('Failed to create payment');
+          throw new Error("Failed to create payment");
         }
 
         const { clientSecret, stripeAccountId } = await response.json();
@@ -146,30 +159,30 @@ export default function CommunityPage() {
       } else {
         // Handle free membership
         const response = await fetch(`/api/community/${communitySlug}/join`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ userId: user.uid }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to join community');
+          throw new Error("Failed to join community");
         }
 
         setIsMember(true);
-        toast.success('Successfully joined the community!');
+        toast.success("Successfully joined the community!");
       }
     } catch (error) {
-      console.error('Error joining community:', error);
-      toast.error('Failed to join community');
+      console.error("Error joining community:", error);
+      toast.error("Failed to join community");
     }
   };
 
   const handlePaymentSuccess = () => {
     setIsMember(true);
     setShowPaymentModal(false);
-    toast.success('Successfully joined the community!');
+    toast.success("Successfully joined the community!");
   };
 
   const handleLeaveCommunity = async () => {
@@ -177,20 +190,20 @@ export default function CommunityPage() {
 
     try {
       const response = await fetch(`/api/community/${communitySlug}/leave`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ userId: user.uid }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to leave community');
+        throw new Error("Failed to leave community");
       }
 
       // Update local state
       setIsMember(false);
-      setMembers(prev => prev.filter(member => member.id !== user.uid));
+      setMembers((prev) => prev.filter((member) => member.id !== user.uid));
       if (community) {
         setCommunity({
           ...community,
@@ -198,27 +211,30 @@ export default function CommunityPage() {
         });
       }
 
-      toast.success('Successfully left the community');
+      toast.success("Successfully left the community");
     } catch (error) {
-      console.error('Error leaving community:', error);
-      toast.error('Failed to leave community');
+      console.error("Error leaving community:", error);
+      toast.error("Failed to leave community");
     }
   };
 
   const handleCheckSubscription = async () => {
     if (!user) {
-      toast.error('Please sign in to check subscription');
+      toast.error("Please sign in to check subscription");
       return;
     }
 
     try {
-      const response = await fetch(`/api/community/${communitySlug}/check-subscription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId: user.uid }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/check-subscription`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.uid }),
+        }
+      );
 
       const data = await response.json();
 
@@ -229,8 +245,8 @@ export default function CommunityPage() {
         toast.error(data.message);
       }
     } catch (error) {
-      console.error('Error checking subscription:', error);
-      toast.error('Failed to check subscription');
+      console.error("Error checking subscription:", error);
+      toast.error("Failed to check subscription");
     }
   };
 
@@ -238,12 +254,12 @@ export default function CommunityPage() {
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: user?.displayName || 'Anonymous',
-        image: user?.photoURL || '',
+        name: user?.displayName || "Anonymous",
+        image: user?.photoURL || "",
       },
       categoryId: newThread.categoryId,
       category: community?.threadCategories?.find(
-        cat => cat.id === newThread.categoryId
+        (cat) => cat.id === newThread.categoryId
       )?.name,
       createdAt: new Date().toISOString(),
       likesCount: 0,
@@ -251,11 +267,11 @@ export default function CommunityPage() {
     };
 
     // Ensure threads is always an array before updating
-    setThreads(prevThreads => {
+    setThreads((prevThreads) => {
       const threadsArray = Array.isArray(prevThreads) ? prevThreads : [];
       return [threadWithAuthor, ...threadsArray];
     });
-    
+
     setIsWriting(false);
   };
 
@@ -263,26 +279,30 @@ export default function CommunityPage() {
   const filteredThreads = useMemo(() => {
     // Ensure threads is an array
     const threadsArray = Array.isArray(threads) ? threads : [];
-    
+
     if (!selectedCategory) {
       return threadsArray;
     }
 
-    return threadsArray.filter(thread => {
+    return threadsArray.filter((thread) => {
       return thread.categoryId === selectedCategory;
     });
   }, [threads, selectedCategory]);
 
-  const handleLikeUpdate = (threadId: string, newLikesCount: number, liked: boolean) => {
-    setThreads(prevThreads =>
-      prevThreads.map(thread =>
+  const handleLikeUpdate = (
+    threadId: string,
+    newLikesCount: number,
+    liked: boolean
+  ) => {
+    setThreads((prevThreads) =>
+      prevThreads.map((thread) =>
         thread.id === threadId
           ? {
               ...thread,
               likesCount: newLikesCount,
-              likes: liked 
+              likes: liked
                 ? [...(thread.likes || []), user!.uid]
-                : (thread.likes || []).filter(id => id !== user!.uid),
+                : (thread.likes || []).filter((id) => id !== user!.uid),
             }
           : thread
       )
@@ -290,21 +310,23 @@ export default function CommunityPage() {
 
     // Also update selected thread if open
     if (selectedThread?.id === threadId) {
-      setSelectedThread(prev => 
-        prev ? {
-          ...prev,
-          likesCount: newLikesCount,
-          likes: liked 
-            ? [...(prev.likes || []), user!.uid]
-            : (prev.likes || []).filter(id => id !== user!.uid),
-        } : null
+      setSelectedThread((prev) =>
+        prev
+          ? {
+              ...prev,
+              likesCount: newLikesCount,
+              likes: liked
+                ? [...(prev.likes || []), user!.uid]
+                : (prev.likes || []).filter((id) => id !== user!.uid),
+            }
+          : null
       );
     }
   };
 
   const handleCommentUpdate = (threadId: string, newComment: any) => {
-    setThreads(prevThreads =>
-      prevThreads.map(thread =>
+    setThreads((prevThreads) =>
+      prevThreads.map((thread) =>
         thread.id === threadId
           ? {
               ...thread,
@@ -317,36 +339,36 @@ export default function CommunityPage() {
 
     // Also update selected thread if open
     if (selectedThread?.id === threadId) {
-      setSelectedThread(prev =>
-        prev ? {
-          ...prev,
-          comments: [...(prev.comments || []), newComment],
-          commentsCount: (prev.commentsCount || 0) + 1,
-        } : null
+      setSelectedThread((prev) =>
+        prev
+          ? {
+              ...prev,
+              comments: [...(prev.comments || []), newComment],
+              commentsCount: (prev.commentsCount || 0) + 1,
+            }
+          : null
       );
     }
   };
 
   const handleThreadUpdate = (threadId: string, updates: any) => {
-    setThreads(prevThreads =>
-      prevThreads.map(thread =>
-        thread.id === threadId
-          ? { ...thread, ...updates }
-          : thread
+    setThreads((prevThreads) =>
+      prevThreads.map((thread) =>
+        thread.id === threadId ? { ...thread, ...updates } : thread
       )
     );
 
     // Also update selected thread if open
     if (selectedThread?.id === threadId) {
-      setSelectedThread(prev =>
-        prev ? { ...prev, ...updates } : null
-      );
+      setSelectedThread((prev) => (prev ? { ...prev, ...updates } : null));
     }
   };
 
   // Add handleThreadDelete function
   const handleThreadDelete = (threadId: string) => {
-    setThreads(prevThreads => prevThreads.filter(thread => thread.id !== threadId));
+    setThreads((prevThreads) =>
+      prevThreads.filter((thread) => thread.id !== threadId)
+    );
     setSelectedThread(null);
   };
 
@@ -378,7 +400,7 @@ export default function CommunityPage() {
                 {isWriting ? (
                   <Thread
                     communityId={community.id}
-                    userId={user?.uid || ''}
+                    userId={user?.uid || ""}
                     communityName={community.name}
                     community={community}
                     onSave={handleNewThread}
@@ -388,15 +410,19 @@ export default function CommunityPage() {
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={user?.photoURL || ''}
-                        alt={user?.displayName || 'User'}
+                        src={user?.photoURL || ""}
+                        alt={user?.displayName || "User"}
                       />
                       <AvatarFallback>
-                        {user?.displayName?.[0] || 'U'}
+                        {user?.displayName?.[0] || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div
-                      onClick={() => user ? setIsWriting(true) : toast.error('Please sign in to post')}
+                      onClick={() =>
+                        user
+                          ? setIsWriting(true)
+                          : toast.error("Please sign in to post")
+                      }
                       className="flex-grow cursor-text rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition-colors"
                     >
                       Write something...
@@ -406,13 +432,14 @@ export default function CommunityPage() {
               </div>
 
               {/* Categories filter */}
-              {community.threadCategories && community.threadCategories.length > 0 && (
-                <ThreadCategories
-                  categories={community.threadCategories}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={setSelectedCategory}
-                />
-              )}
+              {community.threadCategories &&
+                community.threadCategories.length > 0 && (
+                  <ThreadCategories
+                    categories={community.threadCategories}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={setSelectedCategory}
+                  />
+                )}
 
               {/* Threads list */}
               <div className="space-y-4">
@@ -456,9 +483,11 @@ export default function CommunityPage() {
                   />
                 )}
                 <div className="p-4">
-                  <h2 className="text-xl font-semibold mb-2">{community.name}</h2>
+                  <h2 className="text-xl font-semibold mb-2">
+                    {community.name}
+                  </h2>
                   <p className="text-sm mb-2">{community.description}</p>
-                  
+
                   <div className="flex items-center text-sm text-gray-500 mb-4">
                     <Users className="h-4 w-4 mr-1" />
                     <span>{community.membersCount} members</span>
@@ -467,7 +496,9 @@ export default function CommunityPage() {
                   {community.price && community.currency && (
                     <div className="flex items-center text-sm text-gray-500 mb-4">
                       <CurrencyIcon className="h-4 w-4 mr-1" />
-                      <span>{community.price} {community.currency}</span>
+                      <span>
+                        {community.price} {community.currency}
+                      </span>
                     </div>
                   )}
 
@@ -510,7 +541,9 @@ export default function CommunityPage() {
                         )}
                       </>
                     ) : (
-                      <div className="text-sm text-gray-500">No members yet</div>
+                      <div className="text-sm text-gray-500">
+                        No members yet
+                      </div>
                     )}
                   </div>
 
@@ -533,7 +566,9 @@ export default function CommunityPage() {
                       onClick={handleJoinCommunity}
                       className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
                     >
-                      {community.membershipPrice ? `Join for €${community.membershipPrice}/month` : 'Join Community'}
+                      {community.membershipPrice
+                        ? `Join for €${community.membershipPrice}/month`
+                        : "Join Community"}
                     </Button>
                   )}
                 </div>
@@ -567,9 +602,7 @@ export default function CommunityPage() {
             );
           }}
           onCommunityUpdate={(updates) => {
-            setCommunity((prev) =>
-              prev ? { ...prev, ...updates } : null
-            );
+            setCommunity((prev) => (prev ? { ...prev, ...updates } : null));
           }}
           onCustomLinksUpdate={(newLinks) => {
             setCommunity((prev) =>
@@ -601,7 +634,7 @@ export default function CommunityPage() {
           thread={{
             ...selectedThread,
             categoryType: community.threadCategories?.find(
-              cat => cat.id === selectedThread.categoryId
+              (cat) => cat.id === selectedThread.categoryId
             )?.iconType,
           }}
           onLikeUpdate={handleLikeUpdate}
@@ -612,4 +645,4 @@ export default function CommunityPage() {
       )}
     </div>
   );
-} 
+}

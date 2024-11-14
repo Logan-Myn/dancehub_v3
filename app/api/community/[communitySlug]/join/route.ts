@@ -1,45 +1,57 @@
-import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebase-admin";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const { communitySlug } = params;
     const { userId } = await request.json();
 
-    // First get the community by slug
-    const communitiesSnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
+    // Get community reference
+    const communitySnapshot = await adminDb
+      .collection("communities")
+      .where("slug", "==", params.communitySlug)
       .limit(1)
       .get();
 
-    if (communitiesSnapshot.empty) {
+    if (communitySnapshot.empty) {
       return NextResponse.json(
-        { error: 'Community not found' },
+        { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitiesSnapshot.docs[0];
-    
-    // Add user to members array
-    await adminDb
-      .collection('communities')
-      .doc(communityDoc.id)
-      .update({
-        members: FieldValue.arrayUnion(userId)
-      });
+    const communityRef = communitySnapshot.docs[0].ref;
+
+    // Start a batch write
+    const batch = adminDb.batch();
+
+    // Add to members subcollection
+    const memberRef = communityRef.collection("members").doc(userId);
+    batch.set(memberRef, {
+      userId,
+      joinedAt: Timestamp.now(),
+      role: "member",
+      status: "active"
+    });
+
+    // Also add to members array for backward compatibility
+    batch.update(communityRef, {
+      members: FieldValue.arrayUnion(userId),
+      membersCount: FieldValue.increment(1)
+    });
+
+    // Commit the batch
+    await batch.commit();
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error joining community:', error);
+    console.error("Error joining community:", error);
     return NextResponse.json(
-      { error: 'Failed to join community' },
+      { error: "Failed to join community" },
       { status: 500 }
     );
   }
-} 
+}

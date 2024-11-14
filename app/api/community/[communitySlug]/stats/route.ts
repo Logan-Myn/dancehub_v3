@@ -25,6 +25,16 @@ export async function GET(
     const community = communitySnapshot.docs[0].data();
     const communityId = communitySnapshot.docs[0].id;
 
+    // Get total members from members subcollection
+    const totalMembersSnapshot = await adminDb
+      .collection("communities")
+      .doc(communityId)
+      .collection("members")
+      .count()
+      .get();
+
+    const totalMembers = totalMembersSnapshot.data().count;
+
     // Get total threads
     const threadsSnapshot = await adminDb
       .collection("communities")
@@ -63,18 +73,24 @@ export async function GET(
     }
 
     // Calculate membership growth
-    const previousMonthSnapshot = await adminDb
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    const newMembersThisMonth = await adminDb
       .collection("communities")
       .doc(communityId)
       .collection("members")
-      .where("joinedAt", ">=", new Date(new Date().setMonth(new Date().getMonth() - 1)))
+      .where("joinedAt", ">=", oneMonthAgo)
       .count()
       .get();
 
-    const membershipGrowth = ((previousMonthSnapshot.data().count / (community.membersCount || 1)) * 100).toFixed(1);
+    // Calculate growth percentage
+    const membershipGrowth = totalMembers > 0 
+      ? ((newMembersThisMonth.data().count / totalMembers) * 100).toFixed(1)
+      : "0.0";
 
     return NextResponse.json({
-      totalMembers: community.membersCount || 0,
+      totalMembers,
       monthlyRevenue,
       totalThreads: threadsSnapshot.data().count,
       activeMembers: activeMembers.size,

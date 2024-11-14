@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, onAuthStateChanged } from "firebase/auth";
+import { User, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 interface AuthContextType {
@@ -26,6 +26,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   }, []);
+
+  const handleSignUp = async (email: string, password: string) => {
+    try {
+      // Create the user with email/password
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Call our API to set up the user's profile
+      await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.email?.split('@')[0], // Use email username as display name
+        }),
+      });
+
+      return user;
+    } catch (error) {
+      console.error('Error during signup:', error);
+      throw error;
+    }
+  };
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

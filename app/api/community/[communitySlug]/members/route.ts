@@ -1,69 +1,61 @@
-import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
-
-// Helper function to format display name
-function formatDisplayName(fullName: string | null | undefined): string {
-  if (!fullName) return 'Anonymous User';
-  
-  const nameParts = fullName.trim().split(' ');
-  if (nameParts.length === 1) return nameParts[0];
-  
-  const firstName = nameParts[0];
-  const lastInitial = nameParts[nameParts.length - 1][0];
-  return `${firstName} ${lastInitial}.`;
-}
+import { NextResponse } from "next/server";
+import { adminDb, adminAuth } from "@/lib/firebase-admin";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const { communitySlug } = params;
-
-    // Get community by slug
-    const communitiesSnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
+    // Get community reference
+    const communitySnapshot = await adminDb
+      .collection("communities")
+      .where("slug", "==", params.communitySlug)
       .limit(1)
       .get();
 
-    if (communitiesSnapshot.empty) {
-      return NextResponse.json(
-        { error: 'Community not found' },
-        { status: 404 }
-      );
+    if (communitySnapshot.empty) {
+      return NextResponse.json({ members: [] });
     }
 
-    const communityDoc = communitiesSnapshot.docs[0];
-    const memberIds = communityDoc.data().members || [];
+    const communityRef = communitySnapshot.docs[0].ref;
+    const communityData = communitySnapshot.docs[0].data();
 
-    // Fetch user profiles from Firebase Auth
+    // Get members from both the subcollection and the members array
+    const membersSnapshot = await communityRef
+      .collection("members")
+      .get();
+
+    // Combine member IDs from both sources
+    const memberIds = new Set([
+      ...membersSnapshot.docs.map(doc => doc.data().userId),
+      ...(communityData.members || [])
+    ]);
+
+    // Fetch user details from Firebase Auth
     const members = await Promise.all(
-      memberIds.map(async (uid: string) => {
+      Array.from(memberIds).map(async (userId) => {
         try {
-          const userRecord = await adminAuth.getUser(uid);
+          const user = await adminAuth.getUser(userId);
           return {
-            id: uid,
-            imageUrl: userRecord.photoURL || '/placeholder-avatar.png',
-            displayName: formatDisplayName(userRecord.displayName),
+            id: userId,
+            displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+            imageUrl: user.photoURL || '',
+            email: user.email,
+            provider: user.providerData[0]?.providerId || 'unknown'
           };
         } catch (error) {
-          console.error(`Error fetching user ${uid}:`, error);
-          return {
-            id: uid,
-            imageUrl: '/placeholder-avatar.png',
-            displayName: 'Anonymous User',
-          };
+          console.error(`Error fetching user ${userId}:`, error);
+          return null;
         }
       })
     );
 
-    return NextResponse.json(members);
+    // Filter out any null results
+    const validMembers = members.filter(member => member !== null);
+
+    return NextResponse.json(validMembers);
   } catch (error) {
-    console.error('Error fetching members:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch members' },
-      { status: 500 }
-    );
+    console.error("Error fetching members:", error);
+    return NextResponse.json({ error: "Failed to fetch members" }, { status: 500 });
   }
-} 
+}
