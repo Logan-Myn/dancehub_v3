@@ -17,7 +17,7 @@ import {
 import { storage, auth } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-hot-toast";
-import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users, BarChart3, MessageSquare, TrendingUp } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,10 +37,19 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { DraggableCategory } from './DraggableCategory';
+import { Card } from "@/components/ui/card";
 
 interface CustomLink {
   title: string;
   url: string;
+}
+
+interface DashboardStats {
+  totalMembers: number;
+  monthlyRevenue: number;
+  totalThreads: number;
+  activeMembers: number;
+  membershipGrowth: number;
 }
 
 interface CommunitySettingsModalProps {
@@ -62,6 +71,7 @@ interface CommunitySettingsModalProps {
   stripeAccountId?: string | null;
   threadCategories?: ThreadCategory[];
   onThreadCategoriesUpdate?: (categories: ThreadCategory[]) => void;
+  communityStats?: DashboardStats;
 }
 
 const navigationCategories = [
@@ -96,6 +106,7 @@ export default function CommunitySettingsModal({
   stripeAccountId,
   threadCategories = [],
   onThreadCategoriesUpdate = () => {},
+  communityStats,
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
@@ -119,6 +130,7 @@ export default function CommunitySettingsModal({
     needsSetup: true,
   });
   const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
+  const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -154,6 +166,23 @@ export default function CommunitySettingsModal({
 
     fetchStripeStatus();
   }, [stripeAccountId]);
+
+  useEffect(() => {
+    async function fetchCommunityStats() {
+      try {
+        const response = await fetch(`/api/community/${communitySlug}/stats`);
+        if (!response.ok) throw new Error('Failed to fetch stats');
+        const stats = await response.json();
+        setLocalCommunityStats(stats);
+      } catch (error) {
+        console.error('Error fetching community stats:', error);
+      }
+    }
+
+    if (activeCategory === 'dashboard') {
+      fetchCommunityStats();
+    }
+  }, [communitySlug, activeCategory]);
 
   const handleAddLink = () => {
     setLinks([...links, { title: '', url: '' }]);
@@ -546,6 +575,86 @@ export default function CommunitySettingsModal({
     </div>
   );
 
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500">Total Members</h3>
+            <Users className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-2xl font-bold">{localCommunityStats?.totalMembers || 0}</p>
+          <p className="text-sm text-green-600">
+            <TrendingUp className="h-4 w-4 inline mr-1" />
+            +{localCommunityStats?.membershipGrowth || 0}% this month
+          </p>
+        </Card>
+
+        <Card className="p-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500">Monthly Revenue</h3>
+            <DollarSign className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-2xl font-bold">
+            €{(localCommunityStats?.monthlyRevenue || 0).toFixed(2)}
+          </p>
+          <p className="text-sm text-gray-500">From {localCommunityStats?.totalMembers || 0} paid memberships</p>
+        </Card>
+
+        <Card className="p-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500">Total Threads</h3>
+            <MessageSquare className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-2xl font-bold">{localCommunityStats?.totalThreads || 0}</p>
+          <p className="text-sm text-gray-500">Across all categories</p>
+        </Card>
+
+        <Card className="p-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500">Active Members</h3>
+            <BarChart3 className="h-4 w-4 text-gray-400" />
+          </div>
+          <p className="text-2xl font-bold">{localCommunityStats?.activeMembers || 0}</p>
+          <p className="text-sm text-gray-500">In the last 30 days</p>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <Card className="p-6">
+        <h3 className="text-lg font-medium mb-4">Recent Activity</h3>
+        <div className="space-y-4">
+          {/* We'll implement this later */}
+          <p className="text-sm text-gray-500">Coming soon: Activity feed showing recent joins, posts, and interactions</p>
+        </div>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card className="p-6">
+        <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <Button
+            variant="outline"
+            onClick={() => setActiveCategory("subscriptions")}
+            className="w-full"
+          >
+            <DollarSign className="h-4 w-4 mr-2" />
+            Manage Subscriptions
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setActiveCategory("members")}
+            className="w-full"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            View Members
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+
   return (
     <Transition.Root show={isOpen} as={React.Fragment}>
       <Dialog as="div" className="relative z-10" onClose={onClose}>
@@ -739,6 +848,8 @@ export default function CommunitySettingsModal({
                     {activeCategory === "subscriptions" && renderSubscriptions()}
 
                     {activeCategory === "thread_categories" && renderThreadCategories()}
+
+                    {activeCategory === "dashboard" && renderDashboard()}
 
                     {/* Add other category content here */}
                   </div>
