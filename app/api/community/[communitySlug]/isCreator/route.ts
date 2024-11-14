@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
-const serviceAccount = require("../../../../../serviceAccountKey.json");
-
-if (getApps().length === 0) {
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
-}
-
-const auth = getAuth();
-const db = getFirestore();
+const auth = adminAuth;
+const db = adminDb;
 
 export async function GET(
   request: Request,
