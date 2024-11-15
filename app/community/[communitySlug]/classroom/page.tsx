@@ -43,7 +43,9 @@ export default function ClassroomPage() {
     async function fetchCommunityAndCourses() {
       try {
         // Fetch community data
-        const communityData = await fetch(`/api/community/${communitySlug}`).then((res) => res.json());
+        const communityData = await fetch(
+          `/api/community/${communitySlug}`
+        ).then((res) => res.json());
         setCommunity(communityData);
 
         // Check if user is a member of the community
@@ -55,7 +57,9 @@ export default function ClassroomPage() {
         }
 
         // Fetch courses data
-        const coursesData = await fetch(`/api/community/${communitySlug}/courses`).then((res) => res.json());
+        const coursesData = await fetch(
+          `/api/community/${communitySlug}/courses`
+        ).then((res) => res.json());
         setCourses(coursesData);
       } catch (error) {
         console.error("Error fetching community and courses data:", error);
@@ -73,26 +77,26 @@ export default function ClassroomPage() {
   const handleCreateCourse = async (newCourse: Course) => {
     try {
       const formData = new FormData();
-      formData.append('title', newCourse.title);
-      formData.append('description', newCourse.description);
-      formData.append('image', newCourse.image as File);
+      formData.append("title", newCourse.title);
+      formData.append("description", newCourse.description);
+      formData.append("image", newCourse.image as File);
 
       const response = await fetch(`/api/community/${communitySlug}/courses`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create course');
+        throw new Error("Failed to create course");
       }
 
       const createdCourse = await response.json();
       setCourses((prevCourses) => [...prevCourses, createdCourse]);
       setIsCreateCourseModalOpen(false);
-      toast.success('Course created successfully');
+      toast.success("Course created successfully");
     } catch (error) {
-      console.error('Error creating course:', error);
-      toast.error('Failed to create course');
+      console.error("Error creating course:", error);
+      toast.error("Failed to create course");
     }
   };
 
@@ -129,9 +133,12 @@ export default function ClassroomPage() {
           {isMember ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {courses.map((course) => (
-                <Link key={course.id} href={`/community/${communitySlug}/classroom/${course.slug}`}>
-                  <CourseCard 
-                    course={course} 
+                <Link
+                  key={course.id}
+                  href={`/community/${communitySlug}/classroom/${course.slug}`}
+                >
+                  <CourseCard
+                    course={course}
                     onClick={() => {}} // Empty onClick to satisfy prop requirement
                   />
                 </Link>
@@ -139,7 +146,9 @@ export default function ClassroomPage() {
             </div>
           ) : (
             <div className="text-center">
-              <p className="text-xl">You need to be a member of this community to access the courses.</p>
+              <p className="text-xl">
+                You need to be a member of this community to access the courses.
+              </p>
             </div>
           )}
         </div>
@@ -152,4 +161,4 @@ export default function ClassroomPage() {
       />
     </div>
   );
-} 
+}

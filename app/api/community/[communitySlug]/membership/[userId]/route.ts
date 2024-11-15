@@ -1,35 +1,42 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb } from "@/lib/firebase-admin";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string; userId: string } }
 ) {
   try {
-    // Get community reference
-    const communitySnapshot = await adminDb
+    const { communitySlug, userId } = params;
+
+    // Get community doc to check if user is creator
+    const communityDoc = await adminDb
       .collection("communities")
-      .where("slug", "==", params.communitySlug)
+      .where("slug", "==", communitySlug)
       .limit(1)
       .get();
 
-    if (communitySnapshot.empty) {
-      return NextResponse.json({ isMember: false });
+    if (communityDoc.empty) {
+      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    const communityRef = communitySnapshot.docs[0].ref;
+    const community = communityDoc.docs[0].data();
+    
+    // Check if user is creator
+    if (community.createdBy === userId) {
+      return NextResponse.json({ isMember: true });
+    }
 
-    // Check if user is a member in the new structure
-    const memberDoc = await communityRef
+    // Check membership collection
+    const membershipDoc = await adminDb
+      .collection("communities")
+      .doc(communityDoc.docs[0].id)
       .collection("members")
-      .doc(params.userId)
+      .doc(userId)
       .get();
 
-    const isMember = memberDoc.exists;
-
-    return NextResponse.json({ isMember });
+    return NextResponse.json({ isMember: membershipDoc.exists });
   } catch (error) {
-    console.error("Error checking membership:", error);
-    return NextResponse.json({ isMember: false });
+    console.error('Error checking membership:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

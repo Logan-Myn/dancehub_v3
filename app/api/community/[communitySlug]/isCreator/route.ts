@@ -32,4 +32,4 @@ export async function GET(
     console.error("Error checking if user is creator:", error);
     return NextResponse.json({ isCreator: false });
   }
-} 
+}

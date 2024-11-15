@@ -8,7 +8,7 @@ interface CourseCardProps {
 
 export default function CourseCard({ course, onClick }: CourseCardProps) {
   return (
-    <div 
+    <div
       className="bg-white shadow-md rounded-lg overflow-hidden cursor-pointer transition-shadow duration-200 ease-in-out hover:shadow-lg"
       onClick={onClick}
     >
@@ -25,4 +25,4 @@ export default function CourseCard({ course, onClick }: CourseCardProps) {
       </div>
     </div>
   );
-} 
+}

@@ -61,14 +61,14 @@ export async function POST(
 
     // Get the community document
     const communitySnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
+      .collection("communities")
+      .where("slug", "==", communitySlug)
       .limit(1)
       .get();
 
     if (communitySnapshot.empty) {
       return NextResponse.json(
-        { error: 'Community not found' },
+        { error: "Community not found" },
         { status: 404 }
       );
     }
@@ -77,15 +77,15 @@ export async function POST(
 
     // Parse the form data
     const formData = await request.formData();
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const imageFile = formData.get('image') as File;
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const imageFile = formData.get("image") as File;
 
     // Generate the slug from the title
     const slug = slugify(title);
 
     // Upload the image to Firebase Storage
-    const imageName = `${uuidv4()}.${imageFile.name.split('.').pop()}`;
+    const imageName = `${uuidv4()}.${imageFile.name.split(".").pop()}`;
     const bucket = storage.bucket();
     const blob = bucket.file(`course-images/${imageName}`);
     const blobWriter = blob.createWriteStream({
@@ -99,23 +99,23 @@ export async function POST(
     blobWriter.end(imageBuffer);
 
     await new Promise((resolve, reject) => {
-      blobWriter.on('error', (err: Error) => {
+      blobWriter.on("error", (err: Error) => {
         reject(err);
       });
-      blobWriter.on('finish', resolve);
+      blobWriter.on("finish", resolve);
     });
 
     // Get the public URL of the uploaded image
     const [imageUrl] = await blob.getSignedUrl({
-      action: 'read',
-      expires: '03-09-2491',
+      action: "read",
+      expires: "03-09-2491",
     });
 
     // Create a new course document
     const newCourseRef = await adminDb
-      .collection('communities')
+      .collection("communities")
       .doc(communityDoc.id)
-      .collection('courses')
+      .collection("courses")
       .add({
         title,
         description,
@@ -133,10 +133,10 @@ export async function POST(
       ...newCourse.data(),
     });
   } catch (error) {
-    console.error('Error creating course:', error);
+    console.error("Error creating course:", error);
     return NextResponse.json(
-      { error: 'Failed to create course' },
+      { error: "Failed to create course" },
       { status: 500 }
     );
   }
-} 
+}
