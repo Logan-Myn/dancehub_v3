@@ -1096,13 +1096,13 @@ export default function CoursePage() {
                                   }
                                 >
                                   <SortableContext
-                                    items={chapter.lessons.map(
+                                    items={(chapter.lessons || []).map(
                                       (lesson) => lesson.id
                                     )}
                                     strategy={verticalListSortingStrategy}
                                   >
                                     <ul className="ml-6 space-y-1">
-                                      {chapter.lessons.map((lesson) => (
+                                      {(chapter.lessons || []).map((lesson) => (
                                         <DraggableItem
                                           key={lesson.id}
                                           id={lesson.id}
