@@ -74,6 +74,10 @@ interface CommunitySettingsModalProps {
   communityStats?: DashboardStats;
 }
 
+interface RevenueData {
+  monthlyRevenue: number;
+}
+
 const navigationCategories = [
   { id: "dashboard", name: "Dashboard", icon: Squares2X2Icon },
   { id: "general", name: "General", icon: Cog6ToothIcon },
@@ -131,6 +135,7 @@ export default function CommunitySettingsModal({
   });
   const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
   const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
+  const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -183,6 +188,24 @@ export default function CommunitySettingsModal({
       fetchCommunityStats();
     }
   }, [communitySlug, activeCategory]);
+
+  useEffect(() => {
+    async function fetchRevenueData() {
+      if (activeCategory === 'dashboard' && stripeAccountId) {
+        try {
+          const response = await fetch(`/api/community/${communitySlug}/stripe-revenue`);
+          if (!response.ok) throw new Error('Failed to fetch revenue data');
+          const data = await response.json();
+          setRevenueData(data);
+        } catch (error) {
+          console.error('Error fetching revenue data:', error);
+          toast.error('Failed to fetch revenue data');
+        }
+      }
+    }
+
+    fetchRevenueData();
+  }, [activeCategory, communitySlug, stripeAccountId]);
 
   const handleAddLink = () => {
     setLinks([...links, { title: '', url: '' }]);
@@ -597,9 +620,11 @@ export default function CommunitySettingsModal({
             <DollarSign className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold">
-            €{(localCommunityStats?.monthlyRevenue || 0).toFixed(2)}
+            €{revenueData.monthlyRevenue.toFixed(2)}
           </p>
-          <p className="text-sm text-gray-500">From {localCommunityStats?.totalMembers || 0} paid memberships</p>
+          <p className="text-sm text-gray-500">
+            From {localCommunityStats?.totalMembers || 0} paid memberships
+          </p>
         </Card>
 
         <Card className="p-6 space-y-2">
