@@ -14,24 +14,24 @@ export async function GET(
       .get();
 
     if (communitySnapshot.empty) {
-      return NextResponse.json({ members: [] });
+      return NextResponse.json({ members: [], totalMembers: 0 });
     }
 
     const communityRef = communitySnapshot.docs[0].ref;
     const communityData = communitySnapshot.docs[0].data();
 
-    // Get members from both the subcollection and the members array
+    // Get all members from the members subcollection AND the members array
     const membersSnapshot = await communityRef
       .collection("members")
       .get();
 
-    // Combine member IDs from both sources
+    // Get all member IDs (including both old and new structure)
     const memberIds = new Set([
       ...membersSnapshot.docs.map(doc => doc.data().userId),
       ...(communityData.members || [])
     ]);
 
-    // Fetch user details from Firebase Auth
+    // Fetch user details for each member
     const members = await Promise.all(
       Array.from(memberIds).map(async (userId) => {
         try {
@@ -40,8 +40,6 @@ export async function GET(
             id: userId,
             displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
             imageUrl: user.photoURL || '',
-            email: user.email,
-            provider: user.providerData[0]?.providerId || 'unknown'
           };
         } catch (error) {
           console.error(`Error fetching user ${userId}:`, error);
@@ -53,7 +51,10 @@ export async function GET(
     // Filter out any null results
     const validMembers = members.filter(member => member !== null);
 
-    return NextResponse.json(validMembers);
+    return NextResponse.json({
+      members: validMembers,
+      totalMembers: validMembers.length
+    });
   } catch (error) {
     console.error("Error fetching members:", error);
     return NextResponse.json({ error: "Failed to fetch members" }, { status: 500 });

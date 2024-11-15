@@ -20,6 +20,16 @@ import ThreadCard from "@/components/ThreadCard";
 import ThreadModal from "@/components/ThreadModal";
 import { ThreadCategory } from "@/types/community";
 import ThreadCategories from "@/components/ThreadCategories";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Community {
   id: string;
@@ -79,6 +89,8 @@ export default function CommunityPage() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   useEffect(() => {
     async function fetchCommunityData() {
@@ -101,7 +113,8 @@ export default function CommunityPage() {
         const membersData = await fetch(
           `/api/community/${communitySlug}/members`
         ).then((res) => res.json());
-        setMembers(membersData);
+        setMembers(membersData.members);
+        setTotalMembers(membersData.totalMembers);
 
         // Fetch threads
         const threadsData = await fetch(
@@ -204,12 +217,10 @@ export default function CommunityPage() {
       // Update local state
       setIsMember(false);
       setMembers((prev) => prev.filter((member) => member.id !== user.uid));
-      if (community) {
-        setCommunity({
-          ...community,
-          membersCount: (community.membersCount || 1) - 1,
-        });
-      }
+      setShowLeaveDialog(false);
+      
+      // Refresh the page to ensure everything is updated
+      window.location.reload();
 
       toast.success("Successfully left the community");
     } catch (error) {
@@ -490,7 +501,7 @@ export default function CommunityPage() {
 
                   <div className="flex items-center text-sm text-gray-500 mb-4">
                     <Users className="h-4 w-4 mr-1" />
-                    <span>{community.membersCount} members</span>
+                    <span>{totalMembers} members</span>
                   </div>
 
                   {community.price && community.currency && (
@@ -556,7 +567,7 @@ export default function CommunityPage() {
                     </Button>
                   ) : isMember ? (
                     <Button
-                      onClick={handleLeaveCommunity}
+                      onClick={() => setShowLeaveDialog(true)}
                       className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
                     >
                       Leave Community
@@ -643,6 +654,26 @@ export default function CommunityPage() {
           onDelete={handleThreadDelete}
         />
       )}
+
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Community</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to leave this community? You'll lose access to all content and need to rejoin to access it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveCommunity}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Leave Community
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
