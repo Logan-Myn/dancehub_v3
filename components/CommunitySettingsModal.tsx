@@ -78,6 +78,16 @@ interface RevenueData {
   monthlyRevenue: number;
 }
 
+interface CommunityMember {
+  id: string;
+  displayName: string;
+  email: string;
+  imageUrl: string;
+  joinedAt: string;
+  status: 'active' | 'inactive';
+  lastActive?: string;
+}
+
 const navigationCategories = [
   { id: "dashboard", name: "Dashboard", icon: Squares2X2Icon },
   { id: "general", name: "General", icon: Cog6ToothIcon },
@@ -136,6 +146,8 @@ export default function CommunitySettingsModal({
   const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
   const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
+  const [members, setMembers] = useState<CommunityMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -206,6 +218,27 @@ export default function CommunitySettingsModal({
 
     fetchRevenueData();
   }, [activeCategory, communitySlug, stripeAccountId]);
+
+  useEffect(() => {
+    async function fetchMembers() {
+      if (activeCategory === 'members') {
+        setIsLoadingMembers(true);
+        try {
+          const response = await fetch(`/api/community/${communitySlug}/members`);
+          if (!response.ok) throw new Error('Failed to fetch members');
+          const data = await response.json();
+          setMembers(data.members);
+        } catch (error) {
+          console.error('Error fetching members:', error);
+          toast.error('Failed to fetch members');
+        } finally {
+          setIsLoadingMembers(false);
+        }
+      }
+    }
+
+    fetchMembers();
+  }, [communitySlug, activeCategory]);
 
   const handleAddLink = () => {
     setLinks([...links, { title: '', url: '' }]);
@@ -438,6 +471,27 @@ export default function CommunitySettingsModal({
 
         return arrayMove(items, oldIndex, newIndex);
       });
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm('Are you sure you want to remove this member?')) return;
+
+    try {
+      const response = await fetch(
+        `/api/community/${communitySlug}/members/${memberId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to remove member');
+
+      setMembers(members.filter(member => member.id !== memberId));
+      toast.success('Member removed successfully');
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast.error('Failed to remove member');
     }
   };
 
@@ -680,6 +734,104 @@ export default function CommunitySettingsModal({
     </div>
   );
 
+  const renderMembers = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Community Members</h3>
+        <p className="text-sm text-gray-500">Total: {members.length} members</p>
+      </div>
+
+      {isLoadingMembers ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Member
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Active
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {members.map((member) => (
+                  <tr key={member.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0">
+                          <img
+                            className="h-10 w-10 rounded-full"
+                            src={member.imageUrl}
+                            alt={member.displayName}
+                          />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {member.displayName}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{member.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(member.joinedAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${member.status === 'active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'}`}
+                      >
+                        {member.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {member.lastActive 
+                        ? new Date(member.lastActive).toLocaleDateString()
+                        : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-900"
+                        onClick={() => handleRemoveMember(member.id)}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Transition.Root show={isOpen} as={React.Fragment}>
       <Dialog as="div" className="relative z-10" onClose={onClose}>
@@ -875,6 +1027,8 @@ export default function CommunitySettingsModal({
                     {activeCategory === "thread_categories" && renderThreadCategories()}
 
                     {activeCategory === "dashboard" && renderDashboard()}
+
+                    {activeCategory === "members" && renderMembers()}
 
                     {/* Add other category content here */}
                   </div>
