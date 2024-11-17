@@ -5,18 +5,7 @@ import { Button } from "./ui/button";
 import { toast } from "react-hot-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  MessageCircle,
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Quote,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-} from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -25,9 +14,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { CATEGORY_ICONS } from "@/lib/constants";
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
+import Editor from "./Editor";
 
 interface ThreadProps {
   communityId: string;
@@ -50,21 +37,7 @@ export default function Thread({
   const [title, setTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const { user } = useAuth();
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right', 'justify'],
-      }),
-    ],
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm focus:outline-none max-w-full min-h-[150px]',
-      },
-    },
-  });
+  const [content, setContent] = useState("");
 
   const isCreator = user?.uid === community.createdBy;
 
@@ -74,7 +47,7 @@ export default function Thread({
       return;
     }
 
-    if (!editor?.getHTML() || editor?.getHTML() === '<p></p>') {
+    if (!content || content === '<p></p>') {
       toast.error("Please write something before posting");
       return;
     }
@@ -94,7 +67,7 @@ export default function Thread({
         },
         body: JSON.stringify({
           title,
-          content: editor.getHTML(),
+          content,
           communityId,
           userId,
           categoryId: selectedCategory,
@@ -110,8 +83,7 @@ export default function Thread({
 
       const newThread = await response.json();
       toast.success("Thread created successfully");
-      editor?.commands.clearContent();
-      setTitle("");
+      setContent("");
       setSelectedCategory("");
       onSave(newThread);
     } catch (error) {
@@ -175,95 +147,12 @@ export default function Thread({
         className="text-lg font-medium border-none bg-transparent px-0 focus:outline-none w-full"
       />
 
-      {/* Updated Editor toolbar with text alignment */}
-      <div className="flex items-center space-x-2 border-b pb-2">
-        <div className="flex items-center space-x-2 pr-4 border-r">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-            className={editor?.isActive('bold') ? 'bg-gray-200' : ''}
-          >
-            <Bold className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-            className={editor?.isActive('italic') ? 'bg-gray-200' : ''}
-          >
-            <Italic className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex items-center space-x-2 pr-4 border-r">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            className={editor?.isActive('bulletList') ? 'bg-gray-200' : ''}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            className={editor?.isActive('orderedList') ? 'bg-gray-200' : ''}
-          >
-            <ListOrdered className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-            className={editor?.isActive('blockquote') ? 'bg-gray-200' : ''}
-          >
-            <Quote className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* New text alignment buttons */}
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().setTextAlign('left').run()}
-            className={editor?.isActive({ textAlign: 'left' }) ? 'bg-gray-200' : ''}
-          >
-            <AlignLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().setTextAlign('center').run()}
-            className={editor?.isActive({ textAlign: 'center' }) ? 'bg-gray-200' : ''}
-          >
-            <AlignCenter className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().setTextAlign('right').run()}
-            className={editor?.isActive({ textAlign: 'right' }) ? 'bg-gray-200' : ''}
-          >
-            <AlignRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => editor?.chain().focus().setTextAlign('justify').run()}
-            className={editor?.isActive({ textAlign: 'justify' }) ? 'bg-gray-200' : ''}
-          >
-            <AlignJustify className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* TipTap Editor */}
-      <div className="min-h-[200px] w-full rounded-lg border border-input bg-background p-3">
-        <EditorContent editor={editor} />
-      </div>
+      {/* Editor Component */}
+      <Editor
+        content={content}
+        onChange={(html) => setContent(html)}
+        editable={true}
+      />
 
       {/* Action buttons */}
       <div className="flex justify-end space-x-2 pt-4 border-t">

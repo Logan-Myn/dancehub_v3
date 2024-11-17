@@ -22,6 +22,7 @@ import { Input } from "./ui/input";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import Editor from "./Editor";
 
 interface ThreadModalProps {
   isOpen: boolean;
@@ -429,7 +430,11 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   className="text-xl font-semibold"
                   placeholder="Thread title"
                 />
-                <EditorContent editor={editor} />
+                <Editor
+                  content={thread.content}
+                  onChange={(html) => setEditedContent(html)}
+                  editable={true}
+                />
                 <div className="flex justify-end space-x-2">
                   <Button
                     variant="outline"
@@ -445,7 +450,11 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
             ) : (
               <>
                 <h2 className="text-2xl font-semibold mb-4">{thread.title}</h2>
-                <EditorContent editor={editor} />
+                <Editor
+                  content={thread.content}
+                  onChange={() => {}}
+                  editable={false}
+                />
               </>
             )}
 
