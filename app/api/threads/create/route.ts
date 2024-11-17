@@ -16,10 +16,10 @@ export async function POST(request: Request) {
     const userRecord = await adminAuth.getUser(userId);
 
     const threadData = {
+      title,
       content,
       communityId,
       userId,
-      title,
       categoryId,
       category: categoryName,
       createdAt: new Date().toISOString(),

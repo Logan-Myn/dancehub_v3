@@ -116,8 +116,8 @@ export default function ThreadCard({
       {/* Thread content */}
       <h2 className="text-xl font-semibold mb-2">{title}</h2>
       <div 
-        className="prose prose-sm max-w-none mb-4" 
-        dangerouslySetInnerHTML={{ __html: content }} 
+        className="prose prose-sm max-w-none mt-2"
+        dangerouslySetInnerHTML={{ __html: content }}
       />
 
       {/* Interaction buttons */}
