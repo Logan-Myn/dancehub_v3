@@ -202,15 +202,17 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
         },
         body: JSON.stringify({
           title: editedTitle,
-          content: editor.getHTML(),
+          content: editedContent,
         }),
       });
 
       if (!response.ok) throw new Error('Failed to update thread');
 
+      const updatedThread = await response.json();
+      
       onThreadUpdate?.(thread.id, {
         title: editedTitle,
-        content: editor.getHTML(),
+        content: editedContent,
       });
 
       setIsEditing(false);
