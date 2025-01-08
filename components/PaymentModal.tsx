@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,9 @@ export default function PaymentModal({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Join Community</DialogTitle>
+          <DialogDescription>
+            Complete your payment to join this community
+          </DialogDescription>
         </DialogHeader>
         <Elements stripe={stripePromise} options={options}>
           <PaymentForm 

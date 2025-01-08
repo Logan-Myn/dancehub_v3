@@ -15,6 +15,9 @@ import {
 } from "./ui/select";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import Editor from "./Editor";
+import { useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
 
 interface ThreadProps {
   communityId: string;
@@ -40,6 +43,16 @@ export default function Thread({
   const [content, setContent] = useState("");
 
   const isCreator = user?.uid === community.createdBy;
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: 'Write your post here...',
+      }),
+    ],
+    immediatelyRender: false,
+  });
 
   const handleSubmit = async () => {
     if (!title.trim()) {

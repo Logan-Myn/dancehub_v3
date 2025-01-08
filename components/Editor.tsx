@@ -33,6 +33,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
     ],
     content,
     editable,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: 'prose prose-sm focus:outline-none max-w-full min-h-[150px]',
