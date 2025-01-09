@@ -39,15 +39,13 @@ export default function Navbar() {
               <UserAccountNav user={user} />
             ) : (
               <>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleAuthClick("signin")}
                 >
                   Sign In
                 </Button>
-                <Button 
-                  onClick={() => handleAuthClick("signup")}
-                >
+                <Button onClick={() => handleAuthClick("signup")}>
                   Sign Up
                 </Button>
               </>
@@ -56,11 +54,11 @@ export default function Navbar() {
         </div>
       </nav>
 
-      <AuthModal 
+      <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         mode={authMode}
       />
     </>
   );
-} 
+}

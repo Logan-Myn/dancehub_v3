@@ -29,10 +29,10 @@ interface ClientClassroomProps {
   communitySlug: string;
 }
 
-export default function ClientClassroom({ 
-  community, 
+export default function ClientClassroom({
+  community,
   initialCourses,
-  communitySlug 
+  communitySlug,
 }: ClientClassroomProps) {
   const { user } = useAuth();
   const [courses, setCourses] = useState(initialCourses);
@@ -131,4 +131,4 @@ export default function ClientClassroom({
       />
     </div>
   );
-} 
+}
