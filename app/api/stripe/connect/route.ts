@@ -1,58 +1,42 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { adminDb } from '@/lib/firebase-admin';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
-    const { communityId, userId } = await request.json();
-
-    // First get the community slug
-    const communityDoc = await adminDb
-      .collection('communities')
-      .doc(communityId)
-      .get();
-
-    if (!communityDoc.exists) {
-      throw new Error('Community not found');
-    }
-
-    const communityData = communityDoc.data();
-    const communitySlug = communityData?.slug;
+    const { userId } = await request.json();
 
     // Create a Stripe Connect account
     const account = await stripe.accounts.create({
-      type: 'standard',
-      metadata: {
-        communityId,
-        userId,
+      type: 'express',
+      country: 'FR',
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
       },
     });
 
-    // Store the Stripe account ID in Firestore
-    await adminDb
-      .collection('communities')
-      .doc(communityId)
-      .update({
-        stripeAccountId: account.id,
-        updatedAt: new Date().toISOString(),
-      });
+    // Update the user's profile with the Stripe account ID
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ stripe_account_id: account.id })
+      .eq('id', userId);
 
-    // Make sure we have the base URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com';
+    if (error) throw error;
 
-    // Create an account link for onboarding with full URLs using the slug
+    // Create an account link for onboarding
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${baseUrl}/community/${communitySlug}?tab=subscriptions`,
-      return_url: `${baseUrl}/community/${communitySlug}?tab=subscriptions&setup=complete`,
+      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/community/onboarding`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/community/onboarding`,
       type: 'account_onboarding',
     });
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
-    console.error('Error creating Stripe Connect account:', error);
+    console.error('Error creating Stripe account:', error);
     return NextResponse.json(
-      { error: 'Failed to create Stripe Connect account' },
+      { error: 'Failed to create Stripe account' },
       { status: 500 }
     );
   }

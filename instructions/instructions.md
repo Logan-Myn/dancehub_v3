@@ -8,8 +8,8 @@ Version 1.1
 
 ## 1. Core Technologies and Tools
 - **Frontend:** NextJS, Shadcn, TailwindCSS, Lucide Icons
-- **Backend & Database:** Firebase
-- **Authentication:** Firebase Auth
+- **Backend & Database:** Supabase
+- **Authentication:** Supabase Auth
 - **Video Hosting & Streaming:** Mux
 - **Payments:** Stripe
 - **State Management:** React Context API
@@ -209,7 +209,7 @@ const session = await stripe.checkout.sessions.create({
 
 ## 4. Documentation Links
 For further details, developers should refer to the following documentation:
-- [Firebase Documentation](https://firebase.google.com/docs)
+- [Supabase Documentation](https://supabase.com/docs)
 - [Mux Documentation](https://docs.mux.com)
 - [Stripe Documentation](https://stripe.com/docs)
 

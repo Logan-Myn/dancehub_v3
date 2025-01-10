@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { createServerClient } from '@/lib/supabase';
 
 interface Comment {
   id: string;
+  content: string;
+  author: {
+    name: string;
+    image: string;
+  };
+  created_at: string;
+  replies?: Comment[];
+  parent_id?: string;
   likes?: string[];
-  [key: string]: any;  // for other properties we don't need to type strictly
+  likes_count?: number;
 }
 
 export async function POST(
@@ -14,20 +22,20 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId, commentId } = params;
-
-    // Verify user
-    await adminAuth.getUser(userId);
+    const supabase = createServerClient();
 
     // Get the thread document
-    const threadRef = adminDb.collection('threads').doc(threadId);
-    const threadDoc = await threadRef.get();
+    const { data: thread } = await supabase
+      .from('threads')
+      .select('comments')
+      .eq('id', threadId)
+      .single();
 
-    if (!threadDoc.exists) {
+    if (!thread) {
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
     }
 
-    const threadData = threadDoc.data();
-    const comments = threadData?.comments || [];
+    const comments = thread.comments || [];
 
     // Find the comment and update its likes
     const updatedComments = comments.map((comment: Comment) => {
@@ -46,21 +54,26 @@ export async function POST(
         return {
           ...comment,
           likes,
-          likesCount: likes.length
+          likes_count: likes.length
         };
       }
       return comment;
     });
 
     // Update the thread with modified comments
-    await threadRef.update({ comments: updatedComments });
+    const { error } = await supabase
+      .from('threads')
+      .update({ comments: updatedComments })
+      .eq('id', threadId);
+
+    if (error) throw error;
 
     // Find the updated comment to return its new state
     const updatedComment = updatedComments.find((c: Comment) => c.id === commentId);
     const liked = updatedComment?.likes?.includes(userId) || false;
 
     return NextResponse.json({
-      likesCount: updatedComment?.likes?.length || 0,
+      likes_count: updatedComment?.likes?.length || 0,
       liked
     });
   } catch (error) {

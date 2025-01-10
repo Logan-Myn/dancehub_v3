@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function DELETE(
   req: Request,
@@ -16,37 +16,62 @@ export async function DELETE(
     }
     const token = authHeader.split("Bearer ")[1];
 
-    const decodedToken = await adminAuth.verifyIdToken(token);
-    const userId = decodedToken.uid;
+    // Verify the token and get user
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
-    const communityDoc = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .get();
-
-    if (
-      communityDoc.empty ||
-      communityDoc.docs[0].data().createdBy !== userId
-    ) {
+    if (authError || !user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const chapterRef = adminDb
-      .collection("courses")
-      .doc(params.courseSlug)
-      .collection("chapters")
-      .doc(params.chapterId);
+    // Check if user is the community creator
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from("communities")
+      .select("id, created_by")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    const lessonsSnapshot = await chapterRef.collection("lessons").get();
+    if (communityError || !community) {
+      return new NextResponse("Community not found", { status: 404 });
+    }
 
-    const batch = adminDb.batch();
-    lessonsSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
+    if (community.created_by !== user.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-    batch.delete(chapterRef);
+    // Get course ID
+    const { data: course, error: courseError } = await supabaseAdmin
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    await batch.commit();
+    if (courseError || !course) {
+      return new NextResponse("Course not found", { status: 404 });
+    }
+
+    // Delete all lessons in the chapter first (foreign key constraint)
+    const { error: lessonsDeleteError } = await supabaseAdmin
+      .from("lessons")
+      .delete()
+      .eq("chapter_id", params.chapterId);
+
+    if (lessonsDeleteError) {
+      console.error("[LESSONS_DELETE]", lessonsDeleteError);
+      return new NextResponse("Failed to delete lessons", { status: 500 });
+    }
+
+    // Delete the chapter
+    const { error: chapterDeleteError } = await supabaseAdmin
+      .from("chapters")
+      .delete()
+      .eq("id", params.chapterId)
+      .eq("course_id", course.id);
+
+    if (chapterDeleteError) {
+      console.error("[CHAPTER_DELETE]", chapterDeleteError);
+      return new NextResponse("Failed to delete chapter", { status: 500 });
+    }
 
     return NextResponse.json({
       message: "Chapter and lessons deleted successfully",

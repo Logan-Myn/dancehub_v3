@@ -3,10 +3,9 @@
 import { Section } from "@/types/page-builder";
 import { Button } from "../ui/button";
 import Image from "next/image";
-import { UploadCloud, GripVertical, Trash, Settings, ChevronDown } from "lucide-react";
+import { UploadCloud, GripVertical, Trash, Settings } from "lucide-react";
 import { useState } from "react";
-import { storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { createClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from 'uuid';
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -18,6 +17,7 @@ import {
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 
 interface HeroSectionProps {
   section: Section;
@@ -35,6 +35,7 @@ export default function HeroSection({
   const [isHovered, setIsHovered] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const supabase = createClient();
 
   const {
     attributes,
@@ -56,17 +57,33 @@ export default function HeroSection({
 
     try {
       setIsUploading(true);
-      const imageId = uuidv4();
-      const storageRef = ref(storage, `community-pages/${imageId}`);
-      await uploadBytes(storageRef, file);
-      const imageUrl = await getDownloadURL(storageRef);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `community-pages/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('images')
+        .getPublicUrl(filePath);
       
       onUpdate({
         ...section.content,
-        imageUrl,
+        imageUrl: publicUrl,
       });
+
+      toast.success('Image uploaded successfully');
     } catch (error) {
       console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
     } finally {
       setIsUploading(false);
     }

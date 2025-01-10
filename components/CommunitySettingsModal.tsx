@@ -14,8 +14,7 @@ import {
   CurrencyDollarIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { storage, auth } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { createClient } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users, BarChart3, MessageSquare, TrendingUp } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
@@ -38,6 +37,7 @@ import {
 } from '@dnd-kit/sortable';
 import { DraggableCategory } from './DraggableCategory';
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CustomLink {
   title: string;
@@ -52,28 +52,6 @@ interface DashboardStats {
   membershipGrowth: number;
 }
 
-interface CommunitySettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  communityId: string;
-  communitySlug: string;
-  communityName: string;
-  communityDescription: string;
-  imageUrl: string;
-  onImageUpdate: (newImageUrl: string) => void;
-  onCommunityUpdate: (updates: {
-    name?: string;
-    description?: string;
-    slug?: string;
-  }) => void;
-  customLinks?: CustomLink[];
-  onCustomLinksUpdate?: (links: CustomLink[]) => void;
-  stripeAccountId?: string | null;
-  threadCategories?: ThreadCategory[];
-  onThreadCategoriesUpdate?: (categories: ThreadCategory[]) => void;
-  communityStats?: DashboardStats;
-}
-
 interface RevenueData {
   monthlyRevenue: number;
 }
@@ -86,6 +64,31 @@ interface CommunityMember {
   joinedAt: string;
   status: 'active' | 'inactive';
   lastActive?: string;
+}
+
+interface StripeAccountStatus {
+  isEnabled: boolean;
+  needsSetup: boolean;
+  accountId?: string;
+  details?: any;
+}
+
+interface CommunitySettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  communityId: string;
+  communitySlug: string;
+  communityName: string;
+  communityDescription: string;
+  imageUrl: string;
+  onImageUpdate: (newImageUrl: string) => void;
+  onCommunityUpdate: (updates: any) => void;
+  customLinks: CustomLink[];
+  onCustomLinksUpdate: (newLinks: CustomLink[]) => void;
+  stripeAccountId: string | null;
+  threadCategories: ThreadCategory[];
+  onThreadCategoriesUpdate: (categories: ThreadCategory[]) => void;
+  communityStats?: DashboardStats;
 }
 
 const navigationCategories = [
@@ -113,41 +116,37 @@ export default function CommunitySettingsModal({
   communityName,
   communityDescription,
   imageUrl,
+  customLinks,
+  stripeAccountId,
+  threadCategories,
   onImageUpdate,
   onCommunityUpdate,
-  customLinks = [],
-  onCustomLinksUpdate = () => {},
-  stripeAccountId,
-  threadCategories = [],
-  onThreadCategoriesUpdate = () => {},
-  communityStats,
+  onCustomLinksUpdate,
+  onThreadCategoriesUpdate,
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
   const [description, setDescription] = useState(communityDescription);
-  const [links, setLinks] = useState<CustomLink[]>(customLinks);
+  const [isUploading, setIsUploading] = useState(false);
+  const [links, setLinks] = useState(customLinks);
+  const [categories, setCategories] = useState(threadCategories);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIconType, setNewCategoryIconType] = useState("");
+  const [isCreatorOnly, setIsCreatorOnly] = useState(false);
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
-  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(true);
-  const [price, setPrice] = useState<number>(0);
-  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
-  const [stripeAccountStatus, setStripeAccountStatus] = useState<{
-    isEnabled: boolean;
-    needsSetup: boolean;
-    accountId?: string;
-    details?: {
-      chargesEnabled: boolean;
-      payoutsEnabled: boolean;
-      requirements?: string[];
-    };
-  }>({
+  const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus>({
     isEnabled: false,
     needsSetup: true,
   });
-  const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
+  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(false);
+  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
+  const [price, setPrice] = useState(0);
   const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const supabase = createClient();
+  const { user } = useAuth();
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -245,12 +244,12 @@ export default function CommunitySettingsModal({
   };
 
   const handleRemoveLink = (index: number) => {
-    const newLinks = links.filter((_, i) => i !== index);
+    const newLinks = links.filter((_, i: number) => i !== index);
     setLinks(newLinks);
   };
 
   const handleLinkChange = (index: number, field: 'title' | 'url', value: string) => {
-    const newLinks = links.map((link, i) => {
+    const newLinks = links.map((link: CustomLink, i: number) => {
       if (i === index) {
         if (field === 'url') {
           return { ...link, [field]: formatUrl(value) };
@@ -311,54 +310,42 @@ export default function CommunitySettingsModal({
     }
   }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsUploading(true);
+
     try {
-      // Check file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('File size must be less than 5MB');
-      }
+      // Upload image to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${communityId}-${Date.now()}.${fileExt}`;
+      const { data, error } = await supabase.storage
+        .from('community-images')
+        .upload(fileName, file);
 
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        throw new Error('File must be an image');
-      }
+      if (error) throw error;
 
-      // Get current user
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error('You must be logged in to upload images');
-      }
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('community-images')
+        .getPublicUrl(fileName);
 
-      // Create a reference to the file in Firebase Storage
-      const storageRef = ref(storage, `community-images/${communitySlug}-${Date.now()}`);
-      
-      // Upload the file with metadata
-      const metadata = {
-        contentType: file.type,
-        customMetadata: {
-          uploadedBy: currentUser.uid,
-          communityId: communityId,
-        },
-      };
-      
-      // Show loading toast
-      const loadingToast = toast.loading('Uploading image...');
-      
-      const snapshot = await uploadBytes(storageRef, file, metadata);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      // Update the image URL
-      onImageUpdate(downloadURL);
-      
-      // Dismiss loading toast and show success
-      toast.dismiss(loadingToast);
+      // Update community with new image URL
+      const { error: updateError } = await supabase
+        .from('communities')
+        .update({ image_url: publicUrl })
+        .eq('id', communityId);
+
+      if (updateError) throw updateError;
+
+      onImageUpdate(publicUrl);
       toast.success('Image uploaded successfully');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error uploading image:', error);
-      toast.error(error.message || 'Failed to upload image. Please try again.');
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -372,7 +359,7 @@ export default function CommunitySettingsModal({
         },
         body: JSON.stringify({
           communityId,
-          userId: auth.currentUser?.uid,
+          userId: user?.id,
         }),
       });
 

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
@@ -9,36 +8,76 @@ export async function POST(
   try {
     const { userId } = await request.json();
 
-    // Get community reference
-    const communitySnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from('communities')
+      .select('id')
+      .eq('slug', params.communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
       );
     }
 
-    const communityRef = communitySnapshot.docs[0].ref;
+    // Check if user is a member
+    const { data: member } = await supabaseAdmin
+      .from('community_members')
+      .select()
+      .eq('community_id', community.id)
+      .eq('user_id', userId)
+      .single();
 
-    // Start a batch write
-    const batch = adminDb.batch();
+    if (!member) {
+      return NextResponse.json(
+        { error: 'User is not a member of this community' },
+        { status: 400 }
+      );
+    }
 
-    // Remove from members subcollection
-    batch.delete(communityRef.collection('members').doc(userId));
+    // Remove member from community_members table
+    const { error: deleteError } = await supabaseAdmin
+      .from('community_members')
+      .delete()
+      .eq('community_id', community.id)
+      .eq('user_id', userId);
 
-    // Remove from members array and update count
-    batch.update(communityRef, {
-      members: FieldValue.arrayRemove(userId),
-      membersCount: FieldValue.increment(-1)
-    });
+    if (deleteError) {
+      console.error('Error removing member:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to remove member' },
+        { status: 500 }
+      );
+    }
 
-    // Commit the batch
-    await batch.commit();
+    // Update members_count in communities table
+    const { error: updateError } = await supabaseAdmin.rpc(
+      'decrement_members_count',
+      { community_id: community.id }
+    );
+
+    if (updateError) {
+      console.error('Error updating members count:', updateError);
+      // Try to rollback the member deletion
+      await supabaseAdmin
+        .from('community_members')
+        .insert({
+          community_id: community.id,
+          user_id: userId,
+          role: member.role,
+          status: member.status,
+          joined_at: member.joined_at,
+          subscription_status: member.subscription_status,
+          payment_intent_id: member.payment_intent_id
+        });
+
+      return NextResponse.json(
+        { error: 'Failed to update members count' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

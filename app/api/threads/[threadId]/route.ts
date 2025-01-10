@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createServerClient } from "@/lib/supabase";
 
 export async function PATCH(
   request: Request,
@@ -9,18 +9,18 @@ export async function PATCH(
     const { title, content } = await request.json();
     const { threadId } = params;
 
-    const threadRef = adminDb.collection("threads").doc(threadId);
-    const threadDoc = await threadRef.get();
+    const supabase = createServerClient();
 
-    if (!threadDoc.exists) {
-      return NextResponse.json({ error: "Thread not found" }, { status: 404 });
-    }
+    const { error } = await supabase
+      .from("threads")
+      .update({
+        title,
+        content,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", threadId);
 
-    await threadRef.update({
-      title,
-      content,
-      updatedAt: new Date().toISOString(),
-    });
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -38,9 +38,14 @@ export async function DELETE(
 ) {
   try {
     const { threadId } = params;
+    const supabase = createServerClient();
 
-    // Delete the thread
-    await adminDb.collection("threads").doc(threadId).delete();
+    const { error } = await supabase
+      .from("threads")
+      .delete()
+      .eq("id", threadId);
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {

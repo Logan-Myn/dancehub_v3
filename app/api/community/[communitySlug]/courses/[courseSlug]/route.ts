@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   req: Request,
@@ -7,86 +7,70 @@ export async function GET(
 ) {
   try {
     console.log("API: Fetching course with params:", params);
+    const supabase = createClient();
 
-    // First get the community document
-    const communityQuery = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // First get the community
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communityQuery.empty) {
+    if (communityError || !community) {
       console.log("Community not found");
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityDoc = communityQuery.docs[0];
+    // Get the course
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select(`
+        id,
+        title,
+        slug,
+        chapters (
+          id,
+          title,
+          order,
+          lessons (
+            id,
+            title,
+            content,
+            videoAssetId,
+            order,
+            createdAt,
+            updatedAt,
+            createdBy
+          )
+        )
+      `)
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    // Then get the course using the community document reference
-    const courseQuery = await communityDoc.ref
-      .collection("courses")
-      .where("slug", "==", params.courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseQuery.empty) {
+    if (courseError || !course) {
       console.log("Course not found");
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseDoc = courseQuery.docs[0];
-    const courseData: any = {
-      id: courseDoc.id,
-      ...courseDoc.data()
+    // Sort chapters and lessons by order
+    const sortedCourse = {
+      ...course,
+      chapters: course.chapters
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(chapter => ({
+          ...chapter,
+          lessons: chapter.lessons
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+        }))
     };
 
-    // Get all chapters with their lessons
-    const chaptersSnapshot = await courseDoc.ref
-      .collection("chapters")
-      .orderBy("order")
-      .get();
-
-    const chapters = await Promise.all(
-      chaptersSnapshot.docs.map(async (chapterDoc) => {
-        // Get lessons for each chapter
-        const lessonsSnapshot = await chapterDoc.ref
-          .collection("lessons")
-          .orderBy("order")
-          .get();
-
-        // Make sure to include all lesson data, including videoAssetId
-        const lessons = lessonsSnapshot.docs.map((lessonDoc) => {
-          const lessonData = lessonDoc.data();
-          console.log("Raw lesson data from Firestore:", lessonData);
-          return {
-            id: lessonDoc.id,
-            title: lessonData.title,
-            content: lessonData.content,
-            videoAssetId: lessonData.videoAssetId || null,
-            order: lessonData.order,
-            createdAt: lessonData.createdAt,
-            updatedAt: lessonData.updatedAt,
-            createdBy: lessonData.createdBy,
-          };
-        });
-
-        return {
-          id: chapterDoc.id,
-          title: chapterDoc.data().title,
-          order: chapterDoc.data().order,
-          lessons,
-        };
-      })
-    );
-
-    courseData.chapters = chapters;
-
     console.log("API: Successfully fetched course data with lessons:", {
-      chaptersCount: chapters.length,
-      lessonsCount: chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
+      chaptersCount: sortedCourse.chapters.length,
+      lessonsCount: sortedCourse.chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
     });
 
-    return NextResponse.json(courseData);
+    return NextResponse.json(sortedCourse);
   } catch (error) {
     console.error("API Error:", error);
     return NextResponse.json(

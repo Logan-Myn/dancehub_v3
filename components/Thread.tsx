@@ -18,6 +18,7 @@ import Editor from "./Editor";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { createClient } from "@/lib/supabase";
 
 interface ThreadProps {
   communityId: string;
@@ -41,8 +42,9 @@ export default function Thread({
   const [selectedCategory, setSelectedCategory] = useState("");
   const { user } = useAuth();
   const [content, setContent] = useState("");
+  const supabase = createClient();
 
-  const isCreator = user?.uid === community.createdBy;
+  const isCreator = user?.id === community.created_by;
 
   const editor = useEditor({
     extensions: [
@@ -70,42 +72,68 @@ export default function Thread({
       return;
     }
 
+    if (!user) {
+      toast.error("Please sign in to create a thread");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch("/api/threads/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          title,
+          title: title.trim(),
           content,
           communityId,
-          userId,
+          userId: user.id,
           categoryId: selectedCategory,
-          categoryName: community.threadCategories?.find(
+          categoryName: community.thread_categories?.find(
             (cat: { id: string; name: string }) => cat.id === selectedCategory
           )?.name,
+          author: {
+            id: user.id,
+            name: user.user_metadata?.full_name || 'Anonymous',
+            avatar_url: user.user_metadata?.avatar_url,
+          },
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create thread");
+        const error = await response.text();
+        throw new Error(error || 'Failed to create thread');
       }
 
       const newThread = await response.json();
       toast.success("Thread created successfully");
       setContent("");
+      setTitle("");
       setSelectedCategory("");
       onSave(newThread);
     } catch (error) {
       console.error("Error creating thread:", error);
-      toast.error("Failed to create thread");
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to create a thread');
+      } else {
+        toast.error('Failed to create thread. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const userDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Anonymous';
+  const userAvatarUrl = user?.user_metadata?.avatar_url;
+  const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
   return (
     <div className="space-y-4">
@@ -113,24 +141,24 @@ export default function Thread({
       <div className="flex items-center space-x-2">
         <Avatar className="h-10 w-10">
           <AvatarImage
-            src={user?.photoURL || ""}
-            alt={user?.displayName || "User"}
+            src={userAvatarUrl || ""}
+            alt={userDisplayName}
           />
-          <AvatarFallback>{user?.displayName?.[0] || "U"}</AvatarFallback>
+          <AvatarFallback>{userInitial}</AvatarFallback>
         </Avatar>
         <div className="text-sm flex items-center space-x-2">
-          <span className="font-medium">{user?.displayName}</span>
+          <span className="font-medium">{userDisplayName}</span>
           <span className="text-gray-500">posting in</span>
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
             <SelectTrigger className="w-[200px] border-none bg-transparent hover:bg-gray-50 focus:ring-0">
               <SelectValue placeholder="Choose a category" />
             </SelectTrigger>
             <SelectContent>
-              {community.threadCategories
-                ?.filter((category: { creatorOnly: boolean }) => !category.creatorOnly || isCreator)
+              {community.thread_categories
+                ?.filter((category: { creator_only: boolean }) => !category.creator_only || isCreator)
                 .map((category: any) => {
                   const iconConfig = CATEGORY_ICONS.find(
-                    (i) => i.label === category.iconType
+                    (i) => i.label === category.icon_type
                   );
                   const IconComponent = iconConfig?.icon || MessageCircle;
 
@@ -174,7 +202,7 @@ export default function Thread({
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !user}
           className="bg-gray-200 hover:bg-gray-300 text-gray-800"
         >
           {isSubmitting ? "Posting..." : "POST"}

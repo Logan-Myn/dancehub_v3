@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { createServerClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
@@ -9,30 +8,41 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId } = params;
+    const supabase = createServerClient();
 
-    const threadRef = adminDb.collection('threads').doc(threadId);
-    const threadDoc = await threadRef.get();
+    // Get current thread likes
+    const { data: thread } = await supabase
+      .from('threads')
+      .select('likes')
+      .eq('id', threadId)
+      .single();
 
-    if (!threadDoc.exists) {
+    if (!thread) {
       return NextResponse.json(
         { error: 'Thread not found' },
         { status: 404 }
       );
     }
 
-    const likes = threadDoc.data()?.likes || [];
+    const likes = thread.likes || [];
     const isLiked = likes.includes(userId);
+    const updatedLikes = isLiked
+      ? likes.filter((id: string) => id !== userId)
+      : [...likes, userId];
 
-    // Toggle like
-    await threadRef.update({
-      likes: isLiked 
-        ? FieldValue.arrayRemove(userId)
-        : FieldValue.arrayUnion(userId),
-    });
+    // Update thread likes
+    const { error } = await supabase
+      .from('threads')
+      .update({
+        likes: updatedLikes,
+      })
+      .eq('id', threadId);
+
+    if (error) throw error;
 
     return NextResponse.json({
       liked: !isLiked,
-      likesCount: isLiked ? likes.length - 1 : likes.length + 1,
+      likesCount: updatedLikes.length,
     });
   } catch (error) {
     console.error('Error toggling like:', error);

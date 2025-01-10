@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 import { PageData } from "@/types/page-builder";
 
 export async function PUT(
@@ -10,32 +10,30 @@ export async function PUT(
     const { communitySlug } = params;
     const { aboutPage } = await request.json();
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get and update the community
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from("communities")
+      .update({
+        about_page: {
+          ...aboutPage,
+          meta: {
+            last_updated: new Date().toISOString(),
+            published_version: new Date().toISOString(),
+          },
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("slug", communitySlug)
+      .select()
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError) {
+      console.error("Error updating community:", communityError);
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
-
-    const communityDoc = communitySnapshot.docs[0];
-
-    // Update the about page data
-    await communityDoc.ref.update({
-      aboutPage: {
-        ...aboutPage,
-        meta: {
-          lastUpdated: new Date().toISOString(),
-          publishedVersion: new Date().toISOString(),
-        },
-      },
-    });
 
     return NextResponse.json({
       message: "About page updated successfully",
@@ -57,29 +55,27 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get the community
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from("communities")
+      .select("about_page")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError) {
+      console.error("Error fetching community:", communityError);
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitySnapshot.docs[0];
-    const communityData = communityDoc.data();
-
     // Return the about page data if it exists
     return NextResponse.json({
-      aboutPage: communityData.aboutPage || {
+      aboutPage: community.about_page || {
         sections: [],
         meta: {
-          lastUpdated: new Date().toISOString(),
+          last_updated: new Date().toISOString(),
         },
       },
     });

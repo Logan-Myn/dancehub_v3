@@ -7,124 +7,124 @@ import Link from "next/link";
 import Image from "next/image";
 import Navbar from "./components/Navbar";
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { createClient } from "@/lib/supabase";
 
 interface Community {
   id: string;
   name: string;
   description?: string;
-  imageUrl?: string;
-  membersCount?: number;
+  image_url?: string;
+  members_count?: number;
   privacy?: string;
   slug: string;
 }
 
 export default function Home() {
   const [communities, setCommunities] = useState<Community[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const supabase = createClient();
 
   useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        const communitiesRef = collection(db, 'communities');
-        const snapshot = await getDocs(communitiesRef);
-        const communitiesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          membersCount: doc.data().members?.length || 0,
-        })) as Community[];
+    const fetchCommunities = async () => {
+      const { data, error } = await supabase
+        .from('communities')
+        .select('*');
 
-        setCommunities(communitiesData);
-      } catch (error) {
+      if (error) {
         console.error('Error fetching communities:', error);
-      } finally {
-        setIsLoading(false);
+        return;
       }
-    }
+
+      setCommunities(data || []);
+    };
 
     fetchCommunities();
   }, []);
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <Navbar />
-      <main>
-        <h2 className="text-4xl font-bold text-center mb-4">
-          Discover dance communities
-        </h2>
-        <p className="text-center mb-8">
-          or{" "}
-          <Link
-            href="/community/onboarding"
-            className="text-blue-500 hover:underline"
-          >
-            create your own
-          </Link>
-        </p>
-        <div className="relative mb-8">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <Input
-            className="pl-10"
-            placeholder="Search dance styles, teachers, and more"
-            type="search"
-          />
-        </div>
-        <div className="flex space-x-4 mb-8 overflow-x-auto">
-          <Button variant="secondary">All</Button>
-          <Button variant="ghost">Ballet</Button>
-          <Button variant="ghost">Hip Hop</Button>
-          <Button variant="ghost">Contemporary</Button>
-          <Button variant="ghost">Salsa</Button>
-          <Button variant="ghost">Breakdancing</Button>
-        </div>
+  const filteredCommunities = communities.filter((community) =>
+    community.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-        {isLoading ? (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          </div>
-        ) : communities.length === 0 ? (
-          <div className="text-center text-gray-500">
-            No communities found
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {communities.map((community) => (
-              <div
-                key={community.id}
-                className="border rounded-lg overflow-hidden shadow-lg"
-              >
-                <div className="relative w-full h-48">
-                  <Image
-                    alt={community.name}
-                    src={community.imageUrl || "/placeholder.svg"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    priority={false}
-                  />
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero section */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
+              <span className="block">Welcome to</span>
+              <span className="block text-black">DanceHub</span>
+            </h1>
+            <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              Join dance communities, share your passion, and connect with dancers
+              worldwide.
+            </p>
+            <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
                 </div>
+                <Input
+                  type="text"
+                  placeholder="Search communities..."
+                  className="pl-10 w-full sm:w-[300px]"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Communities grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredCommunities.map((community) => (
+            <Link
+              key={community.id}
+              href={`/community/${community.slug}`}
+              className="block"
+            >
+              <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+                {community.image_url ? (
+                  <div className="relative h-48">
+                    <Image
+                      src={community.image_url}
+                      alt={community.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-48 bg-gray-100 flex items-center justify-center">
+                    <span className="text-gray-400 text-lg">No image</span>
+                  </div>
+                )}
                 <div className="p-4">
-                  <h3 className="text-xl font-semibold mb-2">{community.name}</h3>
-                  <p className="text-gray-600 mb-4">
-                    {community.description || "No description available"}
-                  </p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">
-                      {community.privacy || "Public"} • {community.membersCount} Members
-                    </span>
-                    <Link href={`/community/${community.slug}`}>
-                      <Button variant="outline">
-                        Join
-                      </Button>
-                    </Link>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {community.name}
+                  </h3>
+                  {community.description && (
+                    <p className="mt-1 text-gray-500 text-sm line-clamp-2">
+                      {community.description}
+                    </p>
+                  )}
+                  <div className="mt-4 flex items-center text-sm text-gray-500">
+                    <span>{community.members_count || 0} members</span>
+                    {community.privacy && (
+                      <>
+                        <span className="mx-2">•</span>
+                        <span className="capitalize">{community.privacy}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

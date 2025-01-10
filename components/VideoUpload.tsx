@@ -1,187 +1,123 @@
 import { useState } from 'react';
-import { Upload, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Upload } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { toast } from 'react-toastify';
-import { getAuth } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
 
 interface VideoUploadProps {
   onUploadComplete: (assetId: string) => void;
   onUploadError: (error: string) => void;
 }
 
-export function VideoUpload({ onUploadComplete, onUploadError }: VideoUploadProps) {
+export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (100MB max)
+    if (file.size > 100 * 1024 * 1024) {
+      onUploadError('File size must be less than 100MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('video/')) {
+      onUploadError('File must be a video');
+      return;
+    }
+
+    setIsUploading(true);
+    setProgress(0);
+
     try {
-      setIsUploading(true);
-      setUploadProgress(0);
-
       // Get the upload URL from your API
-      const token = await getAuth().currentUser?.getIdToken();
       const response = await fetch('/api/mux/upload', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
         throw new Error('Failed to get upload URL');
       }
 
-      const { uploadId, uploadUrl } = await response.json();
+      const { uploadUrl, uploadId } = await response.json();
 
-      // Create a promise to handle the upload
-      const uploadPromise = new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setUploadProgress(progress);
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          // 204 is success for Mux uploads
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
-        });
-
-        xhr.open('PUT', uploadUrl);
-        xhr.send(file);
+      // Upload the file directly to Mux
+      const upload = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
       });
 
-      // Wait for upload to complete
-      await uploadPromise;
-      setUploadProgress(100);
+      if (!upload.ok) throw new Error('Failed to upload video');
 
-      // Start polling for asset readiness
-      let attempts = 0;
-      const maxAttempts = 60; // Increased to 60 attempts (60 seconds)
-      const pollInterval = 1000; // 1 second
+      // Wait for Mux to process the video
+      const checkStatus = async () => {
+        const statusResponse = await fetch(`/api/mux/asset-status/${uploadId}`);
+        const { status, playbackId } = await statusResponse.json();
 
-      const pollAsset = async (): Promise<any> => {
-        if (attempts >= maxAttempts) {
-          throw new Error('Timeout waiting for asset to be ready');
-        }
-
-        try {
-          const assetResponse = await fetch(`/api/mux/assets/${uploadId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-
-          if (!assetResponse.ok) {
-            throw new Error('Failed to check asset status');
-          }
-
-          const asset = await assetResponse.json();
-          console.log('Asset status:', asset.status); // Debug log
-          
-          if (asset.status === 'ready') {
-            return asset;
-          }
-
-          // If not ready, wait and try again
-          attempts++;
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          return pollAsset();
-        } catch (error) {
-          console.error('Error polling asset:', error);
-          throw error;
+        if (status === 'ready') {
+          setProgress(100);
+          onUploadComplete(playbackId);
+          toast.success('Video uploaded successfully');
+        } else if (status === 'errored') {
+          throw new Error('Failed to process video');
+        } else {
+          // Continue checking status
+          setProgress((prev) => Math.min(95, prev + 5));
+          setTimeout(checkStatus, 1000);
         }
       };
 
-      // Start polling for asset readiness
-      const readyAsset = await pollAsset();
-      onUploadComplete(readyAsset.playbackId);
-      setIsUploading(false);
-      setSelectedFile(null);
-
+      // Start checking status
+      setProgress(50);
+      await checkStatus();
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error uploading video:', error);
+      onUploadError('Failed to upload video');
+    } finally {
       setIsUploading(false);
-      setSelectedFile(null);
-      onUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setProgress(0);
     }
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 500 * 1024 * 1024) { // 500MB limit
-        toast.error('File size must be less than 500MB');
-        return;
-      }
-      setSelectedFile(file);
-      // Start upload immediately after file selection
-      handleUpload(file);
-    }
-  };
-
-  const cancelUpload = () => {
-    setSelectedFile(null);
-    setUploadProgress(0);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <input
-          type="file"
-          accept="video/*"
-          onChange={handleFileSelect}
-          className="hidden"
-          id="video-upload"
-          disabled={isUploading}
-        />
-        <label
-          htmlFor="video-upload"
-          className={`flex items-center gap-2 px-4 py-2 rounded-md border cursor-pointer
-            ${isUploading ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-        >
-          <Upload className="w-4 h-4" />
-          {isUploading ? 'Uploading...' : 'Choose Video'}
-        </label>
-        {selectedFile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={cancelUpload}
-            disabled={isUploading}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
-
-      {selectedFile && (
-        <div className="text-sm text-gray-500">
-          Selected: {selectedFile.name}
-        </div>
-      )}
-
-      {isUploading && (
-        <div className="space-y-2">
-          <Progress value={uploadProgress} className="w-full" />
-          <div className="text-sm text-gray-500">
-            {uploadProgress === 100 ? 'Processing...' : `Uploading... ${uploadProgress}%`}
+    <div className="relative">
+      <input
+        type="file"
+        accept="video/*"
+        onChange={handleUpload}
+        className="hidden"
+        id="video-upload"
+        disabled={isUploading}
+      />
+      <label
+        htmlFor="video-upload"
+        className="cursor-pointer flex items-center justify-center p-4 border-2 border-dashed rounded-lg hover:border-gray-400 transition-colors"
+      >
+        {isUploading ? (
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Uploading...</span>
+              <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="w-full" />
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center">
+            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+            <p className="mt-2 text-sm text-gray-500">
+              Click to upload a video
+            </p>
+            <p className="text-xs text-gray-400">
+              MP4, WebM, Ogg up to 100MB
+            </p>
+          </div>
+        )}
+      </label>
     </div>
   );
 } 

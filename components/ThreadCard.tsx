@@ -6,6 +6,7 @@ import { formatDisplayName } from "@/lib/utils";
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { createClient } from "@/lib/supabase";
 
 interface ThreadCardProps {
   title: string;
@@ -14,11 +15,11 @@ interface ThreadCardProps {
     name: string;
     image: string;
   };
-  createdAt: string;
-  likesCount: number;
-  commentsCount: number;
+  created_at: string;
+  likes_count: number;
+  comments_count: number;
   category?: string;
-  categoryType?: string;
+  category_type?: string;
   onClick: () => void;
   id: string;
   likes?: string[];
@@ -29,11 +30,11 @@ export default function ThreadCard({
   title,
   content,
   author,
-  createdAt,
-  likesCount,
-  commentsCount,
+  created_at,
+  likes_count,
+  comments_count,
   category,
-  categoryType,
+  category_type,
   onClick,
   id,
   likes = [],
@@ -41,9 +42,10 @@ export default function ThreadCard({
 }: ThreadCardProps) {
   const { user } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
-  const isLiked = user ? likes.includes(user.uid) : false;
+  const isLiked = user ? likes.includes(user.id) : false;
+  const supabase = createClient();
 
-  const iconConfig = CATEGORY_ICONS.find(i => i.label === categoryType);
+  const iconConfig = CATEGORY_ICONS.find(i => i.label === category_type);
   const IconComponent = iconConfig?.icon || MessageCircle;
   const formattedAuthorName = formatDisplayName(author.name);
 
@@ -59,21 +61,34 @@ export default function ThreadCard({
 
     setIsLiking(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${id}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userId: user.uid }),
+        body: JSON.stringify({ userId: user.id }),
       });
 
-      if (!response.ok) throw new Error('Failed to like thread');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to like thread');
+      }
 
       const data = await response.json();
       onLikeUpdate?.(id, data.likesCount, data.liked);
     } catch (error) {
       console.error('Error liking thread:', error);
-      toast.error('Failed to like thread');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to like threads');
+      } else {
+        toast.error('Failed to like thread. Please try again.');
+      }
     } finally {
       setIsLiking(false);
     }
@@ -95,7 +110,7 @@ export default function ThreadCard({
             <span className="font-medium">{formattedAuthorName}</span>
             <span className="text-gray-500">·</span>
             <span className="text-gray-500">
-              {formatDistanceToNow(new Date(createdAt))} ago
+              {formatDistanceToNow(new Date(created_at))} ago
             </span>
             {category && (
               <>
@@ -127,14 +142,14 @@ export default function ThreadCard({
           className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
             isLiked ? 'text-blue-500' : ''
           }`}
-          disabled={isLiking}
+          disabled={isLiking || !user}
         >
           <ThumbsUp className={`h-5 w-5 ${isLiking ? 'animate-pulse' : ''}`} />
-          <span>{likesCount}</span>
+          <span>{likes_count}</span>
         </button>
         <button className="flex items-center space-x-1 hover:text-gray-700">
           <MessageSquare className="h-5 w-5" />
-          <span>{commentsCount}</span>
+          <span>{comments_count}</span>
         </button>
       </div>
     </div>

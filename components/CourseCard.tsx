@@ -1,27 +1,26 @@
 import { Course } from "@/types/course";
-import Image from "next/image";
 
-interface CourseCardProps {
+interface Props {
   course: Course;
   onClick: () => void;
 }
 
-export default function CourseCard({ course, onClick }: CourseCardProps) {
+export default function CourseCard({ course, onClick }: Props) {
   return (
     <div
-      className="bg-white shadow-md rounded-lg overflow-hidden cursor-pointer transition-shadow duration-200 ease-in-out hover:shadow-lg"
+      className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
       onClick={onClick}
     >
-      <Image
-        src={course.imageUrl}
-        alt={course.title}
-        width={400}
-        height={225}
-        className="w-full h-56 object-cover"
-      />
+      {course.image_url && (
+        <img
+          src={course.image_url}
+          alt={course.title}
+          className="w-full h-48 object-cover"
+        />
+      )}
       <div className="p-4">
-        <h2 className="text-xl font-semibold mb-2">{course.title}</h2>
-        <p className="text-gray-600">{course.description}</p>
+        <h3 className="text-lg font-semibold mb-2">{course.title}</h3>
+        <p className="text-gray-600 text-sm">{course.description}</p>
       </div>
     </div>
   );

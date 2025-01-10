@@ -10,7 +10,8 @@ import { Plus, Edit2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Course } from "@/types/course";
 import { toast } from "react-toastify";
-import { getAuth, User, onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "@/hooks/auth";
+import { createClient } from "@/lib/supabase";
 import {
   DndContext,
   closestCenter,
@@ -28,7 +29,7 @@ import {
 import { DraggableItem } from "@/components/DraggableItem";
 import { Card } from "@/components/ui/card";
 import { Play, FileText, CheckCircle } from "lucide-react";
-import { VideoUpload } from "@/components/VideoUpload";
+import VideoUpload from "@/components/VideoUpload";
 import {
   Dialog,
   DialogContent,
@@ -191,8 +192,10 @@ interface LessonEditorProps {
 }
 
 function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
-  const [content, setContent] = useState(lesson.content);
-  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(lesson.videoAssetId || undefined);
+  const [content, setContent] = useState(lesson.content || '');
+  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(
+    lesson.videoAssetId || undefined
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Add new function to handle immediate video update
@@ -250,7 +253,7 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
           </div>
 
           <div className="flex justify-end">
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={isSaving}
               className="bg-blue-500 hover:bg-blue-600"
@@ -262,6 +265,12 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
       )}
     </div>
   );
+}
+
+// Add type for VideoUpload props
+interface VideoUploadProps {
+  onUploadComplete: (assetId: string) => void;
+  onUploadError: (error: string) => void;
 }
 
 export default function CoursePage() {
@@ -280,8 +289,8 @@ export default function CoursePage() {
   const [community, setCommunity] = useState<Community | null>(null);
   const [isEditingCourse, setIsEditingCourse] = useState(false);
 
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { user } = useAuth();
+  const supabase = createClient();
 
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -306,17 +315,6 @@ export default function CoursePage() {
   };
 
   useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (authLoading) return;
-
     if (!communitySlug || !courseSlug) {
       console.error("Missing slugs:", { communitySlug, courseSlug });
       router.push("/");
@@ -325,18 +323,17 @@ export default function CoursePage() {
 
     async function fetchCourse() {
       try {
-        const token = await user?.getIdToken();
+        const { data: { session } } = await supabase.auth.getSession();
         console.log("Fetching course with:", {
           communitySlug,
           courseSlug,
-          hasToken: !!token,
         });
 
         const response = await fetch(
           `/api/community/${communitySlug}/courses/${courseSlug}`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${session?.access_token}`,
             },
           }
         );
@@ -348,7 +345,9 @@ export default function CoursePage() {
             statusText: response.statusText,
             error: errorData,
           });
-          throw new Error(`Failed to fetch course: ${response.status} ${errorData}`);
+          throw new Error(
+            `Failed to fetch course: ${response.status} ${errorData}`
+          );
         }
 
         const courseData = await response.json();
@@ -358,20 +357,30 @@ export default function CoursePage() {
           console.error("Course fetch error:", courseData.error);
           router.push(`/community/${communitySlug}/classroom`);
         } else {
-          const sortedChapters = courseData.chapters
-            ?.map((chapter: Chapter) => {
-              console.log("Processing chapter:", chapter);
-              return {
-                ...chapter,
-                lessons: chapter.lessons?.map((lesson: Lesson) => {
-                  console.log("Processing lesson:", lesson);
-                  return {
-                    ...lesson,
-                    videoAssetId: lesson.videoAssetId || null,
-                  };
-                }).sort((a: Lesson, b: Lesson) => (a.order || 0) - (b.order || 0)) || [],
-              };
-            }).sort((a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)) || [];
+          const sortedChapters =
+            courseData.chapters
+              ?.map((chapter: Chapter) => {
+                console.log("Processing chapter:", chapter);
+                return {
+                  ...chapter,
+                  lessons:
+                    chapter.lessons
+                      ?.map((lesson: Lesson) => {
+                        console.log("Processing lesson:", lesson);
+                        return {
+                          ...lesson,
+                          videoAssetId: lesson.videoAssetId || null,
+                        };
+                      })
+                      .sort(
+                        (a: Lesson, b: Lesson) =>
+                          (a.order || 0) - (b.order || 0)
+                      ) || [],
+                };
+              })
+              .sort(
+                (a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)
+              ) || [];
 
           console.log("Final processed chapters:", sortedChapters);
 
@@ -402,13 +411,14 @@ export default function CoursePage() {
 
     async function fetchCommunity() {
       try {
-        const response = await fetch(`/api/community/${communitySlug}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch community data");
-        }
-        const communityData = await response.json();
-        console.log("Fetched community data:", communityData); // Debug log
-        setCommunity(communityData);
+        const { data: community, error } = await supabase
+          .from('communities')
+          .select('*')
+          .eq('slug', communitySlug)
+          .single();
+
+        if (error) throw error;
+        setCommunity(community);
       } catch (error) {
         console.error("Error fetching community data:", error);
         toast.error("Failed to load community data");
@@ -419,7 +429,7 @@ export default function CoursePage() {
       fetchCourse();
       fetchCommunity();
     }
-  }, [communitySlug, courseSlug, router, authLoading]);
+  }, [communitySlug, courseSlug, router]);
 
   const handleAddChapter = async () => {
     if (!newChapterTitle.trim()) return;
@@ -456,18 +466,16 @@ export default function CoursePage() {
     if (!title.trim()) return;
 
     try {
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({
-            title,
-          }),
+          body: JSON.stringify({ title }),
         }
       );
 
@@ -515,14 +523,14 @@ export default function CoursePage() {
     if (!currentChapter) return;
 
     try {
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${currentChapter.id}/lessons/${selectedLesson.id}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({
             title: selectedLesson.title,
@@ -556,7 +564,7 @@ export default function CoursePage() {
       setSelectedLesson(updatedLesson);
     } catch (error) {
       console.error("Error updating lesson:", error);
-      throw error;
+      toast.error("Failed to update lesson");
     }
   };
 
@@ -596,13 +604,13 @@ export default function CoursePage() {
     if (!confirmDelete) return;
 
     try {
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
           },
         }
       );
@@ -639,13 +647,13 @@ export default function CoursePage() {
     if (!confirmDelete) return;
 
     try {
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/${lessonId}`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
           },
         }
       );
@@ -740,13 +748,13 @@ export default function CoursePage() {
 
     try {
       setIsSavingOrder(true);
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/reorder`,
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ chapters }),
@@ -774,13 +782,13 @@ export default function CoursePage() {
 
     try {
       setIsSavingOrder(true);
-      const token = await user?.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/reorder`,
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ lessons }),
@@ -817,7 +825,9 @@ export default function CoursePage() {
         {/* Lesson Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold mb-2">{selectedLesson.title}</h2>
+            <h2 className="text-2xl font-semibold mb-2">
+              {selectedLesson.title}
+            </h2>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               {selectedLesson.videoAssetId && (
                 <div className="flex items-center gap-1">
@@ -852,8 +862,9 @@ export default function CoursePage() {
         {selectedLesson.content && (
           <Card className="p-6 prose prose-slate max-w-none">
             <div
+              className="prose max-w-none"
               dangerouslySetInnerHTML={{
-                __html: selectedLesson.content,
+                __html: selectedLesson.content || ''
               }}
             />
           </Card>
@@ -952,7 +963,7 @@ export default function CoursePage() {
     );
   };
 
-  if (isLoading || authLoading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -965,12 +976,12 @@ export default function CoursePage() {
   }
 
   const isCreator = Boolean(
-    user?.uid && community?.createdBy && user.uid === community.createdBy
+    user?.id && community?.createdBy && user.id === community.createdBy
   );
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
-      <Navbar />
+      <Navbar initialUser={user} />
       <CommunityNavbar communitySlug={communitySlug} activePage="classroom" />
 
       <main className="flex-grow">

@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ThreadCategory } from "@/types/community";
+import { User } from "@supabase/supabase-js";
 
 interface Community {
   id: string;
@@ -66,6 +67,9 @@ interface Props {
   initialMembers: any[];
   initialTotalMembers: number;
   initialThreads: Thread[];
+  initialIsMember: boolean;
+  currentUser: User | null;
+  isCreator: boolean;
 }
 
 export default function ClientCommunityPage({
@@ -73,16 +77,16 @@ export default function ClientCommunityPage({
   initialMembers,
   initialTotalMembers,
   initialThreads,
+  initialIsMember,
+  currentUser,
+  isCreator,
 }: Props) {
   const params = useParams();
   const communitySlug = params?.communitySlug as string;
-  const { user } = useAuth();
-  const [isMember, setIsMember] = useState(false);
+  const [isMember, setIsMember] = useState(initialIsMember);
   const [members, setMembers] = useState(initialMembers);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(
-    null
-  );
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [isWriting, setIsWriting] = useState(false);
@@ -92,21 +96,8 @@ export default function ClientCommunityPage({
   const [totalMembers, setTotalMembers] = useState(initialTotalMembers);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
-  // Check if user is a member when they log in
-  useEffect(() => {
-    async function checkMembership() {
-      if (user?.uid) {
-        const membershipStatus = await fetch(
-          `/api/community/${communitySlug}/membership/${user.uid}`
-        ).then((res) => res.json());
-        setIsMember(membershipStatus.isMember);
-      }
-    }
-    checkMembership();
-  }, [user?.uid, communitySlug]);
-
   const handleJoinCommunity = async () => {
-    if (!user) {
+    if (!currentUser) {
       toast.error("Please sign in to join the community");
       return;
     }
@@ -126,8 +117,8 @@ export default function ClientCommunityPage({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              userId: user.uid,
-              email: user.email,
+              userId: currentUser.id,
+              email: currentUser.email,
             }),
           }
         );
@@ -147,7 +138,7 @@ export default function ClientCommunityPage({
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ userId: user.uid }),
+          body: JSON.stringify({ userId: currentUser.id }),
         });
 
         if (!response.ok) {
@@ -163,14 +154,8 @@ export default function ClientCommunityPage({
     }
   };
 
-  const handlePaymentSuccess = () => {
-    setIsMember(true);
-    setShowPaymentModal(false);
-    toast.success("Successfully joined the community!");
-  };
-
   const handleLeaveCommunity = async () => {
-    if (!user) return;
+    if (!currentUser) return;
 
     try {
       const response = await fetch(`/api/community/${communitySlug}/leave`, {
@@ -178,7 +163,7 @@ export default function ClientCommunityPage({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId: user.uid }),
+        body: JSON.stringify({ userId: currentUser.id }),
       });
 
       if (!response.ok) {
@@ -187,9 +172,9 @@ export default function ClientCommunityPage({
 
       // Update local state
       setIsMember(false);
-      setMembers((prev) => prev.filter((member) => member.id !== user.uid));
+      setMembers((prev) => prev.filter((member) => member.id !== currentUser.id));
       setShowLeaveDialog(false);
-
+      
       // Refresh the page to ensure everything is updated
       window.location.reload();
 
@@ -204,8 +189,8 @@ export default function ClientCommunityPage({
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: user?.displayName || "Anonymous",
-        image: user?.photoURL || "",
+        name: currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || "Anonymous",
+        image: currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,
       category: community?.threadCategories?.find(
@@ -240,8 +225,8 @@ export default function ClientCommunityPage({
               ...thread,
               likesCount: newLikesCount,
               likes: liked
-                ? [...(thread.likes || []), user!.uid]
-                : (thread.likes || []).filter((id) => id !== user!.uid),
+                ? [...(thread.likes || []), currentUser!.id]
+                : (thread.likes || []).filter((id) => id !== currentUser!.id),
             }
           : thread
       )
@@ -254,8 +239,8 @@ export default function ClientCommunityPage({
               ...prev,
               likesCount: newLikesCount,
               likes: liked
-                ? [...(prev.likes || []), user!.uid]
-                : (prev.likes || []).filter((id) => id !== user!.uid),
+                ? [...(prev.likes || []), currentUser!.id]
+                : (prev.likes || []).filter((id) => id !== currentUser!.id),
             }
           : null
       );
@@ -307,8 +292,6 @@ export default function ClientCommunityPage({
     setSelectedThread(null);
   };
 
-  const isCreator = user?.uid === community.createdBy;
-
   return (
     <main className="flex-grow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -319,7 +302,7 @@ export default function ClientCommunityPage({
               {isWriting ? (
                 <Thread
                   communityId={community.id}
-                  userId={user?.uid || ""}
+                  userId={currentUser?.id || ""}
                   communityName={community.name}
                   community={community}
                   onSave={handleNewThread}
@@ -329,16 +312,16 @@ export default function ClientCommunityPage({
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage
-                      src={user?.photoURL || ""}
-                      alt={user?.displayName || "User"}
+                      src={currentUser?.user_metadata?.avatar_url || ""}
+                      alt={currentUser?.user_metadata?.full_name || "User"}
                     />
                     <AvatarFallback>
-                      {user?.displayName?.[0] || "U"}
+                      {currentUser?.user_metadata?.full_name?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div
                     onClick={() =>
-                      user
+                      currentUser
                         ? setIsWriting(true)
                         : toast.error("Please sign in to post")
                     }
@@ -369,11 +352,11 @@ export default function ClientCommunityPage({
                   title={thread.title}
                   content={thread.content}
                   author={thread.author}
-                  createdAt={thread.createdAt}
-                  likesCount={thread.likesCount}
-                  commentsCount={thread.commentsCount}
+                  created_at={thread.createdAt}
+                  likes_count={thread.likesCount}
+                  comments_count={thread.commentsCount}
                   category={thread.category}
-                  categoryType={
+                  category_type={
                     community.threadCategories?.find(
                       (cat) => cat.id === thread.categoryId
                     )?.iconType
@@ -502,8 +485,8 @@ export default function ClientCommunityPage({
           communityDescription={community.description || ""}
           imageUrl={community.imageUrl || ""}
           customLinks={community.customLinks || []}
-          stripeAccountId={community.stripeAccountId}
-          threadCategories={community.threadCategories}
+          stripeAccountId={community.stripeAccountId ?? null}
+          threadCategories={community.threadCategories ?? []}
           onImageUpdate={(newImageUrl) => {
             // No need to update community state as it will be refreshed on page reload
           }}
@@ -526,7 +509,11 @@ export default function ClientCommunityPage({
         stripeAccountId={stripeAccountId}
         communitySlug={communitySlug}
         price={community?.membershipPrice || 0}
-        onSuccess={handlePaymentSuccess}
+        onSuccess={() => {
+          setIsMember(true);
+          setShowPaymentModal(false);
+          toast.success("Successfully joined the community!");
+        }}
       />
 
       {selectedThread && (
@@ -534,10 +521,20 @@ export default function ClientCommunityPage({
           isOpen={!!selectedThread}
           onClose={() => setSelectedThread(null)}
           thread={{
-            ...selectedThread,
-            categoryType: community.threadCategories?.find(
+            id: selectedThread.id,
+            user_id: selectedThread.userId,
+            title: selectedThread.title,
+            content: selectedThread.content,
+            author: selectedThread.author,
+            created_at: selectedThread.createdAt,
+            likes_count: selectedThread.likesCount,
+            comments_count: selectedThread.commentsCount,
+            category: selectedThread.category,
+            category_type: community.threadCategories?.find(
               (cat) => cat.id === selectedThread.categoryId
             )?.iconType,
+            likes: selectedThread.likes,
+            comments: selectedThread.comments,
           }}
           onLikeUpdate={handleLikeUpdate}
           onCommentUpdate={handleCommentUpdate}

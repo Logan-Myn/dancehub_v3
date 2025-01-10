@@ -1,28 +1,28 @@
 import { NextResponse } from 'next/server';
-import { createMuxUploadUrl } from '@/lib/mux';
-import { adminAuth } from '@/lib/firebase-admin';
+import Mux from '@mux/mux-node';
 
-export async function POST(req: Request) {
+const muxClient = new Mux({
+  tokenId: process.env.MUX_TOKEN_ID!,
+  tokenSecret: process.env.MUX_TOKEN_SECRET!,
+});
+
+export async function POST() {
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Create a new upload URL
+    const upload = await muxClient.video.uploads.create({
+      new_asset_settings: {
+        playback_policy: ['public'],
+        mp4_support: 'standard',
+      },
+      cors_origin: '*',
+    });
 
-    const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await adminAuth.verifyIdToken(token);
-
-    if (!decodedToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Create upload URL
-    const { uploadId, uploadUrl } = await createMuxUploadUrl();
-
-    return NextResponse.json({ uploadId, uploadUrl });
+    return NextResponse.json({
+      uploadUrl: upload.url,
+      uploadId: upload.asset_id,
+    });
   } catch (error) {
-    console.error('Error creating upload URL:', error);
+    console.error('Error creating Mux upload:', error);
     return NextResponse.json(
       { error: 'Failed to create upload URL' },
       { status: 500 }

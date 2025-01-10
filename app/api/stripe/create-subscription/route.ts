@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { adminDb } from '@/lib/firebase-admin';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
@@ -10,8 +10,8 @@ export async function POST(request: Request) {
     const customer = await stripe.customers.create({
       email,
       metadata: {
-        userId,
-        communityId,
+        user_id: userId,
+        community_id: communityId,
       },
     });
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       customer: customer.id,
       payment_method_types: ['card'],
       metadata: {
-        communityId,
+        community_id: communityId,
       },
     });
 
@@ -34,20 +34,37 @@ export async function POST(request: Request) {
         save_default_payment_method: 'on_subscription',
       },
       metadata: {
-        communityId,
+        community_id: communityId,
       },
     });
 
-    // Store subscription info in Firestore
-    await adminDb.collection('subscriptions').doc(communityId).set({
-      userId,
-      customerId: customer.id,
-      subscriptionId: subscription.id,
-      status: subscription.status,
-      trialEnd: subscription.trial_end,
-      currentPeriodEnd: subscription.current_period_end,
-      createdAt: new Date().toISOString(),
-    });
+    // Store subscription info in Supabase
+    const { error: subscriptionError } = await supabaseAdmin
+      .from('subscriptions')
+      .insert({
+        id: communityId, // Using communityId as the subscription id for consistency
+        user_id: userId,
+        customer_id: customer.id,
+        subscription_id: subscription.id,
+        status: subscription.status,
+        trial_end: new Date(subscription.trial_end! * 1000).toISOString(),
+        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      });
+
+    if (subscriptionError) {
+      console.error('Error storing subscription:', subscriptionError);
+      // Attempt to cancel the subscription if database storage fails
+      try {
+        await stripe.subscriptions.cancel(subscription.id);
+      } catch (cancelError) {
+        console.error('Error canceling subscription:', cancelError);
+      }
+      return NextResponse.json(
+        { error: 'Failed to store subscription' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       subscriptionId: subscription.id,

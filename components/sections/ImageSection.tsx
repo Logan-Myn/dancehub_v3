@@ -12,8 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { createClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from 'uuid';
 import Image from "next/image";
 import {
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
+import toast from "react-hot-toast";
 
 interface ImageSectionProps {
   section: Section;
@@ -42,6 +42,7 @@ export default function ImageSection({
   const [isHovered, setIsHovered] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const supabase = createClient();
 
   const {
     attributes,
@@ -63,17 +64,33 @@ export default function ImageSection({
 
     try {
       setIsUploading(true);
-      const imageId = uuidv4();
-      const storageRef = ref(storage, `community-pages/${imageId}`);
-      await uploadBytes(storageRef, file);
-      const imageUrl = await getDownloadURL(storageRef);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `community-pages/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('images')
+        .getPublicUrl(filePath);
       
       onUpdate({
         ...section.content,
-        imageUrl,
+        imageUrl: publicUrl,
       });
+
+      toast.success('Image uploaded successfully');
     } catch (error) {
       console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
     } finally {
       setIsUploading(false);
     }

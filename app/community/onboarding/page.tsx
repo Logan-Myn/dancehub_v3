@@ -7,6 +7,8 @@ import { Rocket, Heart, Smile, DollarSign, Smartphone, Globe } from 'lucide-reac
 import { useRouter } from 'next/navigation';
 import OnboardingForm from '@/app/community/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from 'react-hot-toast';
+import { createClient } from '@/lib/supabase';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -14,29 +16,55 @@ export default function OnboardingPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
+  const supabase = createClient();
 
   React.useEffect(() => {
-    if (!user) {
-      router.push('/');
-      return;
-    }
+    const initializeSetupIntent = async () => {
+      try {
+        // Check if user is authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session || !user) {
+          router.push('/');
+          return;
+        }
 
-    // Get a setup intent instead of a payment intent
-    fetch('/api/stripe/create-setup-intent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: user.uid,
-      }),
-    })
-      .then(response => response.json())
-      .then(data => setClientSecret(data.clientSecret));
-  }, [user, router]);
+        // Get a setup intent
+        const response = await fetch('/api/stripe/create-setup-intent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+          }),
+        });
 
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`Failed to create setup intent: ${errorData}`);
+        }
+
+        const data = await response.json();
+        setClientSecret(data.clientSecret);
+      } catch (error) {
+        console.error('Error initializing setup intent:', error);
+        toast.error('Failed to initialize payment setup');
+        router.push('/');
+      }
+    };
+
+    initializeSetupIntent();
+  }, [user, router, supabase]);
+
+  // Show loading state while checking authentication
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
 
   return (
@@ -72,19 +100,14 @@ export default function OnboardingPage() {
             <p className="mt-6 text-gray-600">help@dancehub.com</p>
           </div>
 
-          {/* Right side - Community creation form with payment */}
-          <div className="p-8 md:w-1/2">
-            <h2 className="text-2xl font-semibold mb-4">Create your Dance Community</h2>
-            <p className="mb-6">
-              Free for 14 days, then 49€/month. Cancel anytime. All features. Unlimited everything. No hidden fees.
-            </p>
-            
+          {/* Right side - Onboarding form */}
+          <div className="p-8 md:w-1/2 bg-gray-50">
             {clientSecret ? (
               <Elements stripe={stripePromise} options={{ clientSecret }}>
                 <OnboardingForm />
               </Elements>
             ) : (
-              <div className="flex justify-center items-center min-h-[400px]">
+              <div className="flex items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
               </div>
             )}

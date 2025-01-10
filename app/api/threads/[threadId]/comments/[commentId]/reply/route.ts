@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { createServerClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
@@ -8,43 +7,54 @@ export async function POST(
 ) {
   try {
     const { content, userId } = await request.json();
-    const { threadId } = params;
+    const { threadId, commentId } = params;
+    const supabase = createServerClient();
 
     // Get user data
-    const userRecord = await adminAuth.getUser(userId);
+    const { data: userData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
     const reply = {
       id: crypto.randomUUID(),
       content,
-      userId,
+      user_id: userId,
       author: {
-        name: userRecord.displayName || 'Anonymous',
-        image: userRecord.photoURL || '',
+        name: userData?.full_name || 'Anonymous',
+        image: userData?.avatar_url || '',
       },
-      createdAt: new Date().toISOString(),
-      parentId: params.commentId,
+      created_at: new Date().toISOString(),
+      parent_id: commentId,
+      likes: [],
+      likes_count: 0,
     };
 
-    // Get the thread document
-    const threadRef = adminDb.collection('threads').doc(threadId);
-    const threadDoc = await threadRef.get();
+    // Get current thread comments
+    const { data: thread } = await supabase
+      .from('threads')
+      .select('comments')
+      .eq('id', threadId)
+      .single();
 
-    if (!threadDoc.exists) {
+    if (!thread) {
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
     }
 
-    // Get current comments array
-    const threadData = threadDoc.data();
-    const comments = threadData?.comments || [];
-
-    // Add new reply to the comments array
+    const comments = thread.comments || [];
     const updatedComments = [...comments, reply];
 
-    // Update the thread with the new reply
-    await threadRef.update({
-      comments: updatedComments,
-      commentsCount: FieldValue.increment(1),
-    });
+    // Update thread with new reply
+    const { error } = await supabase
+      .from('threads')
+      .update({
+        comments: updatedComments,
+        comments_count: updatedComments.length,
+      })
+      .eq('id', threadId);
+
+    if (error) throw error;
 
     return NextResponse.json(reply);
   } catch (error) {

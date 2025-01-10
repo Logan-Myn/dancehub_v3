@@ -2,24 +2,19 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
-import { auth } from "@/lib/firebase";
-import { User } from "firebase/auth";
+import { User } from "@supabase/supabase-js";
 
-export default function Navbar() {
+interface Props {
+  initialUser: User | null;
+}
+
+export default function Navbar({ initialUser }: Props) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const [user, setUser] = useState<User | null>(initialUser);
 
   const handleAuthClick = (mode: "signin" | "signup") => {
     setAuthMode(mode);

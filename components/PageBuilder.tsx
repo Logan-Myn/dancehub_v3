@@ -28,17 +28,19 @@ const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
 ];
 
 interface PageBuilderProps {
-  initialSections?: Section[];
+  initialSections: Section[];
   onChange: (sections: Section[]) => void;
-  onSave: () => void;
-  isEditing?: boolean;
+  onSave: () => Promise<void>;
+  isEditing: boolean;
+  isSaving?: boolean;
 }
 
 export default function PageBuilder({ 
   initialSections = [], 
   onChange,
   onSave,
-  isEditing = true 
+  isEditing = true,
+  isSaving = false
 }: PageBuilderProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionType, setSelectedSectionType] = useState<SectionType | ''>('');

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { createServerClient } from '@/lib/supabase';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
@@ -12,32 +13,34 @@ export async function POST(request: Request) {
       categoryName 
     } = await request.json();
 
+    const supabase = createServerClient();
+
     // Get user data
-    const userRecord = await adminAuth.getUser(userId);
+    const { data: userData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-    const threadData = {
-      title,
-      content,
-      communityId,
-      userId,
-      categoryId,
-      category: categoryName,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      likes: [],
-      comments: [],
-    };
+    // Create thread
+    const { data: thread, error } = await supabase
+      .from('threads')
+      .insert({
+        title,
+        content,
+        community_id: communityId,
+        user_id: userId,
+        category_id: categoryId,
+        category: categoryName,
+        created_at: new Date().toISOString(),
+      })
+      .select('*, author:profiles(*)')
+      .single();
 
-    const threadRef = await adminDb.collection('threads').add(threadData);
+    if (error) throw error;
 
-    // Return the complete thread data
     return NextResponse.json({
-      id: threadRef.id,
-      ...threadData,
-      author: {
-        name: userRecord.displayName || 'Anonymous',
-        image: userRecord.photoURL || '',
-      },
+      ...thread,
       likesCount: 0,
       commentsCount: 0,
     });

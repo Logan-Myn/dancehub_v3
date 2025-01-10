@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(
   request: Request,
@@ -9,42 +8,74 @@ export async function POST(
   try {
     const { userId } = await request.json();
 
-    // Get community reference
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityRef = communitySnapshot.docs[0].ref;
+    // Check if user is already a member
+    const { data: existingMember } = await supabaseAdmin
+      .from("community_members")
+      .select()
+      .eq("community_id", community.id)
+      .eq("user_id", userId)
+      .single();
 
-    // Start a batch write
-    const batch = adminDb.batch();
+    if (existingMember) {
+      return NextResponse.json(
+        { error: "User is already a member" },
+        { status: 400 }
+      );
+    }
 
-    // Add to members subcollection
-    const memberRef = communityRef.collection("members").doc(userId);
-    batch.set(memberRef, {
-      userId,
-      joinedAt: Timestamp.now(),
-      role: "member",
-      status: "active"
-    });
+    // Add member to community_members table
+    const { error: memberError } = await supabaseAdmin
+      .from("community_members")
+      .insert({
+        community_id: community.id,
+        user_id: userId,
+        joined_at: new Date().toISOString(),
+        role: "member",
+        status: "active"
+      });
 
-    // Also add to members array for backward compatibility
-    batch.update(communityRef, {
-      members: FieldValue.arrayUnion(userId),
-      membersCount: FieldValue.increment(1)
-    });
+    if (memberError) {
+      console.error("Error adding member:", memberError);
+      return NextResponse.json(
+        { error: "Failed to add member" },
+        { status: 500 }
+      );
+    }
 
-    // Commit the batch
-    await batch.commit();
+    // Update members_count in communities table
+    const { error: updateError } = await supabaseAdmin.rpc(
+      'increment_members_count',
+      { community_id: community.id }
+    );
+
+    if (updateError) {
+      console.error("Error updating members count:", updateError);
+      // Rollback the member addition
+      await supabaseAdmin
+        .from("community_members")
+        .delete()
+        .eq("community_id", community.id)
+        .eq("user_id", userId);
+
+      return NextResponse.json(
+        { error: "Failed to update members count" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
@@ -12,18 +12,36 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
 
-    // Create the community using admin SDK
-    const communityRef = await adminDb.collection('communities').add({
-      name,
-      slug,
-      createdBy,
-      createdAt: new Date().toISOString(),
-      members: [createdBy],
-      isActive: true,
-    });
+    // Create the community using Supabase
+    const { data: community, error } = await supabaseAdmin
+      .from('communities')
+      .insert({
+        name,
+        slug,
+        created_by: createdBy,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Add creator as a member
+    const { error: memberError } = await supabaseAdmin
+      .from('community_members')
+      .insert({
+        community_id: community.id,
+        user_id: createdBy,
+        role: 'admin',
+        joined_at: new Date().toISOString(),
+      });
+
+    if (memberError) throw memberError;
 
     return NextResponse.json({
-      communityId: communityRef.id,
+      communityId: community.id,
       slug,
     });
   } catch (error) {

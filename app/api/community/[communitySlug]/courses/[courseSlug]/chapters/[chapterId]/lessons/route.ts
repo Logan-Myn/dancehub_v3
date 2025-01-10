@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
@@ -13,72 +13,82 @@ export async function POST(
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
-    if (!decodedToken) {
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { title } = await req.json();
 
-    // Get community doc
-    const communityQuery = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community and verify it exists
+    const { data: community, error: communityError } = await supabaseAdmin
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communityQuery.empty) {
+    if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityDoc = communityQuery.docs[0];
+    // Get course and verify it exists
+    const { data: course, error: courseError } = await supabaseAdmin
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    // Get course doc
-    const courseQuery = await communityDoc.ref
-      .collection("courses")
-      .where("slug", "==", params.courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseQuery.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseDoc = courseQuery.docs[0];
+    // Verify chapter exists
+    const { data: chapter, error: chapterError } = await supabaseAdmin
+      .from("chapters")
+      .select("id")
+      .eq("course_id", course.id)
+      .eq("id", params.chapterId)
+      .single();
 
-    // Get chapter doc
-    const chapterRef = courseDoc.ref
-      .collection("chapters")
-      .doc(params.chapterId);
-
-    const chapterDoc = await chapterRef.get();
-    if (!chapterDoc.exists) {
+    if (chapterError || !chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    // Get current lessons to determine the order
-    const lessonsSnapshot = await chapterRef.collection("lessons").get();
-    const order = lessonsSnapshot.size; // New lesson will be last in order
+    // Get current lessons count to determine the order
+    const { count: lessonsCount, error: countError } = await supabaseAdmin
+      .from("lessons")
+      .select("*", { count: 'exact', head: true })
+      .eq("chapter_id", params.chapterId);
+
+    if (countError) {
+      console.error("Error counting lessons:", countError);
+      return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
+    }
 
     // Create the new lesson
-    const lessonRef = await chapterRef.collection("lessons").add({
-      title,
-      content: "",
-      videoAssetId: null,
-      order,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdBy: decodedToken.uid,
-    });
+    const { data: lesson, error: lessonError } = await supabaseAdmin
+      .from("lessons")
+      .insert({
+        title,
+        content: "",
+        video_asset_id: null,
+        order: lessonsCount || 0,
+        chapter_id: params.chapterId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: user.id,
+      })
+      .select()
+      .single();
 
-    const lessonDoc = await lessonRef.get();
-    const lessonData = {
-      id: lessonDoc.id,
-      ...lessonDoc.data()
-    };
+    if (lessonError) {
+      console.error("Error creating lesson:", lessonError);
+      return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
+    }
 
-    return NextResponse.json(lessonData);
+    return NextResponse.json(lesson);
   } catch (error) {
     console.error("Error creating lesson:", error);
     return NextResponse.json(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThumbsUp, MessageSquare, MoreVertical, Edit2, Trash } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
@@ -8,7 +8,7 @@ import { formatDisplayName } from "@/lib/utils";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import Comment from "./Comment";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
@@ -19,28 +19,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "./ui/input";
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Editor from "./Editor";
+import { createClient } from "@/lib/supabase";
 
 interface ThreadModalProps {
   isOpen: boolean;
   onClose: () => void;
   thread: {
     id: string;
-    userId: string;
+    user_id: string;
     title: string;
     content: string;
     author: {
       name: string;
       image: string;
     };
-    createdAt: string;
-    likesCount: number;
-    commentsCount: number;
+    created_at: string;
+    likes_count: number;
+    comments_count: number;
     category?: string;
-    categoryType?: string;
+    category_type?: string;
     likes?: string[];
     comments?: {
       id: string;
@@ -49,11 +48,11 @@ interface ThreadModalProps {
         name: string;
         image: string;
       };
-      createdAt: string;
+      created_at: string;
       replies?: any[];
-      parentId?: string;
+      parent_id?: string;
       likes?: string[];
-      likesCount?: number;
+      likes_count?: number;
     }[];
   };
   onLikeUpdate: (threadId: string, newLikesCount: number, liked: boolean) => void;
@@ -62,7 +61,7 @@ interface ThreadModalProps {
     title?: string; 
     content?: string; 
     comments?: any[];
-    commentsCount?: number;
+    comments_count?: number;
   }) => void;
   onDelete?: (threadId: string) => void;
 }
@@ -74,11 +73,11 @@ interface Comment {
     name: string;
     image: string;
   };
-  createdAt: string;
+  created_at: string;
   replies?: Comment[];
-  parentId?: string;
+  parent_id?: string;
   likes?: string[];
-  likesCount?: number;
+  likes_count?: number;
 }
 
 interface CommentProps extends Comment {
@@ -90,37 +89,19 @@ interface CommentProps extends Comment {
 export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onCommentUpdate, onThreadUpdate, onDelete }: ThreadModalProps) {
   const { user } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
-  const isLiked = user ? thread.likes?.includes(user.uid) : false;
+  const isLiked = user ? thread.likes?.includes(user.id) : false;
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(thread.title);
   const [editedContent, setEditedContent] = useState(thread.content);
-  const isOwner = user?.uid === thread.userId;
+  const isOwner = user?.id === thread.user_id;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const supabase = createClient();
 
   const formattedAuthorName = formatDisplayName(thread.author.name);
-  const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.categoryType);
+  const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.category_type);
   const IconComponent = iconConfig?.icon || MessageSquare;
-
-  // Initialize Tiptap editor
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: thread.content,
-    editable: true,
-    immediatelyRender: false,
-    onUpdate: ({ editor }) => {
-      setEditedContent(editor.getHTML());
-    },
-  });
-
-  // Update editor content and editable state when needed
-  useEffect(() => {
-    if (editor) {
-      editor.commands.setContent(thread.content);
-      editor.setEditable(isEditing);
-    }
-  }, [thread.content, editor, isEditing]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,22 +111,40 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
       return;
     }
 
+    if (isLiking) return;
+
+    setIsLiking(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${thread.id}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userId: user.uid }),
+        body: JSON.stringify({ userId: user.id }),
       });
 
-      if (!response.ok) throw new Error('Failed to like thread');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to like thread');
+      }
 
       const data = await response.json();
-      onLikeUpdate(thread.id, data.likesCount, data.liked);
+      onLikeUpdate(thread.id, data.likes_count, data.liked);
     } catch (error) {
       console.error('Error liking thread:', error);
-      toast.error('Failed to like thread');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to like threads');
+      } else {
+        toast.error('Failed to like thread. Please try again.');
+      }
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -157,134 +156,193 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
       return;
     }
 
-    if (!comment.trim()) {
-      return;
-    }
+    if (!comment.trim()) return;
 
     setIsSubmitting(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${thread.id}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          content: comment,
-          userId: user.uid,
+          content: comment.trim(),
+          userId: user.id,
+          author: {
+            id: user.id,
+            name: user.user_metadata?.full_name || 'Anonymous',
+            avatar_url: user.user_metadata?.avatar_url,
+          },
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to post comment');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to post comment');
+      }
 
       const newComment = await response.json();
-      
       onCommentUpdate?.(thread.id, newComment);
-      
       setComment('');
       toast.success('Comment posted successfully');
     } catch (error) {
       console.error('Error posting comment:', error);
-      toast.error('Failed to post comment');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to comment');
+      } else {
+        toast.error('Failed to post comment. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!editor) return;
+    if (!editedTitle.trim() || !editedContent.trim()) {
+      toast.error('Title and content cannot be empty');
+      return;
+    }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${thread.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          title: editedTitle,
-          content: editedContent,
+          title: editedTitle.trim(),
+          content: editedContent.trim(),
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to update thread');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to update thread');
+      }
 
-      const updatedThread = await response.json();
-      
       onThreadUpdate?.(thread.id, {
-        title: editedTitle,
-        content: editedContent,
+        title: editedTitle.trim(),
+        content: editedContent.trim(),
       });
 
       setIsEditing(false);
       toast.success('Thread updated successfully');
     } catch (error) {
       console.error('Error updating thread:', error);
-      toast.error('Failed to update thread');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to edit the thread');
+      } else {
+        toast.error('Failed to update thread. Please try again.');
+      }
     }
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditedTitle(thread.title);
-    editor?.commands.setContent(thread.content);
+    setEditedContent(thread.content);
   };
 
   const handleDelete = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${thread.id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       });
 
-      if (!response.ok) throw new Error('Failed to delete thread');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to delete thread');
+      }
 
       onDelete?.(thread.id);
       onClose();
       toast.success('Thread deleted successfully');
     } catch (error) {
       console.error('Error deleting thread:', error);
-      toast.error('Failed to delete thread');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to delete the thread');
+      } else {
+        toast.error('Failed to delete thread. Please try again.');
+      }
     }
   };
 
   const handleReply = async (commentId: string, content: string) => {
+    if (!user) {
+      toast.error('Please sign in to reply');
+      return;
+    }
+
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${thread.id}/comments/${commentId}/reply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          content,
-          userId: user?.uid,
+          content: content.trim(),
+          userId: user.id,
+          author: {
+            id: user.id,
+            name: user.user_metadata?.full_name || 'Anonymous',
+            avatar_url: user.user_metadata?.avatar_url,
+          },
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to post reply');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Failed to post reply');
+      }
 
       const newReply = await response.json();
-
-      // Create a new comments array with the reply added
       const updatedComments = [...(thread.comments || []), newReply];
-
-      // Update the thread with new comments
       onThreadUpdate?.(thread.id, {
-        ...thread,
         comments: updatedComments,
-        commentsCount: (thread.commentsCount || 0) + 1,
+        comments_count: (thread.comments_count || 0) + 1,
       });
 
       return newReply;
     } catch (error) {
       console.error('Error posting reply:', error);
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to reply');
+      } else {
+        toast.error('Failed to post reply. Please try again.');
+      }
       throw error;
     }
   };
 
   // Organize comments into a hierarchical structure
-  const organizeComments = (rawComments: any) => {
-    // Ensure comments is an array and handle undefined/null cases
-    const comments = Array.isArray(rawComments) ? rawComments : [];
-    
+  const organizeComments = (comments: Comment[] = []) => {
     const commentMap = new Map();
     const topLevelComments: Comment[] = [];
 
@@ -296,9 +354,9 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     // Second pass: Organize into hierarchy
     for (const comment of comments) {
       const commentWithReplies = commentMap.get(comment.id);
-      if (comment.parentId) {
+      if (comment.parent_id) {
         // This is a reply - add it to its parent's replies
-        const parent = commentMap.get(comment.parentId);
+        const parent = commentMap.get(comment.parent_id);
         if (parent) {
           parent.replies.push(commentWithReplies);
         }
@@ -311,57 +369,19 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     return topLevelComments;
   };
 
-  const organizedComments = useMemo(() => 
-    organizeComments(thread.comments),
-    [thread.comments]
-  );
+  const organizedComments = organizeComments(thread.comments);
 
   // Add this helper function before the return statement
   const mapCommentToProps = (comment: Comment): CommentProps => ({
     ...comment,
     threadId: thread.id,
     onReply: handleReply,
-    replies: comment.replies?.map(mapCommentToProps)
+    replies: comment.replies?.map((reply: Comment) => mapCommentToProps(reply))
   });
 
-  const handleCommentLikeUpdate = (commentId: string, newLikesCount: number, liked: boolean) => {
-    // Update the comments array with the new like state
-    const updatedComments = (thread.comments || []).map(comment => {
-      if (comment.id === commentId) {
-        return {
-          ...comment,
-          likes: liked 
-            ? [...(comment.likes || []), user!.uid]
-            : (comment.likes || []).filter(id => id !== user!.uid),
-          likesCount: newLikesCount
-        };
-      }
-      // Also check nested replies
-      if (comment.replies?.length) {
-        return {
-          ...comment,
-          replies: comment.replies.map(reply => 
-            reply.id === commentId
-              ? {
-                  ...reply,
-                  likes: liked 
-                    ? [...(reply.likes || []), user!.uid]
-                    : (reply.likes || []).filter((id: string) => id !== user!.uid),
-                  likesCount: newLikesCount
-                }
-              : reply
-          )
-        };
-      }
-      return comment;
-    });
-
-    // Update the thread with new comments
-    onThreadUpdate?.(thread.id, {
-      ...thread,
-      comments: updatedComments
-    });
-  };
+  const userDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Anonymous';
+  const userAvatarUrl = user?.user_metadata?.avatar_url;
+  const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
   return (
     <>
@@ -380,7 +400,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                     <span className="font-medium">{formattedAuthorName}</span>
                     <span className="text-gray-500">·</span>
                     <span className="text-gray-500">
-                      {formatDistanceToNow(new Date(thread.createdAt))} ago
+                      {formatDistanceToNow(new Date(thread.created_at))} ago
                     </span>
                     {thread.category && (
                       <>
@@ -399,7 +419,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   </div>
                 </div>
               </div>
-              {user?.uid === thread.userId && (
+              {isOwner && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm">
@@ -444,7 +464,10 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleSaveEdit}>
+                  <Button 
+                    onClick={handleSaveEdit}
+                    disabled={!editedTitle.trim() || !editedContent.trim()}
+                  >
                     Save Changes
                   </Button>
                 </div>
@@ -467,13 +490,14 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
                   isLiked ? 'text-blue-500' : ''
                 }`}
+                disabled={isLiking || !user}
               >
-                <ThumbsUp className="h-5 w-5" />
-                <span>{thread.likesCount}</span>
+                <ThumbsUp className={`h-5 w-5 ${isLiking ? 'animate-pulse' : ''}`} />
+                <span>{thread.likes_count}</span>
               </button>
               <button className="flex items-center space-x-1 hover:text-gray-700">
                 <MessageSquare className="h-5 w-5" />
-                <span>{thread.commentsCount}</span>
+                <span>{thread.comments_count}</span>
               </button>
             </div>
 
@@ -484,8 +508,8 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
               {/* Comment input */}
               <div className="flex items-start space-x-3 mb-6">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
-                  <AvatarFallback>{user?.displayName?.[0] || 'U'}</AvatarFallback>
+                  <AvatarImage src={userAvatarUrl || ''} alt={userDisplayName} />
+                  <AvatarFallback>{userInitial}</AvatarFallback>
                 </Avatar>
                 <form onSubmit={handleSubmitComment} className="flex-1">
                   <Textarea
@@ -497,7 +521,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   <div className="flex justify-end">
                     <Button
                       type="submit"
-                      disabled={isSubmitting || !comment.trim()}
+                      disabled={isSubmitting || !comment.trim() || !user}
                       size="sm"
                     >
                       {isSubmitting ? 'Posting...' : 'Post'}
@@ -506,18 +530,14 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 </form>
               </div>
 
-              {/* Comments list - now passing handleCommentLikeUpdate */}
+              {/* Comments list */}
               <div className="space-y-4">
                 {organizedComments.map((comment) => (
                   <Comment
                     key={comment.id}
                     {...mapCommentToProps(comment)}
-                    onLikeUpdate={handleCommentLikeUpdate}
                   />
                 ))}
-                {!organizedComments.length && (
-                  <p className="text-gray-500 text-sm text-center">No comments yet</p>
-                )}
               </div>
             </div>
           </div>
@@ -527,17 +547,14 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Thread</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this thread? This action cannot be undone.
+              This action cannot be undone. This will permanently delete your thread and all its comments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

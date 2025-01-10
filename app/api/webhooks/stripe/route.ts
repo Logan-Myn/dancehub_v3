@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
-import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { supabaseAdmin } from '@/lib/supabase';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -21,44 +20,67 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
-    const { stripeAccountId } = (event.data.object as any).metadata || {};
+    const { stripe_account_id } = (event.data.object as any).metadata || {};
 
     switch (event.type) {
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         
         // Validate metadata exists
-        if (!paymentIntent.metadata?.userId || !paymentIntent.metadata?.communityId) {
+        if (!paymentIntent.metadata?.user_id || !paymentIntent.metadata?.community_id) {
           console.error('Missing metadata in payment intent:', paymentIntent.id);
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
-        const { userId, communityId } = paymentIntent.metadata;
+        const { user_id, community_id } = paymentIntent.metadata;
 
-        // Add user to community members
-        await adminDb
-          .collection('communities')
-          .doc(communityId)
-          .update({
-            members: FieldValue.arrayUnion(userId),
-            updatedAt: new Date().toISOString(),
+        // Add user to community_members table
+        const { error: memberError } = await supabaseAdmin
+          .from('community_members')
+          .insert({
+            community_id,
+            user_id,
+            status: 'active',
+            joined_at: new Date().toISOString(),
           });
 
+        if (memberError) {
+          console.error('Error adding member:', memberError);
+          return NextResponse.json(
+            { error: 'Failed to add member' },
+            { status: 500 }
+          );
+        }
+
         // Create membership record
-        const membershipId = `${communityId}_${userId}`;
-        await adminDb
-          .collection('memberships')
-          .doc(membershipId)
-          .set({
-            userId,
-            communityId,
+        const { error: membershipError } = await supabaseAdmin
+          .from('memberships')
+          .insert({
+            id: `${community_id}_${user_id}`,
+            user_id,
+            community_id,
             status: 'active',
-            startDate: new Date().toISOString(),
-            paymentIntentId: paymentIntent.id,
-            subscriptionId: paymentIntent.metadata.subscriptionId,
+            start_date: new Date().toISOString(),
+            payment_intent_id: paymentIntent.id,
+            subscription_id: paymentIntent.metadata.subscription_id,
             amount: paymentIntent.amount,
             currency: paymentIntent.currency,
           });
+
+        if (membershipError) {
+          console.error('Error creating membership:', membershipError);
+          // Rollback member addition
+          await supabaseAdmin
+            .from('community_members')
+            .delete()
+            .eq('community_id', community_id)
+            .eq('user_id', user_id);
+
+          return NextResponse.json(
+            { error: 'Failed to create membership' },
+            { status: 500 }
+          );
+        }
         break;
 
       case 'invoice.payment_succeeded':
@@ -68,25 +90,31 @@ export async function POST(request: Request) {
           const subscription = await stripe.subscriptions.retrieve(
             invoice.subscription as string,
             {
-              stripeAccount: stripeAccountId,
+              stripeAccount: stripe_account_id,
             }
           );
 
-          if (!subscription.metadata?.userId || !subscription.metadata?.communityId) {
+          if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
             console.error('Missing metadata in subscription:', subscription.id);
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
-          const subMembershipId = `${subscription.metadata.communityId}_${subscription.metadata.userId}`;
-          
-          await adminDb
-            .collection('memberships')
-            .doc(subMembershipId)
+          const { error: updateError } = await supabaseAdmin
+            .from('memberships')
             .update({
               status: 'active',
-              lastPaymentDate: new Date().toISOString(),
-              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            });
+              last_payment_date: new Date().toISOString(),
+              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            })
+            .eq('id', `${subscription.metadata.community_id}_${subscription.metadata.user_id}`);
+
+          if (updateError) {
+            console.error('Error updating membership:', updateError);
+            return NextResponse.json(
+              { error: 'Failed to update membership' },
+              { status: 500 }
+            );
+          }
         }
         break;
     }
