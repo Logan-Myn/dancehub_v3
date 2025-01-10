@@ -189,7 +189,7 @@ export default function ClientCommunityPage({
       setIsMember(false);
       setMembers((prev) => prev.filter((member) => member.id !== user.uid));
       setShowLeaveDialog(false);
-      
+
       // Refresh the page to ensure everything is updated
       window.location.reload();
 
@@ -551,7 +551,8 @@ export default function ClientCommunityPage({
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Community</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave this community? You'll lose access to all content and need to rejoin to access it again.
+              Are you sure you want to leave this community? You'll lose access
+              to all content and need to rejoin to access it again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -567,4 +568,4 @@ export default function ClientCommunityPage({
       </AlertDialog>
     </main>
   );
-} 
+}

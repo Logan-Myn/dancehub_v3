@@ -57,7 +57,7 @@ async function getCommunityData(communitySlug: string) {
 
   const communityDoc = communitySnapshot.docs[0];
   const data = communityDoc.data();
-  
+
   // Ensure thread categories have the required color property
   const threadCategories = data.threadCategories?.map((cat: any) => ({
     ...cat,
@@ -110,7 +110,8 @@ async function getMembers(communitySlug: string) {
         const user = await adminAuth.getUser(userId);
         return {
           id: userId,
-          displayName: user.displayName || user.email?.split("@")[0] || "Anonymous",
+          displayName:
+            user.displayName || user.email?.split("@")[0] || "Anonymous",
           imageUrl: user.photoURL || "",
         };
       } catch (error) {

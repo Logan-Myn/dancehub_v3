@@ -4,14 +4,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User } from "firebase/auth"
-import { LogOut, User as UserIcon, Settings } from "lucide-react"
-import { auth } from "@/lib/firebase"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User } from "firebase/auth";
+import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { auth } from "@/lib/firebase";
 
 interface UserAccountNavProps {
-  user: User
+  user: User;
 }
 
 export default function UserAccountNav({ user }: UserAccountNavProps) {
@@ -57,5 +57,5 @@ export default function UserAccountNav({ user }: UserAccountNavProps) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-} 
+  );
+}
