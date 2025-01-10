@@ -12,7 +12,51 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (file: File) => {
+    try {
+      setIsUploading(true);
+      setProgress(0);
+
+      // Get upload URL
+      const response = await fetch('/api/mux/upload-url');
+      if (!response.ok) throw new Error('Failed to get upload URL');
+      const { uploadUrl, assetId } = await response.json();
+
+      // Upload file
+      const upload = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+      });
+      if (!upload.ok) throw new Error('Failed to upload file');
+
+      // Poll for asset status
+      let status = 'preparing';
+      while (status === 'preparing') {
+        const statusResponse = await fetch(`/api/mux/asset-status/${assetId}`);
+        if (!statusResponse.ok) throw new Error('Failed to check status');
+        const statusData = await statusResponse.json();
+        status = statusData.status;
+
+        if (status === 'ready') {
+          onUploadComplete(assetId);
+          setIsUploading(false);
+          toast.success('Video uploaded successfully!');
+          break;
+        } else if (status === 'errored') {
+          throw new Error('Failed to process video');
+        }
+
+        // Wait before polling again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      onUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -28,71 +72,18 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
       return;
     }
 
-    setIsUploading(true);
-    setProgress(0);
-
-    try {
-      // Get the upload URL from your API
-      const response = await fetch('/api/mux/upload', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get upload URL');
-      }
-
-      const { uploadUrl, uploadId } = await response.json();
-
-      // Upload the file directly to Mux
-      const upload = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      });
-
-      if (!upload.ok) throw new Error('Failed to upload video');
-
-      // Wait for Mux to process the video
-      const checkStatus = async () => {
-        const statusResponse = await fetch(`/api/mux/asset-status/${uploadId}`);
-        const { status, playbackId } = await statusResponse.json();
-
-        if (status === 'ready') {
-          setProgress(100);
-          onUploadComplete(playbackId);
-          toast.success('Video uploaded successfully');
-        } else if (status === 'errored') {
-          throw new Error('Failed to process video');
-        } else {
-          // Continue checking status
-          setProgress((prev) => Math.min(95, prev + 5));
-          setTimeout(checkStatus, 1000);
-        }
-      };
-
-      // Start checking status
-      setProgress(50);
-      await checkStatus();
-    } catch (error) {
-      console.error('Error uploading video:', error);
-      onUploadError('Failed to upload video');
-    } finally {
-      setIsUploading(false);
-      setProgress(0);
-    }
+    await handleUpload(file);
   };
 
   return (
-    <div className="relative">
+    <div className="w-full">
       <input
         type="file"
         accept="video/*"
-        onChange={handleUpload}
+        onChange={handleFileChange}
+        disabled={isUploading}
         className="hidden"
         id="video-upload"
-        disabled={isUploading}
       />
       <label
         htmlFor="video-upload"

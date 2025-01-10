@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function GET(
   request: Request,
@@ -7,9 +7,10 @@ export async function GET(
 ) {
   try {
     const { communitySlug } = params;
+    const supabase = createAdminClient();
 
     // Get community by slug
-    const { data: community, error } = await supabaseAdmin
+    const { data: community, error } = await supabase
       .from('communities')
       .select(`
         *,

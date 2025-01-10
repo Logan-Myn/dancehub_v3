@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string; userId: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { communitySlug, userId } = params;
 
     // Get community and check if user is creator
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id, created_by")
       .eq("slug", communitySlug)
@@ -25,7 +26,7 @@ export async function GET(
     }
 
     // Check membership
-    const { data: membership, error: membershipError } = await supabaseAdmin
+    const { data: membership, error: membershipError } = await supabase
       .from("community_members")
       .select()
       .eq("community_id", community.id)

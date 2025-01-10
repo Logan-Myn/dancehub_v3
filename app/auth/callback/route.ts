@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code');
 
   if (code) {
-    const supabase = createServerClient();
+    const supabase = createAdminClient();
     await supabase.auth.exchangeCodeForSession(code);
   }
 

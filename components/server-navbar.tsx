@@ -1,9 +1,10 @@
-import { createServerClient } from "@/lib/supabase";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import Navbar from "@/app/components/Navbar";
 
 export default async function ServerNavbar() {
-  const supabase = createServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const supabase = createServerComponentClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
   
-  return <Navbar initialUser={session?.user ?? null} />;
+  return <Navbar initialUser={user} />;
 } 

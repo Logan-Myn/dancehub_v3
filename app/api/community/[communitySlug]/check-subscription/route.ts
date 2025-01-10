@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { userId } = await request.json();
     const { communitySlug } = params;
 
     // Get community data
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from('communities')
       .select('id')
       .eq('slug', communitySlug)
@@ -25,7 +26,7 @@ export async function POST(
     }
 
     // Check membership record
-    const { data: membership, error: membershipError } = await supabaseAdmin
+    const { data: membership, error: membershipError } = await supabase
       .from('memberships')
       .select('*')
       .eq('community_id', community.id)
@@ -42,7 +43,7 @@ export async function POST(
     // If subscription is active, add user to community if not already a member
     if (membership.status === 'active') {
       // Check if user is already a member
-      const { data: existingMember } = await supabaseAdmin
+      const { data: existingMember } = await supabase
         .from('community_members')
         .select('id')
         .eq('community_id', community.id)
@@ -51,7 +52,7 @@ export async function POST(
 
       // If not a member, add them
       if (!existingMember) {
-        const { error: memberError } = await supabaseAdmin
+        const { error: memberError } = await supabase
           .from('community_members')
           .insert({
             community_id: community.id,

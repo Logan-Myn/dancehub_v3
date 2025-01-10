@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   req: Request,
@@ -10,6 +10,7 @@ export async function PUT(
   }
 ) {
   try {
+    const supabase = createAdminClient();
     const { lessons } = await req.json();
 
     // Get the authorization token
@@ -23,14 +24,14 @@ export async function PUT(
     const {
       data: { user },
       error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id, created_by")
       .eq("slug", params.communitySlug)
@@ -45,7 +46,7 @@ export async function PUT(
     }
 
     // Get course ID
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -57,7 +58,7 @@ export async function PUT(
     }
 
     // Update all lessons in a single transaction
-    const { error: updateError } = await supabaseAdmin.rpc(
+    const { error: updateError } = await supabase.rpc(
       'reorder_lessons',
       {
         lesson_orders: lessons.map((lesson: any, index: number) => ({

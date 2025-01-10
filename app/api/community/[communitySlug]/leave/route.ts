@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
     const { userId } = await request.json();
 
     // Get community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from('communities')
       .select('id')
       .eq('slug', params.communitySlug)
@@ -23,7 +25,7 @@ export async function POST(
     }
 
     // Check if user is a member
-    const { data: member } = await supabaseAdmin
+    const { data: member } = await supabase
       .from('community_members')
       .select()
       .eq('community_id', community.id)
@@ -38,7 +40,7 @@ export async function POST(
     }
 
     // Remove member from community_members table
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError } = await supabase
       .from('community_members')
       .delete()
       .eq('community_id', community.id)
@@ -53,7 +55,7 @@ export async function POST(
     }
 
     // Update members_count in communities table
-    const { error: updateError } = await supabaseAdmin.rpc(
+    const { error: updateError } = await supabase.rpc(
       'decrement_members_count',
       { community_id: community.id }
     );
@@ -61,7 +63,7 @@ export async function POST(
     if (updateError) {
       console.error('Error updating members count:', updateError);
       // Try to rollback the member deletion
-      await supabaseAdmin
+      await supabase
         .from('community_members')
         .insert({
           community_id: community.id,

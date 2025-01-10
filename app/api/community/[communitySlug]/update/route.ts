@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 type CommunityUpdate = {
   name: string;
@@ -13,11 +13,12 @@ export async function PUT(
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { communitySlug } = params;
     const updates = await request.json();
 
     // Get the community by slug
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from('communities')
       .select('id')
       .eq('slug', communitySlug)
@@ -31,7 +32,7 @@ export async function PUT(
     }
 
     // Update the community
-    const { data: updatedCommunity, error: updateError } = await supabaseAdmin
+    const { data: updatedCommunity, error: updateError } = await supabase
       .from('communities')
       .update({
         name: updates.name,

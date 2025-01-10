@@ -1,11 +1,11 @@
-import { createServerClient } from "@/lib/supabase";
+import { createPagesServerClient } from "@/lib/supabase";
 import { Suspense } from "react";
 import ClientAboutPage from "./client-page";
 import ServerNavbar from "@/components/server-navbar";
 import { notFound } from "next/navigation";
 
 async function getCommunityData(communitySlug: string) {
-  const supabase = createServerClient();
+  const supabase = createPagesServerClient();
   
   const { data: community, error } = await supabase
     .from("communities")

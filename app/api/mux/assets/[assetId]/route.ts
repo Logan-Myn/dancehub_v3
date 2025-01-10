@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getMuxAsset } from '@/lib/mux';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function GET(
   req: Request,
   { params }: { params: { assetId: string } }
 ) {
   try {
+    const supabase = createAdminClient();
+    
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -14,7 +16,7 @@ export async function GET(
     }
 
     const token = authHeader.split('Bearer ')[1];
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function DELETE(
   req: Request,
@@ -10,6 +10,8 @@ export async function DELETE(
   }
 ) {
   try {
+    const supabase = createAdminClient();
+    
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -17,14 +19,14 @@ export async function DELETE(
     const token = authHeader.split("Bearer ")[1];
 
     // Verify the token and get user
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id, created_by")
       .eq("slug", params.communitySlug)
@@ -39,7 +41,7 @@ export async function DELETE(
     }
 
     // Get course ID
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -51,7 +53,7 @@ export async function DELETE(
     }
 
     // Delete all lessons in the chapter first (foreign key constraint)
-    const { error: lessonsDeleteError } = await supabaseAdmin
+    const { error: lessonsDeleteError } = await supabase
       .from("lessons")
       .delete()
       .eq("chapter_id", params.chapterId);
@@ -62,7 +64,7 @@ export async function DELETE(
     }
 
     // Delete the chapter
-    const { error: chapterDeleteError } = await supabaseAdmin
+    const { error: chapterDeleteError } = await supabase
       .from("chapters")
       .delete()
       .eq("id", params.chapterId)

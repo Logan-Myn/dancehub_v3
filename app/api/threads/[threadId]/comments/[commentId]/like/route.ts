@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 interface Comment {
   id: string;
@@ -22,7 +22,7 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId, commentId } = params;
-    const supabase = createServerClient();
+    const supabase = createAdminClient();
 
     // Get the thread document
     const { data: thread } = await supabase

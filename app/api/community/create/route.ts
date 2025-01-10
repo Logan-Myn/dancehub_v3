@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(request: Request) {
+  const supabase = createAdminClient();
+  
   try {
     const body = await request.json();
     const { name, createdBy } = body;
@@ -13,24 +15,21 @@ export async function POST(request: Request) {
       .replace(/(^-|-$)+/g, '');
 
     // Create the community using Supabase
-    const { data: community, error } = await supabaseAdmin
+    const { data: community, error } = await supabase
       .from('communities')
       .insert({
         name,
         slug,
         created_by: createdBy,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true,
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    // Add creator as a member
-    const { error: memberError } = await supabaseAdmin
-      .from('community_members')
+    // Add creator as a member with admin role
+    const { error: memberError } = await supabase
+      .from('members')
       .insert({
         community_id: community.id,
         user_id: createdBy,

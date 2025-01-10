@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PATCH(
   request: Request,
@@ -9,7 +9,7 @@ export async function PATCH(
     const { title, content } = await request.json();
     const { threadId } = params;
 
-    const supabase = createServerClient();
+    const supabase = createAdminClient();
 
     const { error } = await supabase
       .from("threads")
@@ -38,7 +38,7 @@ export async function DELETE(
 ) {
   try {
     const { threadId } = params;
-    const supabase = createServerClient();
+    const supabase = createAdminClient();
 
     const { error } = await supabase
       .from("threads")

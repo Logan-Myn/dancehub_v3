@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 import { PageData } from "@/types/page-builder";
+
+const supabase = createAdminClient();
 
 export async function PUT(
   request: Request,
@@ -11,7 +13,7 @@ export async function PUT(
     const { aboutPage } = await request.json();
 
     // Get and update the community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .update({
         about_page: {
@@ -56,7 +58,7 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get the community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("about_page")
       .eq("slug", communitySlug)

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
 
 type Thread = {
   id: string;
@@ -24,7 +26,7 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get threads with community, author, likes, and comments
-    const { data: threads, error } = await supabaseAdmin
+    const { data: threads, error } = await supabase
       .from("threads")
       .select(`
         *,

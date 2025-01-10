@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils";
+
+const supabase = createAdminClient();
 
 export async function GET(
   request: Request,
@@ -11,7 +13,7 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get community and its courses
-    const { data: courses, error } = await supabaseAdmin
+    const { data: courses, error } = await supabase
       .from("courses")
       .select(`
         *,
@@ -46,7 +48,7 @@ export async function POST(
     const { communitySlug } = params;
 
     // Get the community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", communitySlug)
@@ -71,7 +73,7 @@ export async function POST(
     // Upload the image to Supabase Storage
     const fileExt = imageFile.name.split(".").pop();
     const fileName = `${uuidv4()}.${fileExt}`;
-    const { error: uploadError, data: uploadData } = await supabaseAdmin
+    const { error: uploadError, data: uploadData } = await supabase
       .storage
       .from("course-images")
       .upload(fileName, imageFile, {
@@ -89,13 +91,13 @@ export async function POST(
     }
 
     // Get the public URL of the uploaded image
-    const { data: { publicUrl: imageUrl } } = supabaseAdmin
+    const { data: { publicUrl: imageUrl } } = supabase
       .storage
       .from("course-images")
       .getPublicUrl(fileName);
 
     // Create a new course
-    const { data: newCourse, error: courseError } = await supabaseAdmin
+    const { data: newCourse, error: courseError } = await supabase
       .from("courses")
       .insert({
         title,
@@ -112,7 +114,7 @@ export async function POST(
     if (courseError) {
       console.error("Error creating course:", courseError);
       // Clean up the uploaded image if course creation fails
-      await supabaseAdmin.storage.from("course-images").remove([fileName]);
+      await supabase.storage.from("course-images").remove([fileName]);
       return NextResponse.json(
         { error: "Failed to create course" },
         { status: 500 }

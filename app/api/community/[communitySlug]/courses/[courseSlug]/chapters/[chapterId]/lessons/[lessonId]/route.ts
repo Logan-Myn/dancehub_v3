@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
     console.log("Updating lesson with params:", params);
     const { title, content, videoAssetId } = await request.json();
     console.log("Update data received:", { title, content, videoAssetId });
 
     // First, verify the community exists and get its ID
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", params.communitySlug)
@@ -22,7 +24,7 @@ export async function PUT(
     }
 
     // Get the course ID
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -34,7 +36,7 @@ export async function PUT(
     }
 
     // Verify the chapter exists
-    const { data: chapter, error: chapterError } = await supabaseAdmin
+    const { data: chapter, error: chapterError } = await supabase
       .from("chapters")
       .select("id")
       .eq("course_id", course.id)
@@ -57,7 +59,7 @@ export async function PUT(
     console.log("Final update data:", updateData);
 
     // Update the lesson
-    const { data: updatedLesson, error: updateError } = await supabaseAdmin
+    const { data: updatedLesson, error: updateError } = await supabase
       .from("lessons")
       .update(updateData)
       .eq("id", params.lessonId)

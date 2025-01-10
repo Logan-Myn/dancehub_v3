@@ -1,49 +1,28 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { cookies } from 'next/headers';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
-    const { 
-      content, 
-      communityId, 
-      userId, 
-      title,
-      categoryId,
-      categoryName 
-    } = await request.json();
+    const supabase = createAdminClient();
+    const { title, content, communityId, userId } = await request.json();
 
-    const supabase = createServerClient();
-
-    // Get user data
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    // Create thread
+    // Create the thread
     const { data: thread, error } = await supabase
       .from('threads')
       .insert({
         title,
         content,
         community_id: communityId,
-        user_id: userId,
-        category_id: categoryId,
-        category: categoryName,
+        created_by: userId,
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .select('*, author:profiles(*)')
+      .select()
       .single();
 
     if (error) throw error;
 
-    return NextResponse.json({
-      ...thread,
-      likesCount: 0,
-      commentsCount: 0,
-    });
+    return NextResponse.json(thread);
   } catch (error) {
     console.error('Error creating thread:', error);
     return NextResponse.json(

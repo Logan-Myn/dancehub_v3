@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
 
 export async function POST(
   req: Request,
@@ -13,7 +15,7 @@ export async function POST(
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,7 +24,7 @@ export async function POST(
     const { title } = await req.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", params.communitySlug)
@@ -33,7 +35,7 @@ export async function POST(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -45,7 +47,7 @@ export async function POST(
     }
 
     // Verify chapter exists
-    const { data: chapter, error: chapterError } = await supabaseAdmin
+    const { data: chapter, error: chapterError } = await supabase
       .from("chapters")
       .select("id")
       .eq("course_id", course.id)
@@ -57,7 +59,7 @@ export async function POST(
     }
 
     // Get current lessons count to determine the order
-    const { count: lessonsCount, error: countError } = await supabaseAdmin
+    const { count: lessonsCount, error: countError } = await supabase
       .from("lessons")
       .select("*", { count: 'exact', head: true })
       .eq("chapter_id", params.chapterId);
@@ -68,7 +70,7 @@ export async function POST(
     }
 
     // Create the new lesson
-    const { data: lesson, error: lessonError } = await supabaseAdmin
+    const { data: lesson, error: lessonError } = await supabase
       .from("lessons")
       .insert({
         title,

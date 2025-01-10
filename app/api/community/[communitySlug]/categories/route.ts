@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { categories } = await request.json();
     const { communitySlug } = params;
 
     // Update community categories
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from('communities')
       .update({
         thread_categories: categories,

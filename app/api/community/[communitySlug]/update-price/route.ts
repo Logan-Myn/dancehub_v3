@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 import { stripe } from '@/lib/stripe';
+
+const supabase = createAdminClient();
 
 export async function POST(
   request: Request,
@@ -11,7 +13,7 @@ export async function POST(
     const { communitySlug } = params;
 
     // Get community by slug with stripe details
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from('communities')
       .select('id, name, stripe_account_id, stripe_product_id')
       .eq('slug', communitySlug)
@@ -60,7 +62,7 @@ export async function POST(
       stripe_price_id = stripePrice.id;
 
       // Update community with both product and price IDs
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('communities')
         .update({
           membership_enabled: enabled,
@@ -80,7 +82,7 @@ export async function POST(
       }
     } else {
       // If disabling membership or price is 0, just update the membership status
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('communities')
         .update({
           membership_enabled: enabled,

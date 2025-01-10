@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const supabase = createAdminClient();
 
 export async function POST(request: Request) {
   try {
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
         const { user_id, community_id } = paymentIntent.metadata;
 
         // Add user to community_members table
-        const { error: memberError } = await supabaseAdmin
+        const { error: memberError } = await supabase
           .from('community_members')
           .insert({
             community_id,
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
         }
 
         // Create membership record
-        const { error: membershipError } = await supabaseAdmin
+        const { error: membershipError } = await supabase
           .from('memberships')
           .insert({
             id: `${community_id}_${user_id}`,
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
         if (membershipError) {
           console.error('Error creating membership:', membershipError);
           // Rollback member addition
-          await supabaseAdmin
+          await supabase
             .from('community_members')
             .delete()
             .eq('community_id', community_id)
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
-          const { error: updateError } = await supabaseAdmin
+          const { error: updateError } = await supabase
             .from('memberships')
             .update({
               status: 'active',

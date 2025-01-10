@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
+
+const supabase = createAdminClient();
 
 export async function GET(
   request: Request,
@@ -14,7 +16,7 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get community data to fetch stripe_account_id
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("stripe_account_id")
       .eq("slug", communitySlug)

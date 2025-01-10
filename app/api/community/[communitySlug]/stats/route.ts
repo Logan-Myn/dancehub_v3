@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
     // Get community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", params.communitySlug)
@@ -18,7 +20,7 @@ export async function GET(
     }
 
     // Get total active members count
-    const { count: totalMembers, error: membersError } = await supabaseAdmin
+    const { count: totalMembers, error: membersError } = await supabase
       .from("community_members")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id)
@@ -30,7 +32,7 @@ export async function GET(
     }
 
     // Get total threads count
-    const { count: totalThreads, error: threadsError } = await supabaseAdmin
+    const { count: totalThreads, error: threadsError } = await supabase
       .from("threads")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id);
@@ -44,7 +46,7 @@ export async function GET(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const { data: monthlyPayments, error: revenueError } = await supabaseAdmin
+    const { data: monthlyPayments, error: revenueError } = await supabase
       .from("payments")
       .select("amount")
       .eq("community_id", community.id)
@@ -53,7 +55,7 @@ export async function GET(
     const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
 
     // Get membership growth (new members in last 30 days)
-    const { count: newMembers, error: growthError } = await supabaseAdmin
+    const { count: newMembers, error: growthError } = await supabase
       .from("community_members")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id)
@@ -61,7 +63,7 @@ export async function GET(
       .gte("joined_at", thirtyDaysAgo.toISOString());
 
     // Get active members (members who have posted or commented in last 30 days)
-    const { data: activeThreadCreators } = await supabaseAdmin
+    const { data: activeThreadCreators } = await supabase
       .from("threads")
       .select("created_by")
       .eq("community_id", community.id)
@@ -69,7 +71,7 @@ export async function GET(
 
     const activeUserIds = Array.from(new Set(activeThreadCreators?.map(t => t.created_by) || []));
 
-    const { count: activeMembers } = await supabaseAdmin
+    const { count: activeMembers } = await supabase
       .from("community_members")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id)

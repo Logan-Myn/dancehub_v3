@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
 
 export async function POST(
   request: Request,
@@ -10,7 +12,7 @@ export async function POST(
     const { title } = await request.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", communitySlug)
@@ -24,7 +26,7 @@ export async function POST(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -36,7 +38,7 @@ export async function POST(
     }
 
     // Get the current highest order
-    const { data: highestOrderChapter } = await supabaseAdmin
+    const { data: highestOrderChapter } = await supabase
       .from("chapters")
       .select("order")
       .eq("course_id", course.id)
@@ -47,7 +49,7 @@ export async function POST(
     const newOrder = (highestOrderChapter?.order ?? -1) + 1;
 
     // Create the new chapter
-    const { data: newChapter, error: createError } = await supabaseAdmin
+    const { data: newChapter, error: createError } = await supabase
       .from("chapters")
       .insert({
         title,
@@ -90,7 +92,7 @@ export async function PUT(
     const { title } = await request.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", communitySlug)
@@ -104,7 +106,7 @@ export async function PUT(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -116,7 +118,7 @@ export async function PUT(
     }
 
     // Update the chapter
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from("chapters")
       .update({
         title,
@@ -155,7 +157,7 @@ export async function DELETE(
     const { communitySlug, courseSlug, chapterId } = params;
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", communitySlug)
@@ -169,7 +171,7 @@ export async function DELETE(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabaseAdmin
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
       .eq("community_id", community.id)
@@ -181,7 +183,7 @@ export async function DELETE(
     }
 
     // Delete all lessons in the chapter first (foreign key constraint)
-    const { error: lessonsDeleteError } = await supabaseAdmin
+    const { error: lessonsDeleteError } = await supabase
       .from("lessons")
       .delete()
       .eq("chapter_id", chapterId);
@@ -195,7 +197,7 @@ export async function DELETE(
     }
 
     // Delete the chapter
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError } = await supabase
       .from("chapters")
       .delete()
       .eq("id", chapterId)

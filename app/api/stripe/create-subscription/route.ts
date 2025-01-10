@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
+
+const supabase = createAdminClient();
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
     });
 
     // Store subscription info in Supabase
-    const { error: subscriptionError } = await supabaseAdmin
+    const { error: subscriptionError } = await supabase
       .from('subscriptions')
       .insert({
         id: communityId, // Using communityId as the subscription id for consistency

@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(request: Request) {
+  const supabase = createAdminClient();
+  
   try {
     const { userId } = await request.json();
 
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
     });
 
     // Update the user's profile with the Stripe account ID
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('profiles')
       .update({ stripe_account_id: account.id })
       .eq('id', userId);

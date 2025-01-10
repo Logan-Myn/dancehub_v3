@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 type MemberWithProfile = {
   user_id: string;
@@ -17,9 +17,11 @@ export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
     // Get community and its members with user profiles
-    const { data: members, error } = await supabaseAdmin
+    const { data: members, error } = await supabase
       .from("community_members")
       .select(`
         user_id,

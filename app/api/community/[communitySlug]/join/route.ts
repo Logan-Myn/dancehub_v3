@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { userId } = await request.json();
 
     // Get community
-    const { data: community, error: communityError } = await supabaseAdmin
+    const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
       .eq("slug", params.communitySlug)
@@ -23,7 +24,7 @@ export async function POST(
     }
 
     // Check if user is already a member
-    const { data: existingMember } = await supabaseAdmin
+    const { data: existingMember } = await supabase
       .from("community_members")
       .select()
       .eq("community_id", community.id)
@@ -38,7 +39,7 @@ export async function POST(
     }
 
     // Add member to community_members table
-    const { error: memberError } = await supabaseAdmin
+    const { error: memberError } = await supabase
       .from("community_members")
       .insert({
         community_id: community.id,
@@ -57,7 +58,7 @@ export async function POST(
     }
 
     // Update members_count in communities table
-    const { error: updateError } = await supabaseAdmin.rpc(
+    const { error: updateError } = await supabase.rpc(
       'increment_members_count',
       { community_id: community.id }
     );
@@ -65,7 +66,7 @@ export async function POST(
     if (updateError) {
       console.error("Error updating members count:", updateError);
       // Rollback the member addition
-      await supabaseAdmin
+      await supabase
         .from("community_members")
         .delete()
         .eq("community_id", community.id)

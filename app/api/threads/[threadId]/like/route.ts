@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId } = params;
-    const supabase = createServerClient();
+    const supabase = createAdminClient();
 
     // Get current thread likes
     const { data: thread } = await supabase

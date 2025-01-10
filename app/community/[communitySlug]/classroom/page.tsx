@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { createServerClient } from "@/lib/supabase";
+import { createPagesServerClient } from "@/lib/supabase";
 import ClientClassroom from "./client-page";
 
 interface Community {
@@ -19,7 +19,7 @@ interface Course {
 }
 
 async function getCommunityData(communitySlug: string) {
-  const supabase = createServerClient();
+  const supabase = createPagesServerClient();
   const { data: community } = await supabase
     .from("communities")
     .select("*")
@@ -30,7 +30,7 @@ async function getCommunityData(communitySlug: string) {
 }
 
 async function getCourses(communityId: string) {
-  const supabase = createServerClient();
+  const supabase = createPagesServerClient();
   const { data: courses } = await supabase
     .from("courses")
     .select(`
@@ -52,7 +52,7 @@ async function getCourses(communityId: string) {
 async function checkMembership(communityId: string, userId: string | undefined) {
   if (!userId) return false;
   
-  const supabase = createServerClient();
+  const supabase = createPagesServerClient();
   const { data } = await supabase
     .from("community_members")
     .select("*")
@@ -68,7 +68,7 @@ export default async function ClassroomPage({
 }: {
   params: { communitySlug: string };
 }) {
-  const supabase = createServerClient();
+  const supabase = createPagesServerClient();
   const { data: { session } } = await supabase.auth.getSession();
   const currentUser = session?.user || null;
 
