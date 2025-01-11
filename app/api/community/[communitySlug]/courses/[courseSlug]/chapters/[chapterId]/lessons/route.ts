@@ -76,6 +76,7 @@ export async function POST(
         title,
         content: "",
         video_asset_id: null,
+        playback_id: null,
         position: newPosition,
         chapter_id: params.chapterId,
         created_at: new Date().toISOString(),
@@ -94,6 +95,8 @@ export async function POST(
     const transformedLesson = {
       ...lesson,
       order: lesson.position,
+      videoAssetId: lesson.video_asset_id,
+      playbackId: lesson.playback_id,
     };
 
     return NextResponse.json(transformedLesson);

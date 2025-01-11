@@ -52,6 +52,7 @@ interface Lesson {
   content: string | null;
   videoUrl?: string;
   videoAssetId?: string | null;
+  playbackId?: string | null;
   completed?: boolean;
   order?: number;
   position?: number;
@@ -197,6 +198,9 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
   const [videoAssetId, setVideoAssetId] = useState<string | undefined>(
     lesson.videoAssetId || undefined
   );
+  const [playbackId, setPlaybackId] = useState<string | undefined>(
+    lesson.playbackId || undefined
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Add new function to handle immediate video update
@@ -231,13 +235,16 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Video Content</h3>
             <VideoUpload
-              onUploadComplete={handleVideoUpload}
+              onUploadComplete={(playbackId) => {
+                setPlaybackId(playbackId);
+                handleVideoUpload(playbackId);
+              }}
               onUploadError={(error) => toast.error(error)}
             />
             {/* Show video player if we have a video */}
-            {videoAssetId && (
+            {(playbackId || lesson.playbackId) && (
               <div className="mt-4">
-                <MuxPlayer playbackId={videoAssetId} />
+                <MuxPlayer playbackId={playbackId || lesson.playbackId!} />
               </div>
             )}
           </div>
@@ -842,9 +849,9 @@ export default function CoursePage() {
         </div>
 
         {/* Video Content */}
-        {selectedLesson.videoAssetId && (
+        {(selectedLesson.playbackId || selectedLesson.videoAssetId) && (
           <Card className="p-4">
-            <MuxPlayer playbackId={selectedLesson.videoAssetId} />
+            <MuxPlayer playbackId={selectedLesson.playbackId || selectedLesson.videoAssetId!} />
           </Card>
         )}
 

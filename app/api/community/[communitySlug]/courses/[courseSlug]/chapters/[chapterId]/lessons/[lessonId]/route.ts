@@ -54,7 +54,10 @@ export async function PUT(
 
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
-    if (videoAssetId !== undefined) updateData.video_asset_id = videoAssetId;
+    if (videoAssetId !== undefined) {
+      updateData.video_asset_id = videoAssetId;
+      updateData.playback_id = videoAssetId; // Use the same ID for playback
+    }
 
     console.log("Final update data:", updateData);
 
@@ -72,9 +75,17 @@ export async function PUT(
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
-    console.log("Updated lesson data:", updatedLesson);
+    // Transform the response for frontend compatibility
+    const transformedLesson = {
+      ...updatedLesson,
+      order: updatedLesson.position,
+      videoAssetId: updatedLesson.video_asset_id,
+      playbackId: updatedLesson.playback_id,
+    };
 
-    return NextResponse.json(updatedLesson);
+    console.log("Updated lesson data:", transformedLesson);
+
+    return NextResponse.json(transformedLesson);
   } catch (error) {
     console.error("Error updating lesson:", error);
     return NextResponse.json(

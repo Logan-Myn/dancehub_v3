@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createMuxUploadUrl } from '@/lib/mux';
+import { getMuxAsset } from '@/lib/mux';
 import { createAdminClient } from '@/lib/supabase';
 import { headers } from 'next/headers';
 
-export async function POST() {
+export async function GET(
+  request: Request,
+  { params }: { params: { uploadId: string } }
+) {
   try {
     // Get the authorization header
     const headersList = headers();
@@ -27,12 +30,21 @@ export async function POST() {
       );
     }
 
-    const { uploadId, uploadUrl } = await createMuxUploadUrl();
-    return NextResponse.json({ uploadId, uploadUrl });
+    const { uploadId } = params;
+    const asset = await getMuxAsset(uploadId);
+
+    if (!asset) {
+      return NextResponse.json(
+        { error: 'Asset not found or not ready' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(asset);
   } catch (error) {
-    console.error('Error creating Mux upload URL:', error);
+    console.error('Error getting Mux asset:', error);
     return NextResponse.json(
-      { error: 'Failed to create upload URL' },
+      { error: error instanceof Error ? error.message : 'Failed to get asset' },
       { status: 500 }
     );
   }

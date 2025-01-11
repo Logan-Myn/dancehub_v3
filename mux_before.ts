@@ -1,11 +1,11 @@
-import Mux from '@mux/mux-node';
+import Mux from "@mux/mux-node";
 
 if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-  throw new Error('Missing Mux API credentials');
+  throw new Error("Missing Mux API credentials");
 }
 
 if (!process.env.NEXT_PUBLIC_APP_URL) {
-  throw new Error('Missing NEXT_PUBLIC_APP_URL environment variable');
+  throw new Error("Missing NEXT_PUBLIC_APP_URL environment variable");
 }
 
 const mux = new Mux({
@@ -18,7 +18,7 @@ export const Video = mux.video;
 export async function createMuxUploadUrl() {
   const upload = await Video.uploads.create({
     new_asset_settings: {
-      playback_policy: ['public'],
+      playback_policy: ["public"],
     },
     cors_origin: process.env.NEXT_PUBLIC_APP_URL!,
   });
@@ -34,7 +34,7 @@ export async function getMuxAsset(uploadId: string) {
     // First get the upload to find the asset ID
     const upload = await Video.uploads.retrieve(uploadId);
     if (!upload.asset_id) {
-      throw new Error('Asset not yet created');
+      throw new Error("Asset not yet created");
     }
 
     // Then get the asset details
@@ -43,7 +43,7 @@ export async function getMuxAsset(uploadId: string) {
     // Get the first playback ID
     const playbackId = asset.playback_ids?.[0]?.id;
     if (!playbackId) {
-      throw new Error('No playback ID found');
+      throw new Error("No playback ID found");
     }
 
     return {
@@ -52,7 +52,7 @@ export async function getMuxAsset(uploadId: string) {
       status: asset.status,
     };
   } catch (error) {
-    console.error('Error getting Mux asset:', error);
+    console.error("Error getting Mux asset:", error);
     return null;
   }
-} 
+}

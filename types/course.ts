@@ -24,6 +24,9 @@ export interface Lesson {
   content: string | null;
   videoUrl?: string;
   videoAssetId?: string | null;
+  playbackId?: string | null;
+  video_asset_id?: string | null;
+  playback_id?: string | null;
   completed?: boolean;
   order?: number;
   position: number;
