@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import OnboardingForm from '@/app/community/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from 'react-hot-toast';
-import { createClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 

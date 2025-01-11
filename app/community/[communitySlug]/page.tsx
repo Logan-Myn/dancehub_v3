@@ -1,140 +1,734 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
-import { Suspense } from "react";
-import ClientCommunityPage from "./client-page";
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import { notFound, useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Users, ExternalLink } from "lucide-react";
+import { useAuth } from "@/hooks/auth";
+import toast from "react-hot-toast";
+import Image from "next/image";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
+import CommunitySettingsModal from "@/components/CommunitySettingsModal";
+import PaymentModal from "@/components/PaymentModal";
+import Thread from "@/components/Thread";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import ThreadCard from "@/components/ThreadCard";
+import ThreadModal from "@/components/ThreadModal";
+import ThreadCategories from "@/components/ThreadCategories";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ThreadCategory } from "@/types/community";
+import { User } from "@supabase/supabase-js";
+import { Card } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
 
-export default async function CommunityPage({
-  params,
-}: {
-  params: { communitySlug: string };
-}) {
-  const supabase = createServerComponentClient({ cookies });
+interface CustomLink {
+  title: string;
+  url: string;
+}
 
-  try {
-    // Get current user first
-    const { data: { user } } = await supabase.auth.getUser();
-    const currentUser = user;
+interface Profile {
+  id: string;
+  full_name: string;
+  avatar_url: string;
+}
 
-    // Get community data
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("*")
-      .eq("slug", params.communitySlug)
-      .single();
+interface Thread {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  userId: string;
+  likesCount: number;
+  commentsCount: number;
+  category?: string;
+  categoryId?: string;
+  author: {
+    name: string;
+    image: string;
+  };
+  likes?: string[];
+  comments?: any[];
+}
 
-    if (communityError || !community) {
-      return notFound();
+interface Member {
+  id: string;
+  user_id: string;
+  community_id: string;
+  role: string;
+  created_at: string;
+}
+
+interface Community {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  image_url: string;
+  created_by: string;
+  created_at: string;
+  membersCount: number;
+  createdBy: string;
+  imageUrl: string;
+  customLinks?: CustomLink[];
+  membershipEnabled?: boolean;
+  membershipPrice?: number;
+  threadCategories?: ThreadCategory[];
+  stripeAccountId?: string | null;
+}
+
+interface ThreadCardProps {
+  thread: {
+    id: string;
+    title: string;
+    content: string;
+    createdAt: string;
+    userId: string;
+    likesCount: number;
+    commentsCount: number;
+    category?: string;
+    categoryId?: string;
+    author: {
+      name: string;
+      image: string;
+    };
+    likes?: string[];
+    comments?: any[];
+  };
+  currentUser: User | null;
+  onLike: (threadId: string, newLikesCount: number, liked: boolean) => void;
+  onClick: () => void;
+}
+
+interface ThreadCategoriesProps {
+  categories: ThreadCategory[];
+  selectedCategory: string | null;
+  onSelectCategory: (category: string | null) => void;
+}
+
+interface CommunitySettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  communityId: string;
+  communitySlug: string;
+  communityName: string;
+  communityDescription: string;
+  imageUrl: string;
+  customLinks: CustomLink[];
+  stripeAccountId: string | null;
+  threadCategories: ThreadCategory[];
+  onImageUpdate: (newImageUrl: string) => void;
+  onCommunityUpdate: (updates: Partial<Community>) => void;
+  onCustomLinksUpdate: (newLinks: CustomLink[]) => void;
+  onThreadCategoriesUpdate: (categories: ThreadCategory[]) => void;
+}
+
+interface PaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  clientSecret: string | null;
+  stripeAccountId: string | null;
+  price: number;
+  onSuccess: () => void;
+  communitySlug: string;
+}
+
+export default function CommunityPage() {
+  const params = useParams();
+  const communitySlug = params?.communitySlug as string;
+  const { user: currentUser } = useAuth();
+  const supabase = createClient();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [community, setCommunity] = useState<Community | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [isMember, setIsMember] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  const [isWriting, setIsWriting] = useState(false);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Get community data
+        const { data: communityData, error: communityError } = await supabase
+          .from("communities")
+          .select("*")
+          .eq("slug", communitySlug)
+          .single();
+
+        if (communityError || !communityData) {
+          notFound();
+          return;
+        }
+
+        // Get members
+        const { data: membersData, error: membersError } = await supabase
+          .from("members")
+          .select("*")
+          .eq("community_id", communityData.id);
+
+        if (membersError) throw membersError;
+
+        // Get threads
+        const { data: threadsData, error: threadsError } = await supabase
+          .from("threads")
+          .select("*")
+          .eq("community_id", communityData.id)
+          .order("created_at", { ascending: false });
+
+        if (threadsError) throw threadsError;
+
+        // Get profiles for thread authors
+        const userIds = Array.from(new Set(threadsData.map(thread => thread.user_id)));
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url")
+          .in("id", userIds);
+
+        if (profilesError) throw profilesError;
+
+        // Create a map of user profiles
+        const profileMap = new Map(profiles?.map((profile: Profile) => [profile.id, profile]));
+
+        // Check if user is a member
+        const userIsMember = currentUser ? membersData.some(member => member.user_id === currentUser.id) : false;
+        
+        // Check if user is creator
+        const userIsCreator = currentUser?.id === communityData.created_by;
+
+        // Format community data
+        const formattedCommunity: Community = {
+          ...communityData,
+          membersCount: membersData.length,
+          createdBy: communityData.created_by,
+          imageUrl: communityData.image_url,
+        };
+
+        // Format threads data
+        const formattedThreads = threadsData.map(thread => {
+          const authorProfile = profileMap.get(thread.user_id);
+          return {
+            id: thread.id,
+            title: thread.title,
+            content: thread.content,
+            createdAt: thread.created_at,
+            userId: thread.user_id,
+            likesCount: (thread.likes || []).length,
+            commentsCount: (thread.comments || []).length,
+            category: thread.category,
+            categoryId: thread.category_id,
+            author: {
+              name: authorProfile?.full_name || "Anonymous",
+              image: authorProfile?.avatar_url || "",
+            },
+            likes: thread.likes,
+            comments: thread.comments,
+          };
+        });
+
+        setCommunity(formattedCommunity);
+        setMembers(membersData);
+        setThreads(formattedThreads);
+        setIsMember(userIsMember);
+        setIsCreator(userIsCreator);
+        setTotalMembers(membersData.length);
+      } catch (error) {
+        console.error("Error:", error);
+        setError(error instanceof Error ? error : new Error('Unknown error'));
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    // Get members
-    const { data: members, error: membersError } = await supabase
-      .from("members")
-      .select("*")
-      .eq("community_id", community.id);
+    if (communitySlug) {
+      fetchData();
+    }
+  }, [communitySlug, currentUser]);
 
-    if (membersError) {
-      console.error("Error fetching members:", membersError);
-      throw membersError;
+  const handleJoinCommunity = async () => {
+    if (!currentUser) {
+      toast.error("Please sign in to join the community");
+      return;
     }
 
-    // Get threads
-    const { data: threads, error: threadsError } = await supabase
-      .from("threads")
-      .select("*")
-      .eq("community_id", community.id)
-      .order("created_at", { ascending: false });
+    try {
+      if (
+        community?.membershipEnabled &&
+        community?.membershipPrice &&
+        community.membershipPrice > 0
+      ) {
+        // Handle paid membership
+        const response = await fetch(
+          `/api/community/${communitySlug}/join-paid`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              email: currentUser.email,
+            }),
+          }
+        );
 
-    if (threadsError) {
-      console.error("Error fetching threads:", threadsError);
-      throw threadsError;
+        if (!response.ok) {
+          throw new Error("Failed to create payment");
+        }
+
+        const { clientSecret, stripeAccountId } = await response.json();
+        setPaymentClientSecret(clientSecret);
+        setStripeAccountId(stripeAccountId);
+        setShowPaymentModal(true);
+      } else {
+        // Handle free membership
+        const response = await fetch(`/api/community/${communitySlug}/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to join community");
+        }
+
+        setIsMember(true);
+        setTotalMembers(prev => prev + 1);
+        toast.success("Successfully joined the community!");
+      }
+    } catch (error) {
+      console.error("Error joining community:", error);
+      toast.error("Failed to join community");
     }
+  };
 
-    // Get profiles for thread authors
-    const userIds = Array.from(new Set(threads.map(thread => thread.user_id)));
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url")
-      .in("id", userIds);
+  const handleLeaveCommunity = async () => {
+    if (!currentUser) return;
 
-    if (profilesError) {
-      console.error("Error fetching profiles:", profilesError);
-      throw profilesError;
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/leave`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to leave community");
+      }
+
+      // Update local state
+      setIsMember(false);
+      setMembers((prev) => prev.filter((member) => member.id !== currentUser.id));
+      setTotalMembers(prev => prev - 1);
+      setShowLeaveDialog(false);
+      
+      toast.success("Successfully left the community");
+    } catch (error) {
+      console.error("Error leaving community:", error);
+      toast.error("Failed to leave community");
     }
+  };
 
-    // Create a map of user profiles
-    const profileMap = new Map(profiles?.map(profile => [profile.id, profile]));
-
-    // Check if user is a member
-    const isMember = currentUser ? members.some(member => member.user_id === currentUser.id) : false;
-    
-    // Check if user is creator
-    const isCreator = currentUser?.id === community.created_by;
-
-    // Format community data
-    const formattedCommunity = {
-      ...community,
-      membersCount: members.length,
-      createdBy: community.created_by,
-      imageUrl: community.image_url,
+  const handleNewThread = async (newThread: any) => {
+    const threadWithAuthor = {
+      ...newThread,
+      author: {
+        name: currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || "Anonymous",
+        image: currentUser?.user_metadata?.avatar_url || "",
+      },
+      categoryId: newThread.categoryId,
+      category: community?.threadCategories?.find(
+        (cat) => cat.id === newThread.categoryId
+      )?.name,
+      createdAt: new Date().toISOString(),
+      likesCount: 0,
+      commentsCount: 0,
     };
 
-    // Format threads data
-    const formattedThreads = threads.map(thread => {
-      const authorProfile = profileMap.get(thread.user_id);
-      return {
-        id: thread.id,
-        title: thread.title,
-        content: thread.content,
-        createdAt: thread.created_at,
-        userId: thread.user_id,
-        likesCount: (thread.likes || []).length,
-        commentsCount: (thread.comments || []).length,
-        category: thread.category,
-        categoryId: thread.category_id,
-        author: {
-          name: authorProfile?.full_name || "Anonymous",
-          image: authorProfile?.avatar_url || "",
-        },
-        likes: thread.likes,
-        comments: thread.comments,
-      };
-    });
+    setThreads((prevThreads) => [threadWithAuthor, ...prevThreads]);
+    setIsWriting(false);
+  };
 
+  const handleLikeUpdate = (threadId: string, newLikesCount: number, liked: boolean) => {
+    setThreads((prevThreads) =>
+      prevThreads.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              likesCount: newLikesCount,
+              likes: liked
+                ? [...(thread.likes || []), currentUser!.id]
+                : (thread.likes || []).filter((id) => id !== currentUser!.id),
+            }
+          : thread
+      )
+    );
+
+    if (selectedThread?.id === threadId) {
+      setSelectedThread((prev) =>
+        prev
+          ? {
+              ...prev,
+              likesCount: newLikesCount,
+              likes: liked
+                ? [...(prev.likes || []), currentUser!.id]
+                : (prev.likes || []).filter((id) => id !== currentUser!.id),
+            }
+          : null
+      );
+    }
+  };
+
+  const handleCommentUpdate = (threadId: string, newComment: any) => {
+    setThreads((prevThreads) =>
+      prevThreads.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              commentsCount: thread.commentsCount + 1,
+              comments: [...(thread.comments || []), newComment],
+            }
+          : thread
+      )
+    );
+
+    if (selectedThread?.id === threadId) {
+      setSelectedThread((prev) =>
+        prev
+          ? {
+              ...prev,
+              commentsCount: prev.commentsCount + 1,
+              comments: [...(prev.comments || []), newComment],
+            }
+          : null
+      );
+    }
+  };
+
+  const filteredThreads = useMemo(() => {
+    if (!selectedCategory) {
+      return threads;
+    }
+    return threads.filter((thread) => thread.categoryId === selectedCategory);
+  }, [threads, selectedCategory]);
+
+  if (error) {
+    return <div>Error loading community: {error.message}</div>;
+  }
+
+  if (isLoading || !community) {
     return (
-      <div className="flex flex-col min-h-screen bg-gray-100">
-        <Navbar initialUser={currentUser} />
-        <CommunityNavbar communitySlug={params.communitySlug} activePage="community" />
-
-        <Suspense
-          fallback={
-            <div className="flex justify-center items-center min-h-screen">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-          }
-        >
-          <ClientCommunityPage
-            community={formattedCommunity}
-            initialMembers={members}
-            initialTotalMembers={members.length}
-            initialThreads={formattedThreads}
-            initialIsMember={isMember}
-            currentUser={currentUser}
-            isCreator={isCreator}
-          />
-        </Suspense>
-
-        <footer className="bg-white border-t">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-gray-500">
-            © 2024 DanceHub. All rights reserved.
-          </div>
-        </footer>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
-  } catch (error) {
-    console.error("Error:", error);
-    throw error;
   }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-100">
+      <Navbar initialUser={currentUser} />
+      <CommunityNavbar communitySlug={communitySlug} activePage="community" />
+
+      <main className="flex-grow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex space-x-8">
+            {/* Main Content Area */}
+            <div className="w-3/4">
+              <div className="bg-white rounded-lg shadow p-4 mb-6">
+                {isWriting ? (
+                  <Thread
+                    communityId={community.id}
+                    userId={currentUser?.id || ""}
+                    communityName={community.name}
+                    community={community}
+                    onSave={handleNewThread}
+                    onCancel={() => setIsWriting(false)}
+                  />
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={currentUser?.user_metadata?.avatar_url || ""}
+                        alt={currentUser?.user_metadata?.full_name || "User"}
+                      />
+                      <AvatarFallback>
+                        {currentUser?.user_metadata?.full_name?.[0] || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div
+                      onClick={() =>
+                        currentUser
+                          ? setIsWriting(true)
+                          : toast.error("Please sign in to post")
+                      }
+                      className="flex-grow cursor-text rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition-colors"
+                    >
+                      Write something...
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Categories filter */}
+              {community.threadCategories && community.threadCategories.length > 0 && (
+                <ThreadCategories
+                  categories={community.threadCategories}
+                  selectedCategory={selectedCategory}
+                  onSelectCategory={setSelectedCategory}
+                />
+              )}
+
+              {/* Threads list */}
+              <div className="space-y-4">
+                {filteredThreads.map((thread) => (
+                  <ThreadCard
+                    key={thread.id}
+                    id={thread.id}
+                    title={thread.title}
+                    content={thread.content}
+                    author={thread.author}
+                    created_at={thread.createdAt}
+                    likes_count={thread.likesCount}
+                    comments_count={thread.commentsCount}
+                    category={thread.category}
+                    category_type={thread.categoryId}
+                    likes={thread.likes}
+                    onClick={() => setSelectedThread(thread)}
+                    onLikeUpdate={handleLikeUpdate}
+                  />
+                ))}
+                {filteredThreads.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No threads in this category yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Sidebar */}
+            <div className="w-1/4">
+              <div className="bg-white shadow rounded-lg overflow-hidden">
+                {community.imageUrl && (
+                  <img
+                    src={community.imageUrl}
+                    alt={community.name}
+                    className="w-full h-40 object-cover"
+                  />
+                )}
+                <div className="p-4">
+                  <h2 className="text-xl font-semibold mb-2">{community.name}</h2>
+                  <p className="text-sm mb-2">{community.description}</p>
+
+                  <div className="flex items-center text-sm text-gray-500 mb-4">
+                    <Users className="h-4 w-4 mr-1" />
+                    <span>{totalMembers} members</span>
+                  </div>
+
+                  {community.membershipPrice && (
+                    <div className="flex items-center text-sm text-gray-500 mb-4">
+                      <span>€{community.membershipPrice}/month</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {community.customLinks?.map((link, index) => (
+                      <Link
+                        key={index}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm text-gray-600 hover:underline"
+                      >
+                        <ExternalLink className="inline-block w-4 h-4 mr-2" />
+                        {link.title}
+                      </Link>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-center space-x-2">
+                    {Array.isArray(members) && members.length > 0 ? (
+                      <>
+                        {members.slice(0, 5).map((member) => (
+                          <div key={member.id} className="relative group">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src="/placeholder-avatar.png" />
+                              <AvatarFallback>
+                                {member.user_id.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {member.user_id === community.created_by ? "Creator" : "Member"}
+                            </div>
+                          </div>
+                        ))}
+                        {members.length > 5 && (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
+                            +{members.length - 5}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-500">No members yet</div>
+                    )}
+                  </div>
+
+                  {isCreator ? (
+                    <Button
+                      onClick={() => setShowSettingsModal(true)}
+                      className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
+                    >
+                      Manage Community
+                    </Button>
+                  ) : isMember ? (
+                    <Button
+                      onClick={() => setShowLeaveDialog(true)}
+                      className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      Leave Community
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleJoinCommunity}
+                      className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
+                    >
+                      {community.membershipPrice
+                        ? `Join for €${community.membershipPrice}/month`
+                        : "Join Community"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer className="bg-white border-t">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-gray-500">
+          © 2024 DanceHub. All rights reserved.
+        </div>
+      </footer>
+
+      {/* Modals */}
+      {selectedThread && (
+        <ThreadModal
+          thread={{
+            id: selectedThread.id,
+            user_id: selectedThread.userId,
+            title: selectedThread.title,
+            content: selectedThread.content,
+            author: selectedThread.author,
+            created_at: selectedThread.createdAt,
+            likes_count: selectedThread.likesCount,
+            comments_count: selectedThread.commentsCount,
+            category: selectedThread.category,
+            category_type: selectedThread.categoryId,
+            likes: selectedThread.likes,
+            comments: selectedThread.comments,
+          }}
+          isOpen={!!selectedThread}
+          onClose={() => setSelectedThread(null)}
+          onLikeUpdate={handleLikeUpdate}
+          onCommentUpdate={handleCommentUpdate}
+          onThreadUpdate={(threadId, updates) => {
+            setThreads((prevThreads) =>
+              prevThreads.map((thread) =>
+                thread.id === threadId
+                  ? { ...thread, ...updates }
+                  : thread
+              )
+            );
+          }}
+          onDelete={(threadId) => {
+            setThreads((prevThreads) =>
+              prevThreads.filter((thread) => thread.id !== threadId)
+            );
+            setSelectedThread(null);
+          }}
+        />
+      )}
+
+      <CommunitySettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        communityId={community.id}
+        communitySlug={communitySlug}
+        communityName={community.name}
+        communityDescription={community.description}
+        imageUrl={community.imageUrl}
+        customLinks={community.customLinks || []}
+        stripeAccountId={community.stripeAccountId || null}
+        threadCategories={community.threadCategories || []}
+        onImageUpdate={(newImageUrl) => {
+          setCommunity((prev) => ({ ...prev!, imageUrl: newImageUrl }));
+        }}
+        onCommunityUpdate={(updates) => {
+          setCommunity((prev) => ({ ...prev!, ...updates }));
+        }}
+        onCustomLinksUpdate={(newLinks) => {
+          setCommunity((prev) => ({ ...prev!, customLinks: newLinks }));
+        }}
+        onThreadCategoriesUpdate={(categories) => {
+          setCommunity((prev) => ({ ...prev!, threadCategories: categories }));
+        }}
+      />
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        clientSecret={paymentClientSecret}
+        stripeAccountId={stripeAccountId}
+        price={community.membershipPrice || 0}
+        onSuccess={() => {
+          setIsMember(true);
+          setShowPaymentModal(false);
+          toast.success("Successfully joined the community!");
+        }}
+        communitySlug={communitySlug}
+      />
+
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Community</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to leave this community? You'll lose access to
+              all content and need to rejoin to access it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLeaveCommunity}>
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }
