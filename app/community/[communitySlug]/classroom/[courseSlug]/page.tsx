@@ -241,12 +241,6 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
               }}
               onUploadError={(error) => toast.error(error)}
             />
-            {/* Show video player if we have a video */}
-            {(playbackId || lesson.playbackId) && (
-              <div className="mt-4">
-                <MuxPlayer playbackId={playbackId || lesson.playbackId!} />
-              </div>
-            )}
           </div>
 
           <div className="space-y-4">

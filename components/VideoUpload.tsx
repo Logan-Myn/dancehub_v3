@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { Upload, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { toast } from 'react-hot-toast';
-import { createClient } from '@/lib/supabase';
+import { useState, useRef } from "react";
+import { Upload, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "react-hot-toast";
+import { createClient } from "@/lib/supabase/client";
 
 interface VideoUploadProps {
   onUploadComplete: (assetId: string) => void;
@@ -16,6 +16,8 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
   const handleUpload = async (file: File) => {
@@ -127,6 +129,39 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
     }
   };
 
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (file.size > 500 * 1024 * 1024) { // 500MB limit
+        toast.error('File size must be less than 500MB');
+        return;
+      }
+      setSelectedFile(file);
+      handleUpload(file);
+    }
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -135,7 +170,6 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
         return;
       }
       setSelectedFile(file);
-      // Start upload immediately after file selection
       handleUpload(file);
     }
   };
@@ -146,44 +180,53 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <input
-          type="file"
-          accept="video/*"
-          onChange={handleFileSelect}
-          className="hidden"
-          id="video-upload"
-          disabled={isUploading}
-        />
-        <label
-          htmlFor="video-upload"
-          className={`flex items-center gap-2 px-4 py-2 rounded-md border cursor-pointer
-            ${isUploading ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-        >
-          <Upload className="w-4 h-4" />
-          {isUploading ? 'Uploading...' : 'Choose Video'}
-        </label>
-        {selectedFile && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={cancelUpload}
-            disabled={isUploading}
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+    <div
+      className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
+        isDragging
+          ? "border-blue-500 bg-blue-50"
+          : "border-gray-300 hover:border-gray-400"
+      }`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="video/*"
+        onChange={handleFileSelect}
+        disabled={isUploading}
+      />
+
+      <div className="flex flex-col items-center justify-center space-y-4">
+        <Upload className="w-12 h-12 text-gray-400" />
+        <div className="text-center">
+          <p className="text-lg font-medium">
+            Drag and drop your video here, or{" "}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-blue-500 hover:text-blue-600"
+              disabled={isUploading}
+            >
+              browse
+            </button>
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Maximum file size: 500MB
+          </p>
+        </div>
       </div>
 
       {selectedFile && (
-        <div className="text-sm text-gray-500">
+        <div className="mt-4 text-sm text-gray-500">
           Selected: {selectedFile.name}
         </div>
       )}
 
       {isUploading && (
-        <div className="space-y-2">
+        <div className="mt-4 space-y-2">
           <Progress value={uploadProgress} className="w-full" />
           <div className="text-sm text-gray-500">
             {uploadProgress === 100 ? 'Processing...' : `Uploading... ${uploadProgress}%`}
