@@ -53,26 +53,24 @@ export async function PUT(
       return new NextResponse("Course not found", { status: 404 });
     }
 
-    // Update all chapters in a single transaction
-    const { error: updateError } = await supabase.rpc(
-      'reorder_chapters',
-      {
-        chapter_orders: chapters.map((chapter: any, index: number) => ({
-          chapter_id: chapter.id,
-          course_id: course.id,
-          new_order: index
-        }))
-      }
-    );
+    // Update positions for all chapters
+    const updates = chapters.map((chapter: any, index: number) => ({
+      id: chapter.id,
+      position: index,
+    }));
+
+    const { error: updateError } = await supabase
+      .from("chapters")
+      .upsert(updates, { onConflict: 'id' });
 
     if (updateError) {
-      console.error("[CHAPTERS_REORDER]", updateError);
-      return new NextResponse("Failed to update chapter order", { status: 500 });
+      console.error("Error updating chapter positions:", updateError);
+      return new NextResponse("Failed to update chapter positions", { status: 500 });
     }
 
-    return NextResponse.json({ message: "Chapters order updated successfully" });
+    return new NextResponse("Successfully reordered chapters", { status: 200 });
   } catch (error) {
-    console.error("[CHAPTERS_REORDER]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error in reorder chapters:", error);
+    return new NextResponse("Internal server error", { status: 500 });
   }
 } 

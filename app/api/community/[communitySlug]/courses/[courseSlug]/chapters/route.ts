@@ -37,23 +37,23 @@ export async function POST(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Get the current highest order
-    const { data: highestOrderChapter } = await supabase
+    // Get the current highest position
+    const { data: highestPositionChapter } = await supabase
       .from("chapters")
-      .select("order")
+      .select("position")
       .eq("course_id", course.id)
-      .order("order", { ascending: false })
+      .order("position", { ascending: false })
       .limit(1)
       .single();
 
-    const newOrder = (highestOrderChapter?.order ?? -1) + 1;
+    const newPosition = (highestPositionChapter?.position ?? -1) + 1;
 
     // Create the new chapter
     const { data: newChapter, error: createError } = await supabase
       .from("chapters")
       .insert({
         title,
-        order: newOrder,
+        position: newPosition,
         course_id: course.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -69,7 +69,13 @@ export async function POST(
       );
     }
 
-    return NextResponse.json(newChapter);
+    // Transform the response to include order for frontend compatibility
+    const transformedChapter = {
+      ...newChapter,
+      order: newChapter.position,
+    };
+
+    return NextResponse.json(transformedChapter);
   } catch (error) {
     console.error("Error creating chapter:", error);
     return NextResponse.json(

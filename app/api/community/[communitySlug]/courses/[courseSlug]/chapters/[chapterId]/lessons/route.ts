@@ -58,16 +58,16 @@ export async function POST(
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    // Get current lessons count to determine the order
-    const { count: lessonsCount, error: countError } = await supabase
+    // Get current highest position
+    const { data: highestPositionLesson } = await supabase
       .from("lessons")
-      .select("*", { count: 'exact', head: true })
-      .eq("chapter_id", params.chapterId);
+      .select("position")
+      .eq("chapter_id", params.chapterId)
+      .order("position", { ascending: false })
+      .limit(1)
+      .single();
 
-    if (countError) {
-      console.error("Error counting lessons:", countError);
-      return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
-    }
+    const newPosition = (highestPositionLesson?.position ?? -1) + 1;
 
     // Create the new lesson
     const { data: lesson, error: lessonError } = await supabase
@@ -76,7 +76,7 @@ export async function POST(
         title,
         content: "",
         video_asset_id: null,
-        order: lessonsCount || 0,
+        position: newPosition,
         chapter_id: params.chapterId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -90,7 +90,13 @@ export async function POST(
       return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
     }
 
-    return NextResponse.json(lesson);
+    // Transform the response to include order for frontend compatibility
+    const transformedLesson = {
+      ...lesson,
+      order: lesson.position,
+    };
+
+    return NextResponse.json(transformedLesson);
   } catch (error) {
     console.error("Error creating lesson:", error);
     return NextResponse.json(

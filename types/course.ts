@@ -15,6 +15,7 @@ export interface Chapter {
   title: string;
   lessons: Lesson[];
   order?: number;
+  position: number;
 }
 
 export interface Lesson {
@@ -25,6 +26,7 @@ export interface Lesson {
   videoAssetId?: string | null;
   completed?: boolean;
   order?: number;
+  position: number;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: string;
