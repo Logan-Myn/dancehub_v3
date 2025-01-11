@@ -36,6 +36,47 @@ select
 from auth.users
 on conflict (id) do nothing;
 
+-- Add columns to communities if they don't exist
+do $$
+begin
+  -- Add custom_links column
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_name = 'communities'
+    and column_name = 'custom_links'
+  ) then
+    alter table communities
+    add column custom_links jsonb default '[]'::jsonb;
+  end if;
+
+  -- Add updated_at column
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_name = 'communities'
+    and column_name = 'updated_at'
+  ) then
+    alter table communities
+    add column updated_at timestamp with time zone default timezone('utc'::text, now()) not null;
+  end if;
+end $$;
+
+-- Create trigger to automatically update updated_at
+create or replace function update_updated_at_column()
+returns trigger as $$
+begin
+    new.updated_at = timezone('utc'::text, now());
+    return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists update_communities_updated_at on communities;
+create trigger update_communities_updated_at
+    before update on communities
+    for each row
+    execute function update_updated_at_column();
+
 -- Create or modify members table
 create table if not exists members (
   id uuid default uuid_generate_v4() primary key,

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, LinkIcon, CurrencyIcon } from "lucide-react";
+import { Users, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -27,21 +27,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ThreadCategory } from "@/types/community";
 import { User } from "@supabase/supabase-js";
+import { Card } from "@/components/ui/card";
+
+interface CustomLink {
+  title: string;
+  url: string;
+}
 
 interface Community {
   id: string;
   name: string;
-  description?: string;
-  imageUrl?: string;
+  description: string;
+  imageUrl: string;
   membersCount: number;
   createdBy: string;
-  price?: number;
-  currency?: string;
-  customLinks?: { title: string; url: string }[];
-  stripeAccountId?: string | null;
+  customLinks?: CustomLink[];
   membershipEnabled?: boolean;
   membershipPrice?: number;
   threadCategories?: ThreadCategory[];
+  stripeAccountId?: string | null;
 }
 
 interface Thread {
@@ -95,6 +99,11 @@ export default function ClientCommunityPage({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [totalMembers, setTotalMembers] = useState(initialTotalMembers);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [communityName, setCommunityName] = useState(community.name);
+  const [communityDescription, setCommunityDescription] = useState(community.description);
+  const [imageUrl, setImageUrl] = useState(community.imageUrl);
+  const [customLinks, setCustomLinks] = useState(community.customLinks || []);
 
   const handleJoinCommunity = async () => {
     if (!currentUser) {
@@ -292,6 +301,11 @@ export default function ClientCommunityPage({
     setSelectedThread(null);
   };
 
+  const handleCommunityUpdate = (updates: Partial<Community>) => {
+    if (updates.name) setCommunityName(updates.name);
+    if (updates.description) setCommunityDescription(updates.description);
+  };
+
   return (
     <main className="flex-grow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -377,128 +391,79 @@ export default function ClientCommunityPage({
           {/* Right Sidebar */}
           <div className="w-1/4">
             <div className="bg-white shadow rounded-lg overflow-hidden">
-              {community.imageUrl && (
-                <img
-                  src={community.imageUrl}
-                  alt={community.name}
-                  className="w-full h-40 object-cover"
-                />
-              )}
-              <div className="p-4">
-                <h2 className="text-xl font-semibold mb-2">{community.name}</h2>
-                <p className="text-sm mb-2">{community.description}</p>
-
-                <div className="flex items-center text-sm text-gray-500 mb-4">
-                  <Users className="h-4 w-4 mr-1" />
-                  <span>{totalMembers} members</span>
-                </div>
-
-                {community.price && community.currency && (
-                  <div className="flex items-center text-sm text-gray-500 mb-4">
-                    <CurrencyIcon className="h-4 w-4 mr-1" />
-                    <span>
-                      {community.price} {community.currency}
-                    </span>
+              <Card className="p-6">
+                <h1 className="text-2xl font-bold mb-4">{communityName}</h1>
+                
+                {imageUrl && (
+                  <div className="mb-4">
+                    <img 
+                      src={imageUrl} 
+                      alt={communityName}
+                      className="w-full h-40 object-cover rounded-lg"
+                    />
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  {community.customLinks?.map((link, index) => (
-                    <Link
-                      key={index}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block text-sm text-gray-600 hover:underline"
-                    >
-                      <LinkIcon className="inline-block w-4 h-4 mr-2" />
-                      {link.title}
-                    </Link>
-                  ))}
+                {communityDescription && (
+                  <p className="text-gray-600 mb-4">{communityDescription}</p>
+                )}
+
+                <div className="flex items-center gap-2 text-gray-500 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                  </svg>
+                  <span>{totalMembers} members</span>
                 </div>
 
-                <div className="mt-4 flex items-center space-x-2">
-                  {Array.isArray(members) && members.length > 0 ? (
-                    <>
-                      {members.slice(0, 5).map((member) => (
-                        <div key={member.id} className="relative group">
-                          <Image
-                            src={member.imageUrl}
-                            alt={member.displayName || "Member"}
-                            width={32}
-                            height={32}
-                            className="rounded-full"
-                          />
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            {member.displayName}
-                          </div>
-                        </div>
-                      ))}
-                      {members.length > 5 && (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
-                          +{members.length - 5}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-sm text-gray-500">No members yet</div>
-                  )}
-                </div>
+                {customLinks && customLinks.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium text-gray-500">Links</h3>
+                    {customLinks.map((link, index) => (
+                      <a
+                        key={index}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        {link.title}
+                      </a>
+                    ))}
+                  </div>
+                )}
 
-                {isCreator ? (
+                {isCreator && (
                   <Button
-                    onClick={() => setIsSettingsModalOpen(true)}
-                    className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
+                    onClick={() => setShowSettingsModal(true)}
+                    className="w-full mt-4"
+                    variant="outline"
                   >
                     Manage Community
                   </Button>
-                ) : isMember ? (
-                  <Button
-                    onClick={() => setShowLeaveDialog(true)}
-                    className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
-                  >
-                    Leave Community
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleJoinCommunity}
-                    className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
-                  >
-                    {community.membershipPrice
-                      ? `Join for €${community.membershipPrice}/month`
-                      : "Join Community"}
-                  </Button>
                 )}
-              </div>
+              </Card>
             </div>
           </div>
         </div>
       </div>
 
-      {community && (
+      {showSettingsModal && (
         <CommunitySettingsModal
-          isOpen={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
           communityId={community.id}
           communitySlug={communitySlug}
-          communityName={community.name}
-          communityDescription={community.description || ""}
-          imageUrl={community.imageUrl || ""}
-          customLinks={community.customLinks || []}
-          stripeAccountId={community.stripeAccountId ?? null}
-          threadCategories={community.threadCategories ?? []}
-          onImageUpdate={(newImageUrl) => {
-            // No need to update community state as it will be refreshed on page reload
-          }}
-          onCommunityUpdate={(updates) => {
-            // No need to update community state as it will be refreshed on page reload
-          }}
-          onCustomLinksUpdate={(newLinks) => {
-            // No need to update community state as it will be refreshed on page reload
-          }}
-          onThreadCategoriesUpdate={(categories) => {
-            // No need to update community state as it will be refreshed on page reload
-          }}
+          communityName={communityName}
+          communityDescription={communityDescription}
+          imageUrl={imageUrl}
+          onImageUpdate={setImageUrl}
+          onCommunityUpdate={handleCommunityUpdate}
+          customLinks={customLinks}
+          onCustomLinksUpdate={setCustomLinks}
+          stripeAccountId={null}
+          threadCategories={[]}
+          onThreadCategoriesUpdate={() => {}}
         />
       )}
 
