@@ -78,12 +78,16 @@ export default function ClassroomPage() {
         // Check membership if user is logged in
         let membershipStatus = false;
         if (currentUser) {
-          const { data: memberData } = await supabase
+          const { data: memberData, error: memberError } = await supabase
             .from("community_members")
-            .select("*")
+            .select("id")
             .eq("community_id", communityData.id)
             .eq("user_id", currentUser.id)
-            .single();
+            .maybeSingle();
+
+          if (memberError) {
+            console.error("Error checking membership:", memberError);
+          }
 
           membershipStatus = !!memberData;
         }
@@ -158,7 +162,7 @@ export default function ClassroomPage() {
             )}
           </div>
 
-          {isMember ? (
+          {isMember || isCreator ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {courses.map((course) => (
                 <Link

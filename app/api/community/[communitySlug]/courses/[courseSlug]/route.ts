@@ -17,30 +17,37 @@ export async function GET(
       .single();
 
     if (communityError || !community) {
-      console.log("Community not found");
+      console.log("Community not found:", communityError);
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    // Get the course
+    // Get the course with all related data
     const { data: course, error: courseError } = await supabase
       .from("courses")
       .select(`
         id,
         title,
+        description,
+        image_url,
         slug,
+        created_at,
+        updated_at,
+        community_id,
         chapters (
           id,
           title,
-          order,
+          position,
+          created_at,
+          updated_at,
           lessons (
             id,
             title,
             content,
-            videoAssetId,
-            order,
-            createdAt,
-            updatedAt,
-            createdBy
+            video_asset_id,
+            position,
+            created_at,
+            updated_at,
+            created_by
           )
         )
       `)
@@ -49,28 +56,35 @@ export async function GET(
       .single();
 
     if (courseError || !course) {
-      console.log("Course not found");
+      console.log("Course not found:", courseError);
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Sort chapters and lessons by order
-    const sortedCourse = {
+    // Transform the response to match the expected structure
+    const transformedCourse = {
       ...course,
       chapters: course.chapters
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map(chapter => ({
+        ?.map(chapter => ({
           ...chapter,
-          lessons: chapter.lessons
-            .sort((a, b) => (a.order || 0) - (b.order || 0))
+          order: chapter.position,
+          lessons: (chapter.lessons || [])
+            .map(lesson => ({
+              ...lesson,
+              videoAssetId: lesson.video_asset_id,
+              order: lesson.position
+            }))
+            .sort((a, b) => (a.position || 0) - (b.position || 0))
         }))
+        .sort((a, b) => (a.position || 0) - (b.position || 0)) || []
     };
 
-    console.log("API: Successfully fetched course data with lessons:", {
-      chaptersCount: sortedCourse.chapters.length,
-      lessonsCount: sortedCourse.chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
+    console.log("API: Successfully fetched course data:", {
+      courseId: transformedCourse.id,
+      chaptersCount: transformedCourse.chapters.length,
+      lessonsCount: transformedCourse.chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
     });
 
-    return NextResponse.json(sortedCourse);
+    return NextResponse.json(transformedCourse);
   } catch (error) {
     console.error("API Error:", error);
     return NextResponse.json(

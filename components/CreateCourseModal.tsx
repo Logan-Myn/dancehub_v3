@@ -10,11 +10,20 @@ import Image from 'next/image';
 import { Course } from "@/types/course";
 import { createClient } from "@/lib/supabase";
 import { slugify } from "@/lib/utils";
+import { toast } from "react-hot-toast";
 
 interface CreateCourseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateCourse: (newCourse: Omit<Course, 'id'>) => void;
+  onCreateCourse: (newCourse: {
+    title: string;
+    description: string;
+    image: File | null;
+    community_id: string;
+    created_at: string;
+    updated_at: string;
+    slug: string;
+  }) => void;
   communityId: string;
 }
 
@@ -54,45 +63,25 @@ export default function CreateCourseModal({
 
     setIsSubmitting(true);
     try {
-      let imageUrl = '';
-      
-      if (image) {
-        // Upload image to Supabase Storage
-        const fileExt = image.name.split('.').pop();
-        const fileName = `${communityId}-${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('course-images')
-          .upload(fileName, image);
-
-        if (uploadError) throw uploadError;
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('course-images')
-          .getPublicUrl(fileName);
-
-        imageUrl = publicUrl;
-      }
-
       const newCourse = {
         title: title.trim(),
         description: description.trim(),
-        image_url: imageUrl,
+        image: image,
         community_id: communityId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         slug: slugify(title.trim()),
       };
 
-      onCreateCourse(newCourse);
+      await onCreateCourse(newCourse);
       setTitle("");
       setDescription("");
       setImage(null);
       onClose();
     } catch (error) {
       console.error('Error creating course:', error);
-      alert('Failed to create course. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create course. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

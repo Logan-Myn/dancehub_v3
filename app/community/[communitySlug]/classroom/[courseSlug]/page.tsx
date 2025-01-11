@@ -324,9 +324,10 @@ export default function CoursePage() {
     async function fetchCourse() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        console.log("Fetching course with:", {
+        console.log("Fetching course:", {
           communitySlug,
           courseSlug,
+          hasSession: !!session,
         });
 
         const response = await fetch(
@@ -339,68 +340,56 @@ export default function CoursePage() {
         );
 
         if (!response.ok) {
-          const errorData = await response.text();
+          const errorData = await response.json();
           console.error("Course fetch failed:", {
             status: response.status,
             statusText: response.statusText,
             error: errorData,
           });
-          throw new Error(
-            `Failed to fetch course: ${response.status} ${errorData}`
-          );
+          throw new Error(`Failed to fetch course: ${response.status} ${JSON.stringify(errorData)}`);
         }
 
         const courseData = await response.json();
-        console.log("Raw course data from API:", courseData);
+        console.log("Course data received:", {
+          id: courseData.id,
+          title: courseData.title,
+          chaptersCount: courseData.chapters?.length,
+        });
 
-        if (courseData.error) {
-          console.error("Course fetch error:", courseData.error);
-          router.push(`/community/${communitySlug}/classroom`);
-        } else {
-          const sortedChapters =
-            courseData.chapters
-              ?.map((chapter: Chapter) => {
-                console.log("Processing chapter:", chapter);
-                return {
-                  ...chapter,
-                  lessons:
-                    chapter.lessons
-                      ?.map((lesson: Lesson) => {
-                        console.log("Processing lesson:", lesson);
-                        return {
-                          ...lesson,
-                          videoAssetId: lesson.videoAssetId || null,
-                        };
-                      })
-                      .sort(
-                        (a: Lesson, b: Lesson) =>
-                          (a.order || 0) - (b.order || 0)
-                      ) || [],
-                };
-              })
-              .sort(
-                (a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)
-              ) || [];
+        if (!courseData.id) {
+          console.error("Invalid course data received:", courseData);
+          throw new Error("Invalid course data received");
+        }
 
-          console.log("Final processed chapters:", sortedChapters);
+        // Process chapters and lessons
+        const sortedChapters = courseData.chapters
+          ?.map((chapter: Chapter) => ({
+            ...chapter,
+            lessons: chapter.lessons
+              ?.map((lesson: Lesson) => ({
+                ...lesson,
+                videoAssetId: lesson.videoAssetId || null,
+              }))
+              .sort((a: Lesson, b: Lesson) => (a.order || 0) - (b.order || 0)) || [],
+          }))
+          .sort((a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)) || [];
 
-          setCourse(courseData);
-          setChapters(sortedChapters);
+        console.log("Processed chapters:", {
+          count: sortedChapters.length,
+          lessonsCount: sortedChapters.reduce((acc: number, chapter: Chapter) => acc + chapter.lessons.length, 0),
+        });
 
-          // If there's a selected lesson, find and set it with the fresh data
-          if (selectedLesson) {
-            const updatedLesson = sortedChapters
-              .flatMap((chapter: Chapter) => chapter.lessons)
-              .find((lesson: Lesson) => lesson.id === selectedLesson.id);
-            if (updatedLesson) {
-              console.log("Setting selected lesson:", updatedLesson); // Debug log
-              setSelectedLesson(updatedLesson);
-            }
-          } else {
-            // Set the first lesson if none is selected
-            setSelectedLesson(sortedChapters?.[0]?.lessons?.[0] || null);
+        setCourse(courseData);
+        setChapters(sortedChapters);
+
+        // Set initial selected lesson
+        if (sortedChapters.length > 0) {
+          const firstChapter = sortedChapters[0];
+          if (firstChapter.lessons?.length > 0) {
+            setSelectedLesson(firstChapter.lessons[0]);
           }
         }
+
       } catch (error) {
         console.error("Error in fetchCourse:", error);
         toast.error("Failed to load course data");
