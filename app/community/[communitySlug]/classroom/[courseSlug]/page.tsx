@@ -1000,7 +1000,7 @@ export default function CoursePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
-      <Navbar initialUser={user} />
+      <Navbar />
       <CommunityNavbar communitySlug={communitySlug} activePage="classroom" />
 
       <main className="flex-grow">

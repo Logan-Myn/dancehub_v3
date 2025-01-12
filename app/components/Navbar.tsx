@@ -5,16 +5,12 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
-import { User } from "@supabase/supabase-js";
+import { useAuth } from "@/hooks/auth";
 
-interface Props {
-  initialUser: User | null;
-}
-
-export default function Navbar({ initialUser }: Props) {
+export default function Navbar() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [user, setUser] = useState<User | null>(initialUser);
+  const { user } = useAuth();
 
   const handleAuthClick = (mode: "signin" | "signup") => {
     setAuthMode(mode);

@@ -199,23 +199,24 @@ export default function CommunityPage() {
 
         if (threadsError) throw threadsError;
 
-        // Get profiles for thread authors
-        const userIds = Array.from(new Set(threadsData.map(thread => thread.user_id)));
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url")
-          .in("id", userIds);
-
-        if (profilesError) throw profilesError;
-
-        // Create a map of user profiles
-        const profileMap = new Map(profiles?.map((profile: Profile) => [profile.id, profile]));
-
-        // Check if user is a member
-        const userIsMember = currentUser ? membersData.some(member => member.user_id === currentUser.id) : false;
-        
-        // Check if user is creator
-        const userIsCreator = currentUser?.id === communityData.created_by;
+        // Format threads data
+        const formattedThreads = threadsData.map(thread => ({
+          id: thread.id,
+          title: thread.title,
+          content: thread.content,
+          createdAt: thread.created_at,
+          userId: thread.user_id,
+          likesCount: (thread.likes || []).length,
+          commentsCount: (thread.comments || []).length,
+          category: thread.category,
+          categoryId: thread.category_id,
+          author: {
+            name: thread.author_name || "Anonymous",
+            image: thread.author_image || "",
+          },
+          likes: thread.likes || [],
+          comments: thread.comments || [],
+        }));
 
         // Format community data
         const formattedCommunity: Community = {
@@ -225,33 +226,11 @@ export default function CommunityPage() {
           imageUrl: communityData.image_url,
         };
 
-        // Format threads data
-        const formattedThreads = threadsData.map(thread => {
-          const authorProfile = profileMap.get(thread.user_id);
-          return {
-            id: thread.id,
-            title: thread.title,
-            content: thread.content,
-            createdAt: thread.created_at,
-            userId: thread.user_id,
-            likesCount: (thread.likes || []).length,
-            commentsCount: (thread.comments || []).length,
-            category: thread.category,
-            categoryId: thread.category_id,
-            author: {
-              name: authorProfile?.full_name || "Anonymous",
-              image: authorProfile?.avatar_url || "",
-            },
-            likes: thread.likes,
-            comments: thread.comments,
-          };
-        });
-
         setCommunity(formattedCommunity);
         setMembers(membersData);
         setThreads(formattedThreads);
-        setIsMember(userIsMember);
-        setIsCreator(userIsCreator);
+        setIsMember(currentUser ? membersData.some(member => member.user_id === currentUser.id) : false);
+        setIsCreator(currentUser?.id === communityData.created_by);
         setTotalMembers(membersData.length);
       } catch (error) {
         console.error("Error:", error);
@@ -451,7 +430,7 @@ export default function CommunityPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
-      <Navbar initialUser={currentUser} />
+      <Navbar />
       <CommunityNavbar communitySlug={communitySlug} activePage="community" />
 
       <main className="flex-grow">
