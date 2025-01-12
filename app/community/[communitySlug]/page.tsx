@@ -185,7 +185,7 @@ export default function CommunityPage() {
 
         // Get members
         const { data: membersData, error: membersError } = await supabase
-          .from("members")
+          .from("community_members")
           .select("*")
           .eq("community_id", communityData.id);
 
@@ -297,16 +297,19 @@ export default function CommunityPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Failed to join community");
+          const errorData = await response.json();
+          console.error('Join community error:', errorData);
+          throw new Error(errorData.error || "Failed to join community");
         }
 
+        const data = await response.json();
         setIsMember(true);
         setTotalMembers(prev => prev + 1);
         toast.success("Successfully joined the community!");
       }
     } catch (error) {
       console.error("Error joining community:", error);
-      toast.error("Failed to join community");
+      toast.error(error instanceof Error ? error.message : "Failed to join community");
     }
   };
 
@@ -534,12 +537,6 @@ export default function CommunityPage() {
                     <span>{totalMembers} members</span>
                   </div>
 
-                  {community.membershipPrice && (
-                    <div className="flex items-center text-sm text-gray-500 mb-4">
-                      <span>€{community.membershipPrice}/month</span>
-                    </div>
-                  )}
-
                   <div className="space-y-2">
                     {community.customLinks?.map((link, index) => (
                       <Link
@@ -601,9 +598,9 @@ export default function CommunityPage() {
                       onClick={handleJoinCommunity}
                       className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
                     >
-                      {community.membershipPrice
+                      {community?.membershipEnabled && community?.membershipPrice && community?.stripeAccountId
                         ? `Join for €${community.membershipPrice}/month`
-                        : "Join Community"}
+                        : "Join for free"}
                     </Button>
                   )}
                 </div>

@@ -7,7 +7,10 @@ export async function POST(
 ) {
   try {
     const supabase = createAdminClient();
-    const { userId } = await request.json();
+    const body = await request.json();
+    console.log('Request body:', body);
+    const { userId } = body;
+    console.log('Extracted userId:', userId);
 
     // Get community
     const { data: community, error: communityError } = await supabase
@@ -15,6 +18,9 @@ export async function POST(
       .select("id")
       .eq("slug", params.communitySlug)
       .single();
+
+    console.log('Community data:', community);
+    console.log('Community error:', communityError);
 
     if (communityError || !community) {
       return NextResponse.json(
