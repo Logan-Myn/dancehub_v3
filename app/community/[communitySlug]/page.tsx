@@ -31,6 +31,7 @@ import { ThreadCategory } from "@/types/community";
 import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import { formatDisplayName } from "@/lib/utils";
 
 interface CustomLink {
   title: string;
@@ -337,7 +338,7 @@ export default function CommunityPage() {
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || "Anonymous",
+        name: formatDisplayName(currentUser?.user_metadata?.full_name) || currentUser?.email?.split('@')[0] || "Anonymous",
         image: currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,

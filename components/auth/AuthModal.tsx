@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/auth";
 import toast from "react-hot-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface AuthModalProps {
 type TabType = "signin" | "signup";
 
 export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProps) {
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -43,6 +45,7 @@ export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProp
     try {
       setLoading(true);
       await signInWithGoogle();
+      await refreshUser();
       // Note: No need to show success message or close modal here
       // as the user will be redirected to Google's sign-in page
     } catch (error) {
@@ -71,9 +74,11 @@ export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProp
           return;
         }
         await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`);
+        await refreshUser();
         toast.success("Check your email to confirm your account!");
       } else {
         await signIn(email, password);
+        await refreshUser();
         toast.success("Successfully signed in!");
       }
       onClose();

@@ -19,6 +19,7 @@ import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { createClient } from "@/lib/supabase";
+import { formatDisplayName } from "@/lib/utils";
 
 interface ThreadProps {
   communityId: string;
@@ -102,7 +103,7 @@ export default function Thread({
           )?.name,
           author: {
             id: user.id,
-            name: user.user_metadata?.full_name || 'Anonymous',
+            name: formatDisplayName(user.user_metadata?.full_name) || 'Anonymous',
             avatar_url: user.user_metadata?.avatar_url,
           },
         }),
@@ -131,7 +132,7 @@ export default function Thread({
     }
   };
 
-  const userDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Anonymous';
+  const userDisplayName = formatDisplayName(user?.user_metadata?.full_name) || user?.email?.split('@')[0] || 'Anonymous';
   const userAvatarUrl = user?.user_metadata?.avatar_url;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
