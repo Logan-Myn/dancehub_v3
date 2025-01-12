@@ -225,6 +225,11 @@ export default function CommunityPage() {
           membersCount: membersData.length,
           createdBy: communityData.created_by,
           imageUrl: communityData.image_url,
+          threadCategories: communityData.thread_categories || [],
+          customLinks: communityData.custom_links || [],
+          membershipEnabled: communityData.membership_enabled || false,
+          membershipPrice: communityData.membership_price || 0,
+          stripeAccountId: communityData.stripe_account_id || null,
         };
 
         setCommunity(formattedCommunity);
