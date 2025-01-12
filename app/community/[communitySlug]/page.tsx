@@ -574,19 +574,21 @@ export default function CommunityPage() {
                     {Array.isArray(members) && members.length > 0 ? (
                       <>
                         {members.slice(0, 5).map((member) => (
-                          <div key={member.id} className="relative group">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage 
-                                src={member.profile?.avatar_url || "/placeholder-avatar.png"} 
-                                alt={member.profile?.full_name || "Member"}
-                              />
-                              <AvatarFallback>
-                                {member.profile?.full_name?.[0]?.toUpperCase() || member.user_id.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              {member.profile?.full_name || "Anonymous"}
-                              {member.user_id === community.created_by ? " (Creator)" : ""}
+                          <div key={member.id}>
+                            <div className="relative group/avatar">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage 
+                                  src={member.profile?.avatar_url || "/placeholder-avatar.png"} 
+                                  alt={member.profile?.full_name || "Member"}
+                                />
+                                <AvatarFallback>
+                                  {member.profile?.full_name?.[0]?.toUpperCase() || member.user_id.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                {member.profile?.full_name || "Anonymous"}
+                                {member.user_id === community.created_by ? " (Creator)" : ""}
+                              </div>
                             </div>
                           </div>
                         ))}
