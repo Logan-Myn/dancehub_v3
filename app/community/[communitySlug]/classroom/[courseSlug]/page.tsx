@@ -718,12 +718,6 @@ export default function CoursePage() {
         // Only update if indices are different
         if (oldIndex === newIndex) return;
 
-        console.log('Before reorder:', lessons.map(l => ({
-          id: l.id,
-          title: l.title,
-          lesson_position: l.lesson_position
-        })));
-
         // Move the lesson to its new position
         const [movedLesson] = lessons.splice(oldIndex, 1);
         lessons.splice(newIndex, 0, movedLesson);
@@ -734,13 +728,16 @@ export default function CoursePage() {
           lesson_position: index
         }));
 
-        console.log('After reorder:', newLessons.map(l => ({
-          id: l.id,
-          title: l.title,
-          lesson_position: l.lesson_position
-        })));
+        // Update UI state immediately with the new order
+        setChapters(prevChapters => 
+          prevChapters.map(c => 
+            c.id === chapterId 
+              ? { ...c, lessons: newLessons }
+              : c
+          )
+        );
 
-        // Make the API call but DON'T update UI state yet
+        // Make the API call
         await updateLessonsOrder(chapterId, newLessons);
         
         // Force a refresh of the data from the server
@@ -748,6 +745,8 @@ export default function CoursePage() {
       } catch (error) {
         console.error('Error in handleLessonDragEnd:', error);
         toast.error('Failed to update lesson order');
+        // On error, force a refresh to get back to the server state
+        setRefreshTrigger(prev => prev + 1);
       } finally {
         isProcessingRef.current = false;
       }
