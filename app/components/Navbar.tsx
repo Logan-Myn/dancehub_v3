@@ -2,15 +2,42 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
 import { useAuth } from "@/contexts/AuthContext";
+import { createClient } from "@/lib/supabase/client";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 export default function Navbar() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [initialTab, setInitialTab] = useState<"signin" | "signup">("signin");
+  const [profile, setProfile] = useState<Profile | null>(null);
   const { user } = useAuth();
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchProfile() {
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && data) {
+          setProfile(data);
+        }
+      }
+    }
+
+    fetchProfile();
+  }, [user]);
 
   const handleAuthClick = (tab: "signin" | "signup") => {
     setInitialTab(tab);
@@ -27,7 +54,7 @@ export default function Navbar() {
 
           <div className="flex gap-4 items-center">
             {user ? (
-              <UserAccountNav user={user} />
+              <UserAccountNav user={user} profile={profile} />
             ) : (
               <>
                 <Button

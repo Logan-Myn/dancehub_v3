@@ -11,11 +11,18 @@ import { User } from "@supabase/supabase-js";
 import { signOut } from "@/lib/auth";
 import toast from "react-hot-toast";
 
-interface UserAccountNavProps {
-  user: User;
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
-export default function UserAccountNav({ user }: UserAccountNavProps) {
+interface UserAccountNavProps {
+  user: User;
+  profile: Profile | null;
+}
+
+export default function UserAccountNav({ user, profile }: UserAccountNavProps) {
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -29,17 +36,17 @@ export default function UserAccountNav({ user }: UserAccountNavProps) {
     <DropdownMenu>
       <DropdownMenuTrigger className="focus-visible:outline-none">
         <Avatar className="h-8 w-8">
-          <AvatarImage src={user.user_metadata?.avatar_url} />
+          <AvatarImage src={profile?.avatar_url || user.user_metadata?.avatar_url} />
           <AvatarFallback className="uppercase">
-            {user.email?.[0] || "U"}
+            {profile?.full_name?.[0] || user.email?.[0] || "U"}
           </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <div className="flex items-center justify-start gap-2 p-2">
           <div className="flex flex-col space-y-1 leading-none">
-            {user.user_metadata?.full_name && (
-              <p className="font-medium">{user.user_metadata.full_name}</p>
+            {(profile?.full_name || user.user_metadata?.full_name) && (
+              <p className="font-medium">{profile?.full_name || user.user_metadata?.full_name}</p>
             )}
             {user.email && (
               <p className="w-[200px] truncate text-sm text-muted-foreground">
