@@ -57,6 +57,8 @@ export async function PUT(
     const updates = chapters.map((chapter: any, index: number) => ({
       id: chapter.id,
       chapter_position: index,
+      title: chapter.title,
+      course_id: course.id
     }));
 
     const { error: updateError } = await supabase
