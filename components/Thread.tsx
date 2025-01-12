@@ -159,7 +159,7 @@ export default function Thread({
                 ?.filter((category: { creator_only: boolean }) => !category.creator_only || isCreator)
                 .map((category: any) => {
                   const iconConfig = CATEGORY_ICONS.find(
-                    (i) => i.label === category.icon_type
+                    (i) => i.label === category.iconType
                   );
                   const IconComponent = iconConfig?.icon || MessageCircle;
 
