@@ -10,8 +10,10 @@ export async function PUT(
   }
 ) {
   try {
-    const supabase = createAdminClient();
     const { lessons } = await req.json();
+    console.log('Received lessons to reorder:', lessons);
+
+    const supabase = createAdminClient();
 
     // Get the authorization token
     const authHeader = req.headers.get("authorization");
@@ -45,36 +47,53 @@ export async function PUT(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Get course ID
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    // Update each lesson's position
+    for (const [index, lesson] of lessons.entries()) {
+      console.log(`Updating lesson ${lesson.id} to position ${index}`);
+      
+      const { error: updateError } = await supabase
+        .from('lessons')
+        .update({ lesson_position: index })
+        .eq('id', lesson.id)
+        .eq('chapter_id', params.chapterId);
 
-    if (courseError || !course) {
-      return new NextResponse("Course not found", { status: 404 });
+      if (updateError) {
+        console.error("Error updating lesson position:", updateError);
+        throw updateError;
+      }
     }
 
-    // Update positions for all lessons
-    const updates = lessons.map((lesson: any, index: number) => ({
+    // Fetch the updated lessons
+    const { data: updatedLessons, error: fetchError } = await supabase
+      .from('lessons')
+      .select('*')
+      .eq('chapter_id', params.chapterId)
+      .order('lesson_position', { ascending: true });
+
+    if (fetchError) {
+      console.error("Error fetching updated lessons:", fetchError);
+      throw fetchError;
+    }
+
+    console.log('Updated lessons from database:', updatedLessons);
+
+    // Transform lessons for frontend compatibility
+    const transformedLessons = updatedLessons.map(lesson => ({
       id: lesson.id,
-      position: index,
+      title: lesson.title,
+      content: lesson.content,
+      lesson_position: lesson.lesson_position,
+      chapter_id: lesson.chapter_id,
+      created_at: lesson.created_at,
+      updated_at: lesson.updated_at,
+      created_by: lesson.created_by,
+      videoAssetId: lesson.video_asset_id,
+      playbackId: lesson.playback_id
     }));
 
-    const { error: updateError } = await supabase
-      .from("lessons")
-      .upsert(updates, { onConflict: 'id' });
-
-    if (updateError) {
-      console.error("Error updating lesson positions:", updateError);
-      return new NextResponse("Failed to update lesson positions", { status: 500 });
-    }
-
-    return new NextResponse("Successfully reordered lessons", { status: 200 });
+    return NextResponse.json(transformedLessons);
   } catch (error) {
     console.error("Error in reorder lessons:", error);
-    return new NextResponse("Internal server error", { status: 500 });
+    return new NextResponse("Failed to update lessons order", { status: 500 });
   }
 }

@@ -56,7 +56,7 @@ export async function PUT(
     // Update positions for all chapters
     const updates = chapters.map((chapter: any, index: number) => ({
       id: chapter.id,
-      position: index,
+      chapter_position: index,
     }));
 
     const { error: updateError } = await supabase
@@ -68,7 +68,19 @@ export async function PUT(
       return new NextResponse("Failed to update chapter positions", { status: 500 });
     }
 
-    return new NextResponse("Successfully reordered chapters", { status: 200 });
+    // Fetch updated chapters
+    const { data: updatedChapters, error: fetchError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("course_id", course.id)
+      .order("chapter_position", { ascending: true });
+
+    if (fetchError) {
+      console.error("Error fetching updated chapters:", fetchError);
+      return new NextResponse("Failed to fetch updated chapters", { status: 500 });
+    }
+
+    return NextResponse.json(updatedChapters);
   } catch (error) {
     console.error("Error in reorder chapters:", error);
     return new NextResponse("Internal server error", { status: 500 });

@@ -25,7 +25,7 @@ export async function GET(
     const asset = await getMuxAsset(params.assetId);
     
     if (!asset) {
-      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Asset not found or not ready' }, { status: 404 });
     }
 
     return NextResponse.json(asset);

@@ -40,20 +40,20 @@ export async function POST(
     // Get the current highest position
     const { data: highestPositionChapter } = await supabase
       .from("chapters")
-      .select("position")
+      .select("chapter_position")
       .eq("course_id", course.id)
-      .order("position", { ascending: false })
+      .order("chapter_position", { ascending: false })
       .limit(1)
       .single();
 
-    const newPosition = (highestPositionChapter?.position ?? -1) + 1;
+    const newPosition = (highestPositionChapter?.chapter_position ?? -1) + 1;
 
     // Create the new chapter
     const { data: newChapter, error: createError } = await supabase
       .from("chapters")
       .insert({
         title,
-        position: newPosition,
+        chapter_position: newPosition,
         course_id: course.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -69,10 +69,10 @@ export async function POST(
       );
     }
 
-    // Transform the response to include order for frontend compatibility
+    // Transform the response for frontend compatibility
     const transformedChapter = {
       ...newChapter,
-      order: newChapter.position,
+      lessons: []
     };
 
     return NextResponse.json(transformedChapter);

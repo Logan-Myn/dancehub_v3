@@ -1,91 +1,129 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { Course, Chapter, Lesson } from "@/types/course";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string } }
+  req: Request,
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string };
+  }
 ) {
   try {
     const supabase = createAdminClient();
-    const { communitySlug, courseSlug } = params;
 
-    // Get community and verify it exists
+    // Get community ID
     const { data: community, error: communityError } = await supabase
       .from("communities")
       .select("id")
-      .eq("slug", communitySlug)
+      .eq("slug", params.communitySlug)
       .single();
 
     if (communityError || !community) {
-      return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
-      );
+      return new NextResponse("Community not found", { status: 404 });
     }
 
-    // Get course with chapters and lessons, ordered by position
+    // Get course with basic info
     const { data: course, error: courseError } = await supabase
       .from("courses")
       .select(`
-        *,
-        chapters:chapters (
-          *,
-          lessons:lessons (
-            id,
-            title,
-            content,
-            video_asset_id,
-            playback_id,
-            position,
-            created_at,
-            updated_at,
-            created_by
-          )
-        )
+        id,
+        title,
+        description,
+        slug
       `)
       .eq("community_id", community.id)
-      .eq("slug", courseSlug)
-      .order('position', { foreignTable: 'chapters' })
-      .order('position', { foreignTable: 'chapters.lessons' })
+      .eq("slug", params.courseSlug)
       .single();
 
     if (courseError || !course) {
-      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+      console.error("Error fetching course:", courseError);
+      return new NextResponse("Course not found", { status: 404 });
     }
 
-    console.log("Raw course data:", JSON.stringify(course, null, 2));
+    // Get chapters with explicit ordering
+    const { data: chapters, error: chaptersError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("course_id", course.id)
+      .order("chapter_position", { ascending: true });
 
-    // Transform the data to include order for frontend compatibility
-    const transformedCourse = {
+    if (chaptersError) {
+      console.error("Error fetching chapters:", chaptersError);
+      return new NextResponse("Failed to fetch chapters", { status: 500 });
+    }
+
+    console.log('Fetched chapters:', chapters.map(c => ({
+      id: c.id,
+      title: c.title,
+      chapter_position: c.chapter_position
+    })));
+
+    // Get lessons for each chapter with explicit ordering
+    const chaptersWithLessons = await Promise.all(
+      chapters.map(async (chapter) => {
+        console.log(`Fetching lessons for chapter ${chapter.id} (${chapter.title})`);
+        
+        // Get raw lessons data directly from database with explicit ordering
+        const { data: lessons, error: lessonsError } = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("chapter_id", chapter.id)
+          .order("lesson_position", { ascending: true });
+
+        if (lessonsError) {
+          console.error("Error fetching lessons:", lessonsError);
+          throw lessonsError;
+        }
+
+        console.log(`Raw lessons for chapter ${chapter.id}:`, 
+          lessons.map(l => ({
+            id: l.id,
+            title: l.title,
+            lesson_position: l.lesson_position
+          }))
+        );
+
+        // Return chapter with its raw lessons data
+        return {
+          ...chapter,
+          lessons: lessons
+        };
+      })
+    );
+
+    const fullCourse = {
       ...course,
-      chapters: course.chapters?.map((chapter: Chapter) => ({
-        ...chapter,
-        order: chapter.position,
-        lessons: chapter.lessons?.map((lesson: Lesson) => {
-          console.log("Processing lesson:", lesson.id, {
-            video_asset_id: lesson.video_asset_id,
-            playback_id: lesson.playback_id
-          });
-          
-          return {
-            ...lesson,
-            order: lesson.position,
-            videoAssetId: lesson.video_asset_id,
-            playbackId: lesson.playback_id
-          };
-        })
-      }))
+      chapters: chaptersWithLessons
     };
 
-    console.log("Transformed course data:", JSON.stringify(transformedCourse, null, 2));
+    console.log('Final data structure:', {
+      course_id: course.id,
+      chapters: fullCourse.chapters.map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        chapter_position: c.chapter_position,
+        lessons: c.lessons.map((l: any) => ({
+          id: l.id,
+          title: l.title,
+          lesson_position: l.lesson_position
+        }))
+      }))
+    });
 
-    return NextResponse.json(transformedCourse);
+    console.log('Final data being sent:', JSON.stringify(fullCourse, null, 2));
+
+    return new NextResponse(JSON.stringify(fullCourse), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store'
+      }
+    });
   } catch (error) {
-    console.error("Error fetching course:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch course" },
-      { status: 500 }
-    );
+    console.error("Error in course route:", error);
+    return new NextResponse("Internal server error", { status: 500 });
   }
 } 

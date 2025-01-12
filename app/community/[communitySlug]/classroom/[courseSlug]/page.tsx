@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ interface Chapter {
   lessons: Lesson[];
   order?: number;
   position?: number;
+  chapter_position?: number;
 }
 
 interface Lesson {
@@ -56,6 +57,8 @@ interface Lesson {
   completed?: boolean;
   order?: number;
   position?: number;
+  lesson_position?: number;
+  chapter_id: string;
 }
 
 interface Community {
@@ -316,6 +319,8 @@ export default function CoursePage() {
     }));
   };
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   useEffect(() => {
     if (!communitySlug || !courseSlug) {
       console.error("Missing slugs:", { communitySlug, courseSlug });
@@ -337,7 +342,11 @@ export default function CoursePage() {
           {
             headers: {
               Authorization: `Bearer ${session?.access_token}`,
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
             },
+            cache: 'no-store',
+            next: { revalidate: 0 }
           }
         );
 
@@ -364,29 +373,15 @@ export default function CoursePage() {
         }
 
         // Process chapters and lessons
-        const sortedChapters = courseData.chapters
-          ?.map((chapter: Chapter) => ({
-            ...chapter,
-            lessons: chapter.lessons
-              ?.map((lesson: Lesson) => ({
-                ...lesson,
-                videoAssetId: lesson.videoAssetId || null,
-              }))
-              .sort((a: Lesson, b: Lesson) => (a.order || 0) - (b.order || 0)) || [],
-          }))
-          .sort((a: Chapter, b: Chapter) => (a.order || 0) - (b.order || 0)) || [];
-
-        console.log("Processed chapters:", {
-          count: sortedChapters.length,
-          lessonsCount: sortedChapters.reduce((acc: number, chapter: Chapter) => acc + chapter.lessons.length, 0),
-        });
-
+        console.log('Raw course data:', courseData);
+        
+        // Just use the data directly from the API without transformations
         setCourse(courseData);
-        setChapters(sortedChapters);
+        setChapters(courseData.chapters || []);
 
         // Set initial selected lesson
-        if (sortedChapters.length > 0) {
-          const firstChapter = sortedChapters[0];
+        if (courseData.chapters?.length > 0) {
+          const firstChapter = courseData.chapters[0];
           if (firstChapter.lessons?.length > 0) {
             setSelectedLesson(firstChapter.lessons[0]);
           }
@@ -420,7 +415,7 @@ export default function CoursePage() {
       fetchCourse();
       fetchCommunity();
     }
-  }, [communitySlug, courseSlug, router]);
+  }, [communitySlug, courseSlug, router, refreshTrigger]);
 
   const handleAddChapter = async () => {
     if (!newChapterTitle.trim()) return;
@@ -687,6 +682,7 @@ export default function CoursePage() {
   };
 
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const isProcessingRef = useRef(false);
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
@@ -708,29 +704,53 @@ export default function CoursePage() {
   const handleLessonDragEnd = async (chapterId: string, event: any) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
-      setChapters((chapters) => {
-        const newChapters = chapters.map((chapter) => {
-          if (chapter.id !== chapterId) return chapter;
+    if (active.id !== over.id && !isProcessingRef.current) {
+      isProcessingRef.current = true;
+      
+      try {
+        const chapter = chapters.find(c => c.id === chapterId);
+        if (!chapter) return;
 
-          const lessons = [...chapter.lessons];
-          const oldIndex = lessons.findIndex(
-            (lesson) => lesson.id === active.id
-          );
-          const newIndex = lessons.findIndex((lesson) => lesson.id === over.id);
+        const lessons = [...chapter.lessons];
+        const oldIndex = lessons.findIndex(lesson => lesson.id === active.id);
+        const newIndex = lessons.findIndex(lesson => lesson.id === over.id);
 
-          const newLessons = arrayMove(lessons, oldIndex, newIndex);
+        // Only update if indices are different
+        if (oldIndex === newIndex) return;
 
-          updateLessonsOrder(chapterId, newLessons);
+        console.log('Before reorder:', lessons.map(l => ({
+          id: l.id,
+          title: l.title,
+          lesson_position: l.lesson_position
+        })));
 
-          return {
-            ...chapter,
-            lessons: newLessons,
-          };
-        });
+        // Move the lesson to its new position
+        const [movedLesson] = lessons.splice(oldIndex, 1);
+        lessons.splice(newIndex, 0, movedLesson);
 
-        return newChapters;
-      });
+        // Update positions based on new order
+        const newLessons = lessons.map((lesson, index) => ({
+          ...lesson,
+          lesson_position: index
+        }));
+
+        console.log('After reorder:', newLessons.map(l => ({
+          id: l.id,
+          title: l.title,
+          lesson_position: l.lesson_position
+        })));
+
+        // Make the API call but DON'T update UI state yet
+        await updateLessonsOrder(chapterId, newLessons);
+        
+        // Force a refresh of the data from the server
+        setRefreshTrigger(prev => prev + 1);
+      } catch (error) {
+        console.error('Error in handleLessonDragEnd:', error);
+        toast.error('Failed to update lesson order');
+      } finally {
+        isProcessingRef.current = false;
+      }
     }
   };
 
@@ -774,6 +794,7 @@ export default function CoursePage() {
     try {
       setIsSavingOrder(true);
       const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/reorder`,
         {
@@ -787,8 +808,16 @@ export default function CoursePage() {
       );
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Reorder API error:', errorText);
         throw new Error("Failed to update lessons order");
       }
+
+      const updatedLessons = await response.json();
+      console.log('Received updated lessons from API:', updatedLessons);
+
+      // Force a fresh fetch of the course data
+      setRefreshTrigger(prev => prev + 1);
 
       toast.success("Order updated", {
         duration: 2000,

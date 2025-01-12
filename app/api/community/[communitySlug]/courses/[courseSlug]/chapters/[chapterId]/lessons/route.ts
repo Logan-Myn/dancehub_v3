@@ -61,13 +61,13 @@ export async function POST(
     // Get current highest position
     const { data: highestPositionLesson } = await supabase
       .from("lessons")
-      .select("position")
+      .select("lesson_position")
       .eq("chapter_id", params.chapterId)
-      .order("position", { ascending: false })
+      .order("lesson_position", { ascending: false })
       .limit(1)
       .single();
 
-    const newPosition = (highestPositionLesson?.position ?? -1) + 1;
+    const newPosition = (highestPositionLesson?.lesson_position ?? -1) + 1;
 
     // Create the new lesson
     const { data: lesson, error: lessonError } = await supabase
@@ -77,7 +77,7 @@ export async function POST(
         content: "",
         video_asset_id: null,
         playback_id: null,
-        position: newPosition,
+        lesson_position: newPosition,
         chapter_id: params.chapterId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -91,12 +91,11 @@ export async function POST(
       return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
     }
 
-    // Transform the response to include order for frontend compatibility
+    // Transform the response to include videoAssetId and playbackId for frontend compatibility
     const transformedLesson = {
       ...lesson,
-      order: lesson.position,
       videoAssetId: lesson.video_asset_id,
-      playbackId: lesson.playback_id,
+      playbackId: lesson.playback_id
     };
 
     return NextResponse.json(transformedLesson);
