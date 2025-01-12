@@ -315,36 +315,52 @@ export default function CommunitySettingsModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
     setIsUploading(true);
 
     try {
-      // Upload image to Supabase Storage
+      // Create a unique file name with community folder
       const fileExt = file.name.split('.').pop();
-      const fileName = `${communityId}-${Date.now()}.${fileExt}`;
-      const { data, error } = await supabase.storage
+      const filePath = `${communityId}/${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('community-images')
-        .upload(fileName, file);
+        .upload(filePath, file);
 
-      if (error) throw error;
+      if (uploadError) {
+        throw uploadError;
+      }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      // Get the public URL
+      const { data: urlData } = supabase.storage
         .from('community-images')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
-      // Update community with new image URL
+      if (!urlData.publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
+      // Update community image URL
       const { error: updateError } = await supabase
         .from('communities')
-        .update({ image_url: publicUrl })
+        .update({ image_url: urlData.publicUrl })
         .eq('id', communityId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
-      onImageUpdate(publicUrl);
-      toast.success('Image uploaded successfully');
+      onImageUpdate(urlData.publicUrl);
+      toast.success("Community image updated successfully");
     } catch (error) {
-      console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
+      console.error("Error uploading image:", error);
+      toast.error("Failed to upload image");
     } finally {
       setIsUploading(false);
     }
