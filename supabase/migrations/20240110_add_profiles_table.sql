@@ -28,105 +28,51 @@ create policy "Users can update their own profile"
   on profiles for update
   using (auth.uid() = id);
 
--- Ensure all auth.users have a profile
-insert into profiles (id, full_name)
-select 
-  id,
-  raw_user_meta_data->>'full_name'
-from auth.users
-on conflict (id) do nothing;
-
--- Add columns to communities if they don't exist
-do $$
-begin
-  -- Add custom_links column
-  if not exists (
-    select 1
-    from information_schema.columns
-    where table_name = 'communities'
-    and column_name = 'custom_links'
-  ) then
-    alter table communities
-    add column custom_links jsonb default '[]'::jsonb;
-  end if;
-
-  -- Add updated_at column
-  if not exists (
-    select 1
-    from information_schema.columns
-    where table_name = 'communities'
-    and column_name = 'updated_at'
-  ) then
-    alter table communities
-    add column updated_at timestamp with time zone default timezone('utc'::text, now()) not null;
-  end if;
-end $$;
-
--- Create trigger to automatically update updated_at
-create or replace function update_updated_at_column()
+-- Create function to handle new user profiles
+create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  avatar_url text;
+  full_name text;
 begin
-    new.updated_at = timezone('utc'::text, now());
-    return new;
+  -- Get the avatar URL from Google metadata or fallback
+  avatar_url := coalesce(
+    new.raw_user_meta_data->>'picture',  -- Google OAuth picture
+    new.raw_user_meta_data->>'avatar_url',  -- Custom avatar_url
+    'https://api.multiavatar.com/' || new.id || '.svg'  -- Fallback avatar
+  );
+
+  -- Get the full name from metadata or fallback
+  full_name := coalesce(
+    new.raw_user_meta_data->>'full_name',  -- Our custom full_name
+    new.raw_user_meta_data->>'name',  -- Google OAuth name
+    split_part(new.email, '@', 1)  -- Fallback to email username
+  );
+
+  -- Update the user's metadata to ensure consistency
+  update auth.users
+  set raw_user_meta_data = 
+    jsonb_set(
+      jsonb_set(
+        raw_user_meta_data,
+        '{avatar_url}',
+        to_jsonb(avatar_url)
+      ),
+      '{full_name}',
+      to_jsonb(full_name)
+    )
+  where id = new.id;
+
+  -- Insert into profiles
+  insert into public.profiles (id, full_name, avatar_url)
+  values (new.id, full_name, avatar_url);
+
+  return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql security definer;
 
-drop trigger if exists update_communities_updated_at on communities;
-create trigger update_communities_updated_at
-    before update on communities
-    for each row
-    execute function update_updated_at_column();
-
--- Create or modify members table
-create table if not exists members (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid not null,
-  community_id uuid not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  last_active timestamp with time zone default timezone('utc'::text, now()),
-  foreign key (user_id) references auth.users(id) on delete cascade,
-  foreign key (community_id) references communities(id) on delete cascade
-);
-
--- Add last_active column if it doesn't exist
-do $$ 
-begin
-  if not exists (
-    select 1 
-    from information_schema.columns 
-    where table_name = 'members' 
-    and column_name = 'last_active'
-  ) then
-    alter table members 
-    add column last_active timestamp with time zone default timezone('utc'::text, now());
-  end if;
-end $$;
-
--- Create unique constraint if it doesn't exist
-alter table members 
-  drop constraint if exists unique_community_member;
-
-alter table members 
-  add constraint unique_community_member unique (community_id, user_id);
-
--- Create indexes for better query performance
-create index if not exists members_user_id_idx on members(user_id);
-create index if not exists members_community_id_idx on members(community_id);
-
--- Create function to get users by IDs
-create or replace function get_users_by_ids(user_ids uuid[])
-returns table (
-  id uuid,
-  email text
-)
-security definer
-set search_path = public
-language plpgsql
-as $$
-begin
-  return query
-  select u.id, u.email::text
-  from auth.users u
-  where u.id = any(user_ids);
-end;
-$$; 
+-- Create trigger for new users
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user(); 

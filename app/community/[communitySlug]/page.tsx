@@ -5,7 +5,7 @@ import { notFound, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Users, ExternalLink } from "lucide-react";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import Navbar from "@/app/components/Navbar";
