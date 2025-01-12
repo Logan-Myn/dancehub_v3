@@ -68,6 +68,11 @@ interface Member {
   community_id: string;
   role: string;
   created_at: string;
+  profile?: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  };
 }
 
 interface Community {
@@ -183,13 +188,26 @@ export default function CommunityPage() {
           return;
         }
 
-        // Get members
+        // Get members with profiles
         const { data: membersData, error: membersError } = await supabase
-          .from("community_members")
+          .from("community_members_with_profiles")
           .select("*")
           .eq("community_id", communityData.id);
 
-        if (membersError) throw membersError;
+        if (membersError) {
+          console.error("Members error:", membersError);
+          throw membersError;
+        }
+
+        // Format members data with profile information
+        const formattedMembers = membersData.map(member => ({
+          ...member,
+          profile: {
+            id: member.user_id,
+            full_name: member.full_name || 'Anonymous',
+            avatar_url: member.avatar_url
+          }
+        }));
 
         // Get threads
         const { data: threadsData, error: threadsError } = await supabase
@@ -233,7 +251,7 @@ export default function CommunityPage() {
         };
 
         setCommunity(formattedCommunity);
-        setMembers(membersData);
+        setMembers(formattedMembers);
         setThreads(formattedThreads);
         setIsMember(currentUser ? membersData.some(member => member.user_id === currentUser.id) : false);
         setIsCreator(currentUser?.id === communityData.created_by);
@@ -558,13 +576,17 @@ export default function CommunityPage() {
                         {members.slice(0, 5).map((member) => (
                           <div key={member.id} className="relative group">
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src="/placeholder-avatar.png" />
+                              <AvatarImage 
+                                src={member.profile?.avatar_url || "/placeholder-avatar.png"} 
+                                alt={member.profile?.full_name || "Member"}
+                              />
                               <AvatarFallback>
-                                {member.user_id.substring(0, 2).toUpperCase()}
+                                {member.profile?.full_name?.[0]?.toUpperCase() || member.user_id.substring(0, 2).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              {member.user_id === community.created_by ? "Creator" : "Member"}
+                              {member.profile?.full_name || "Anonymous"}
+                              {member.user_id === community.created_by ? " (Creator)" : ""}
                             </div>
                           </div>
                         ))}

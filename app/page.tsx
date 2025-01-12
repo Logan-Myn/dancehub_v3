@@ -40,8 +40,8 @@ export default function Home() {
         const communitiesWithCounts = await Promise.all(
           (communitiesData || []).map(async (community) => {
             const { count, error: membersError } = await supabase
-              .from('members')
-              .select('*', { count: 'exact' })
+              .from('community_members')
+              .select('*', { count: 'exact', head: true })
               .eq('community_id', community.id);
 
             if (membersError) throw membersError;
