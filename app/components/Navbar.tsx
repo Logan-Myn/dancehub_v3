@@ -9,11 +9,11 @@ import { useAuth } from "@/hooks/auth";
 
 export default function Navbar() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [initialTab, setInitialTab] = useState<"signin" | "signup">("signin");
   const { user } = useAuth();
 
-  const handleAuthClick = (mode: "signin" | "signup") => {
-    setAuthMode(mode);
+  const handleAuthClick = (tab: "signin" | "signup") => {
+    setInitialTab(tab);
     setShowAuthModal(true);
   };
 
@@ -48,7 +48,7 @@ export default function Navbar() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        mode={authMode}
+        initialTab={initialTab}
       />
     </>
   );
