@@ -48,16 +48,12 @@ export default function ClassroomPage() {
       if (isAuthLoading) return; // Don't fetch if auth is still loading
       
       try {
-        // Get community data
-        const { data: communityData, error: communityError } = await supabase
-          .from("communities")
-          .select("*")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (communityError || !communityData) {
+        // Get community data using the existing route
+        const response = await fetch(`/api/community/${communitySlug}`);
+        if (!response.ok) {
           throw new Error("Community not found");
         }
+        const communityData = await response.json();
 
         // Get courses
         const { data: coursesData, error: coursesError } = await supabase

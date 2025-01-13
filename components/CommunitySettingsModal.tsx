@@ -149,6 +149,26 @@ export default function CommunitySettingsModal({
   const supabase = createClient();
   const { user } = useAuth();
 
+  // Add effect to fetch initial membership state
+  useEffect(() => {
+    async function fetchMembershipState() {
+      try {
+        const response = await fetch(`/api/community/${communitySlug}`);
+        if (!response.ok) throw new Error('Failed to fetch community data');
+        
+        const data = await response.json();
+        setIsMembershipEnabled(data.membership_enabled || false);
+        setPrice(data.membership_price || 0);
+      } catch (error) {
+        console.error('Error fetching membership state:', error);
+      }
+    }
+
+    if (isOpen) {
+      fetchMembershipState();
+    }
+  }, [communitySlug, isOpen]);
+
   // Fetch Stripe account status when component mounts
   useEffect(() => {
     async function fetchStripeStatus() {
@@ -376,7 +396,6 @@ export default function CommunitySettingsModal({
         },
         body: JSON.stringify({
           communityId,
-          userId: user?.id,
         }),
       });
 
@@ -407,14 +426,24 @@ export default function CommunitySettingsModal({
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to update price');
+        console.error('Server error details:', data);
+        throw new Error(data.error || 'Failed to update price');
       }
+      
+      // Update local state
+      onCommunityUpdate({
+        membership_enabled: isMembershipEnabled,
+        membership_price: price,
+        stripe_price_id: data.stripe_price_id,
+      });
 
       toast.success('Price updated successfully');
     } catch (error) {
       console.error('Error updating price:', error);
-      toast.error('Failed to update price');
+      toast.error(error instanceof Error ? error.message : 'Failed to update price');
     }
   };
 

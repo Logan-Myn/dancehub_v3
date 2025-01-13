@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   
   try {
-    const { userId } = await request.json();
+    const { communityId } = await request.json();
 
     // Create a Stripe Connect account
     const account = await stripe.accounts.create({
@@ -18,11 +18,11 @@ export async function POST(request: Request) {
       },
     });
 
-    // Update the user's profile with the Stripe account ID
+    // Update the community with the Stripe account ID
     const { error } = await supabase
-      .from('profiles')
+      .from('communities')
       .update({ stripe_account_id: account.id })
-      .eq('id', userId);
+      .eq('id', communityId);
 
     if (error) throw error;
 
