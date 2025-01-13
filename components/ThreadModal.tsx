@@ -462,8 +462,8 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[700px] p-0">
-          <div className="p-6">
+        <DialogContent className="sm:max-w-[700px] p-0 max-h-[90vh] flex flex-col">
+          <div className="p-6 border-b">
             {/* Author info and metadata */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
@@ -576,45 +576,52 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 <span>{thread.comments_count}</span>
               </button>
             </div>
+          </div>
 
-            {/* Comments section */}
-            <div className="mt-6 border-t pt-6">
-              <h3 className="font-medium mb-4">Comments</h3>
-
-              {/* Comment input */}
-              <div className="flex items-start space-x-3 mb-6">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={userAvatarUrl || ''} alt={userDisplayName} />
-                  <AvatarFallback>{userInitial}</AvatarFallback>
-                </Avatar>
-                <form onSubmit={handleSubmitComment} className="flex-1">
+          {/* Comment input - between thread and comments */}
+          <div className="px-6 py-3 border-b">
+            <div className="flex items-center w-full gap-3">
+              <Avatar className="h-8 w-8 flex-shrink-0">
+                <AvatarImage src={userAvatarUrl} alt={userDisplayName} />
+                <AvatarFallback>{userInitial}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 flex items-center w-full gap-2">
+                <div className="flex-1 w-full">
                   <Textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Write a comment..."
-                    className="min-h-[80px] mb-2"
+                    className="w-full min-h-[40px] resize-none py-2"
+                    rows={1}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && comment.trim()) {
+                        e.preventDefault();
+                        handleSubmitComment(e);
+                      }
+                    }}
                   />
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={isSubmitting || !comment.trim() || !user}
-                      size="sm"
-                    >
-                      {isSubmitting ? 'Posting...' : 'Post'}
-                    </Button>
-                  </div>
-                </form>
+                </div>
+                <Button
+                  onClick={handleSubmitComment}
+                  disabled={isSubmitting || !comment.trim()}
+                  size="sm"
+                  className="flex-shrink-0"
+                >
+                  {isSubmitting ? 'Posting...' : 'Post'}
+                </Button>
               </div>
+            </div>
+          </div>
 
-              {/* Comments list */}
-              <div className="space-y-4">
-                {organizedComments.map((comment) => (
-                  <Comment
-                    key={comment.id}
-                    {...mapCommentToProps(comment)}
-                  />
-                ))}
-              </div>
+          {/* Comments section - scrollable */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6">
+              {organizedComments.map((comment) => (
+                <Comment
+                  key={comment.id}
+                  {...mapCommentToProps(comment)}
+                />
+              ))}
             </div>
           </div>
         </DialogContent>
