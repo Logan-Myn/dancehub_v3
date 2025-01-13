@@ -32,7 +32,7 @@ interface Course {
 export default function ClassroomPage() {
   const params = useParams();
   const communitySlug = params?.communitySlug as string;
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +45,8 @@ export default function ClassroomPage() {
 
   useEffect(() => {
     async function fetchData() {
+      if (isAuthLoading) return; // Don't fetch if auth is still loading
+      
       try {
         // Get community data
         const { data: communityData, error: communityError } = await supabase
@@ -104,10 +106,8 @@ export default function ClassroomPage() {
       }
     }
 
-    if (communitySlug) {
-      fetchData();
-    }
-  }, [communitySlug, currentUser]);
+    fetchData();
+  }, [communitySlug, currentUser, isAuthLoading]);
 
   const handleCreateCourse = async (newCourse: any) => {
     try {
@@ -139,10 +139,13 @@ export default function ClassroomPage() {
     return <div>Error loading classroom: {error.message}</div>;
   }
 
-  if (isLoading || !community) {
+  // Show loading state while either auth or data is loading
+  if (isAuthLoading || isLoading || !community) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="flex flex-col min-h-screen bg-white">
+        <div className="flex-grow flex justify-center items-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
       </div>
     );
   }
