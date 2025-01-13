@@ -18,7 +18,7 @@ export async function POST(
     // Get community with its membership price and stripe account
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, membership_price, stripe_account_id")
+      .select("id, membership_price, stripe_account_id, stripe_price_id")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -26,6 +26,13 @@ export async function POST(
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
+      );
+    }
+
+    if (!community.stripe_price_id) {
+      return NextResponse.json(
+        { error: "Community membership price not configured" },
+        { status: 400 }
       );
     }
 
@@ -45,15 +52,22 @@ export async function POST(
     }
 
     // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: (community.membership_price || 0) * 100,
-      currency: "eur",
-      payment_method_types: ["card"],
-      metadata: {
-        community_id: community.id,
-        user_id: userId,
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: (community.membership_price || 0) * 100,
+        currency: "eur",
+        metadata: {
+          community_id: community.id,
+          user_id: userId,
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
       },
-    });
+      {
+        stripeAccount: community.stripe_account_id,
+      }
+    );
 
     // Add member to community_members table
     const { error: memberError } = await supabase
