@@ -938,30 +938,32 @@ export default function CommunitySettingsModal({
                             Community Cover Image
                           </label>
                           <div className="mt-2">
-                            <div className="flex items-center space-x-4">
-                              <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
-                                {imageUrl ? (
-                                  <img
-                                    src={imageUrl}
-                                    alt="Community cover"
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full">
-                                    <span className="text-gray-500">No image uploaded</span>
-                                  </div>
-                                )}
+                            <div className="w-1/2 mx-auto">
+                              <div className="relative w-full h-40 mb-4">
+                                <img
+                                  src={imageUrl || "/placeholder.svg"}
+                                  alt="Community preview"
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                                <label
+                                  htmlFor="community-image"
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                                >
+                                  {isUploading ? (
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                  ) : (
+                                    <span>Change Image</span>
+                                  )}
+                                </label>
+                                <input
+                                  type="file"
+                                  id="community-image"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                />
                               </div>
                             </div>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageUpload}
-                              className="mt-2"
-                            />
-                            <p className="mt-1 text-sm text-gray-500">
-                              Recommended size: 1200x400 pixels
-                            </p>
                           </div>
                         </div>
 
