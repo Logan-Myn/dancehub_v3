@@ -14,12 +14,31 @@ import {
   CurrencyDollarIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { createClient } from "@/lib/supabase";
+import { storage, auth } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-hot-toast";
-import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users, BarChart3, MessageSquare, TrendingUp } from 'lucide-react';
+import {
+  DollarSign,
+  ExternalLink,
+  Loader2,
+  Plus,
+  X,
+  MessageCircle,
+  Lock,
+  Users,
+  BarChart3,
+  MessageSquare,
+  TrendingUp,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ThreadCategory } from "@/types/community";
 import {
   DndContext,
@@ -28,17 +47,15 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { DraggableCategory } from './DraggableCategory';
+} from "@dnd-kit/sortable";
+import { DraggableCategory } from "./DraggableCategory";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface CustomLink {
   title: string;
@@ -53,6 +70,28 @@ interface DashboardStats {
   membershipGrowth: number;
 }
 
+interface CommunitySettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  communityId: string;
+  communitySlug: string;
+  communityName: string;
+  communityDescription: string;
+  imageUrl: string;
+  onImageUpdate: (newImageUrl: string) => void;
+  onCommunityUpdate: (updates: {
+    name?: string;
+    description?: string;
+    slug?: string;
+  }) => void;
+  customLinks?: CustomLink[];
+  onCustomLinksUpdate?: (links: CustomLink[]) => void;
+  stripeAccountId?: string | null;
+  threadCategories?: ThreadCategory[];
+  onThreadCategoriesUpdate?: (categories: ThreadCategory[]) => void;
+  communityStats?: DashboardStats;
+}
+
 interface RevenueData {
   monthlyRevenue: number;
 }
@@ -63,33 +102,8 @@ interface CommunityMember {
   email: string;
   imageUrl: string;
   joinedAt: string;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   lastActive?: string;
-}
-
-interface StripeAccountStatus {
-  isEnabled: boolean;
-  needsSetup: boolean;
-  accountId?: string;
-  details?: any;
-}
-
-interface CommunitySettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  communityId: string;
-  communitySlug: string;
-  communityName: string;
-  communityDescription: string;
-  imageUrl: string;
-  onImageUpdate: (newImageUrl: string) => void;
-  onCommunityUpdate: (updates: any) => void;
-  customLinks: CustomLink[];
-  onCustomLinksUpdate: (newLinks: CustomLink[]) => void;
-  stripeAccountId: string | null;
-  threadCategories: ThreadCategory[];
-  onThreadCategoriesUpdate: (categories: ThreadCategory[]) => void;
-  communityStats?: DashboardStats;
 }
 
 const navigationCategories = [
@@ -103,7 +117,7 @@ const navigationCategories = [
 
 const formatUrl = (url: string): string => {
   if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
   return `https://${url}`;
@@ -117,78 +131,71 @@ export default function CommunitySettingsModal({
   communityName,
   communityDescription,
   imageUrl,
-  customLinks,
-  stripeAccountId,
-  threadCategories,
   onImageUpdate,
   onCommunityUpdate,
-  onCustomLinksUpdate,
-  onThreadCategoriesUpdate,
+  customLinks = [],
+  onCustomLinksUpdate = () => {},
+  stripeAccountId,
+  threadCategories = [],
+  onThreadCategoriesUpdate = () => {},
+  communityStats,
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
   const [description, setDescription] = useState(communityDescription);
-  const [isUploading, setIsUploading] = useState(false);
-  const [links, setLinks] = useState(customLinks);
-  const [categories, setCategories] = useState(threadCategories);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryIconType, setNewCategoryIconType] = useState("");
-  const [isCreatorOnly, setIsCreatorOnly] = useState(false);
+  const [links, setLinks] = useState<CustomLink[]>(customLinks);
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
-  const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus>({
+  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(true);
+  const [price, setPrice] = useState<number>(0);
+  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
+  const [stripeAccountStatus, setStripeAccountStatus] = useState<{
+    isEnabled: boolean;
+    needsSetup: boolean;
+    accountId?: string;
+    details?: {
+      chargesEnabled: boolean;
+      payoutsEnabled: boolean;
+      requirements?: string[];
+    };
+  }>({
     isEnabled: false,
     needsSetup: true,
   });
-  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(false);
-  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
-  const [price, setPrice] = useState(0);
-  const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
-  const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
+  const [categories, setCategories] =
+    useState<ThreadCategory[]>(threadCategories);
+  const [localCommunityStats, setLocalCommunityStats] =
+    useState<DashboardStats | null>(null);
+  const [revenueData, setRevenueData] = useState<RevenueData>({
+    monthlyRevenue: 0,
+  });
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
-  const supabase = createClient();
-  const { user } = useAuth();
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
     async function fetchStripeStatus() {
-      console.log('Fetching stripe status with ID:', stripeAccountId);
       if (!stripeAccountId) {
-        console.log('No stripeAccountId provided');
         setIsLoadingStripeStatus(false);
         return;
       }
 
       try {
-        console.log('Making API call to:', `/api/stripe/account-status/${stripeAccountId}`);
-        const response = await fetch(`/api/stripe/account-status/${stripeAccountId}`);
-        console.log('API response:', response);
-        
+        const response = await fetch(
+          `/api/stripe/account-status/${stripeAccountId}`
+        );
         if (!response.ok) {
-          throw new Error('Failed to fetch Stripe status');
+          throw new Error("Failed to fetch Stripe status");
         }
 
         const data = await response.json();
-        console.log('Stripe status data:', data);
-        
         setStripeAccountStatus({
           isEnabled: data.chargesEnabled && data.payoutsEnabled,
           needsSetup: !data.detailsSubmitted,
           accountId: stripeAccountId,
           details: data,
         });
-
-        // If account is enabled, fetch current price and membership status
-        if (data.chargesEnabled && data.payoutsEnabled) {
-          const priceResponse = await fetch(`/api/community/${communitySlug}/membership-settings`);
-          if (priceResponse.ok) {
-            const priceData = await priceResponse.json();
-            setPrice(priceData.price || 0);
-            setIsMembershipEnabled(priceData.enabled || false);
-          }
-        }
       } catch (error) {
-        console.error('Error fetching Stripe status:', error);
+        console.error("Error fetching Stripe status:", error);
         setStripeAccountStatus({
           isEnabled: false,
           needsSetup: true,
@@ -198,39 +205,39 @@ export default function CommunitySettingsModal({
       }
     }
 
-    if (isOpen) {
-      fetchStripeStatus();
-    }
-  }, [stripeAccountId, communitySlug, isOpen]);
+    fetchStripeStatus();
+  }, [stripeAccountId]);
 
   useEffect(() => {
     async function fetchCommunityStats() {
       try {
         const response = await fetch(`/api/community/${communitySlug}/stats`);
-        if (!response.ok) throw new Error('Failed to fetch stats');
+        if (!response.ok) throw new Error("Failed to fetch stats");
         const stats = await response.json();
         setLocalCommunityStats(stats);
       } catch (error) {
-        console.error('Error fetching community stats:', error);
+        console.error("Error fetching community stats:", error);
       }
     }
 
-    if (activeCategory === 'dashboard') {
+    if (activeCategory === "dashboard") {
       fetchCommunityStats();
     }
   }, [communitySlug, activeCategory]);
 
   useEffect(() => {
     async function fetchRevenueData() {
-      if (activeCategory === 'dashboard' && stripeAccountId) {
+      if (activeCategory === "dashboard" && stripeAccountId) {
         try {
-          const response = await fetch(`/api/community/${communitySlug}/stripe-revenue`);
-          if (!response.ok) throw new Error('Failed to fetch revenue data');
+          const response = await fetch(
+            `/api/community/${communitySlug}/stripe-revenue`
+          );
+          if (!response.ok) throw new Error("Failed to fetch revenue data");
           const data = await response.json();
           setRevenueData(data);
         } catch (error) {
-          console.error('Error fetching revenue data:', error);
-          toast.error('Failed to fetch revenue data');
+          console.error("Error fetching revenue data:", error);
+          toast.error("Failed to fetch revenue data");
         }
       }
     }
@@ -240,16 +247,18 @@ export default function CommunitySettingsModal({
 
   useEffect(() => {
     async function fetchMembers() {
-      if (activeCategory === 'members') {
+      if (activeCategory === "members") {
         setIsLoadingMembers(true);
         try {
-          const response = await fetch(`/api/community/${communitySlug}/members`);
-          if (!response.ok) throw new Error('Failed to fetch members');
+          const response = await fetch(
+            `/api/community/${communitySlug}/members`
+          );
+          if (!response.ok) throw new Error("Failed to fetch members");
           const data = await response.json();
           setMembers(data.members);
         } catch (error) {
-          console.error('Error fetching members:', error);
-          toast.error('Failed to fetch members');
+          console.error("Error fetching members:", error);
+          toast.error("Failed to fetch members");
         } finally {
           setIsLoadingMembers(false);
         }
@@ -260,18 +269,22 @@ export default function CommunitySettingsModal({
   }, [communitySlug, activeCategory]);
 
   const handleAddLink = () => {
-    setLinks([...links, { title: '', url: '' }]);
+    setLinks([...links, { title: "", url: "" }]);
   };
 
   const handleRemoveLink = (index: number) => {
-    const newLinks = links.filter((_, i: number) => i !== index);
+    const newLinks = links.filter((_, i) => i !== index);
     setLinks(newLinks);
   };
 
-  const handleLinkChange = (index: number, field: 'title' | 'url', value: string) => {
-    const newLinks = links.map((link: CustomLink, i: number) => {
+  const handleLinkChange = (
+    index: number,
+    field: "title" | "url",
+    value: string
+  ) => {
+    const newLinks = links.map((link, i) => {
       if (i === index) {
-        if (field === 'url') {
+        if (field === "url") {
           return { ...link, [field]: formatUrl(value) };
         }
         return { ...link, [field]: value };
@@ -284,14 +297,14 @@ export default function CommunitySettingsModal({
   const handleSaveChanges = useCallback(async () => {
     try {
       // Show loading toast
-      const loadingToast = toast.loading('Saving your changes...', {
+      const loadingToast = toast.loading("Saving your changes...", {
         duration: Infinity, // The toast will remain until we dismiss it
       });
 
       const response = await fetch(`/api/community/${communitySlug}/update`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name,
@@ -302,14 +315,14 @@ export default function CommunitySettingsModal({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update community');
+        throw new Error("Failed to update community");
       }
 
       const data = await response.json();
 
       // Update all the data through parent component
-      onCommunityUpdate({ 
-        name: data.data.name, 
+      onCommunityUpdate({
+        name: data.data.name,
         description: data.data.description,
       });
       onImageUpdate(data.data.imageUrl);
@@ -317,97 +330,107 @@ export default function CommunitySettingsModal({
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
-      toast.success('Your changes have been saved successfully!', {
+      toast.success("Your changes have been saved successfully!", {
         duration: 3000, // Toast will show for 3 seconds
-        icon: '✅',
+        icon: "✅",
       });
     } catch (error) {
-      console.error('Error saving changes:', error);
-      toast.error('Failed to save changes. Please try again.', {
+      console.error("Error saving changes:", error);
+      toast.error("Failed to save changes. Please try again.", {
         duration: 3000,
-        icon: '❌',
+        icon: "❌",
       });
     }
-  }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
+  }, [
+    name,
+    description,
+    imageUrl,
+    links,
+    communitySlug,
+    onCommunityUpdate,
+    onImageUpdate,
+    onCustomLinksUpdate,
+  ]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size should be less than 5MB");
-      return;
-    }
-
-    setIsUploading(true);
-
     try {
-      // Create a unique file name with community folder
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${communityId}/${Date.now()}.${fileExt}`;
-
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('community-images')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
+      // Check file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("File size must be less than 5MB");
       }
 
-      // Get the public URL
-      const { data: urlData } = supabase.storage
-        .from('community-images')
-        .getPublicUrl(filePath);
-
-      if (!urlData.publicUrl) {
-        throw new Error('Failed to get public URL');
+      // Check file type
+      if (!file.type.startsWith("image/")) {
+        throw new Error("File must be an image");
       }
 
-      // Update community image URL
-      const { error: updateError } = await supabase
-        .from('communities')
-        .update({ image_url: urlData.publicUrl })
-        .eq('id', communityId);
-
-      if (updateError) {
-        throw updateError;
+      // Get current user
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("You must be logged in to upload images");
       }
 
-      onImageUpdate(urlData.publicUrl);
-      toast.success("Community image updated successfully");
-    } catch (error) {
+      // Create a reference to the file in Firebase Storage
+      const storageRef = ref(
+        storage,
+        `community-images/${communitySlug}-${Date.now()}`
+      );
+
+      // Upload the file with metadata
+      const metadata = {
+        contentType: file.type,
+        customMetadata: {
+          uploadedBy: currentUser.uid,
+          communityId: communityId,
+        },
+      };
+
+      // Show loading toast
+      const loadingToast = toast.loading("Uploading image...");
+
+      const snapshot = await uploadBytes(storageRef, file, metadata);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+
+      // Update the image URL
+      onImageUpdate(downloadURL);
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success("Image uploaded successfully");
+    } catch (error: any) {
       console.error("Error uploading image:", error);
-      toast.error("Failed to upload image");
-    } finally {
-      setIsUploading(false);
+      toast.error(error.message || "Failed to upload image. Please try again.");
     }
   };
 
   const handleStripeConnect = async () => {
     try {
       setIsConnectingStripe(true);
-      const response = await fetch('/api/stripe/connect', {
-        method: 'POST',
+      const response = await fetch("/api/stripe/connect", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           communityId,
-          userId: user?.id,
+          userId: auth.currentUser?.uid,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to connect Stripe');
+        throw new Error("Failed to connect Stripe");
       }
 
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
-      console.error('Error connecting Stripe:', error);
-      toast.error('Failed to connect Stripe');
+      console.error("Error connecting Stripe:", error);
+      toast.error("Failed to connect Stripe");
     } finally {
       setIsConnectingStripe(false);
     }
@@ -415,65 +438,78 @@ export default function CommunitySettingsModal({
 
   const handlePriceUpdate = async () => {
     try {
-      const response = await fetch(`/api/community/${communitySlug}/update-price`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          price,
-          enabled: isMembershipEnabled,
-        }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/update-price`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            price,
+            enabled: isMembershipEnabled,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to update price');
+        throw new Error("Failed to update price");
       }
 
-      toast.success('Membership settings updated successfully');
+      toast.success("Price updated successfully");
     } catch (error) {
-      console.error('Error updating price:', error);
-      toast.error('Failed to update membership settings');
+      console.error("Error updating price:", error);
+      toast.error("Failed to update price");
     }
   };
 
   const handleAddCategory = () => {
     const newCategory: ThreadCategory = {
       id: crypto.randomUUID(),
-      name: '',
-      iconType: CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
-      color: '#000000',
+      name: "",
+      iconType:
+        CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
+      color: "#000000",
     };
     setCategories([...categories, newCategory]);
   };
 
   const handleRemoveCategory = (id: string) => {
-    setCategories(categories.filter(cat => cat.id !== id));
+    setCategories(categories.filter((cat) => cat.id !== id));
   };
 
-  const handleCategoryChange = (id: string, field: keyof ThreadCategory, value: string | boolean) => {
-    setCategories(categories.map(cat => 
-      cat.id === id ? { ...cat, [field]: value } : cat
-    ));
+  const handleCategoryChange = (
+    id: string,
+    field: keyof ThreadCategory,
+    value: string | boolean
+  ) => {
+    setCategories(
+      categories.map((cat) =>
+        cat.id === id ? { ...cat, [field]: value } : cat
+      )
+    );
   };
 
   const handleSaveCategories = async () => {
     try {
-      const response = await fetch(`/api/community/${communitySlug}/categories`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ categories }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/categories`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ categories }),
+        }
+      );
 
-      if (!response.ok) throw new Error('Failed to update categories');
+      if (!response.ok) throw new Error("Failed to update categories");
 
       onThreadCategoriesUpdate(categories);
-      toast.success('Categories updated successfully');
+      toast.success("Categories updated successfully");
     } catch (error) {
-      console.error('Error updating categories:', error);
-      toast.error('Failed to update categories');
+      console.error("Error updating categories:", error);
+      toast.error("Failed to update categories");
     }
   };
 
@@ -498,23 +534,23 @@ export default function CommunitySettingsModal({
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('Are you sure you want to remove this member?')) return;
+    if (!confirm("Are you sure you want to remove this member?")) return;
 
     try {
       const response = await fetch(
         `/api/community/${communitySlug}/members/${memberId}`,
         {
-          method: 'DELETE',
+          method: "DELETE",
         }
       );
 
-      if (!response.ok) throw new Error('Failed to remove member');
+      if (!response.ok) throw new Error("Failed to remove member");
 
-      setMembers(members.filter(member => member.id !== memberId));
-      toast.success('Member removed successfully');
+      setMembers(members.filter((member) => member.id !== memberId));
+      toast.success("Member removed successfully");
     } catch (error) {
-      console.error('Error removing member:', error);
-      toast.error('Failed to remove member');
+      console.error("Error removing member:", error);
+      toast.error("Failed to remove member");
     }
   };
 
@@ -527,7 +563,9 @@ export default function CommunitySettingsModal({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
+              onClick={() =>
+                window.open("https://dashboard.stripe.com", "_blank")
+              }
             >
               <ExternalLink className="w-4 h-4 mr-2" />
               Stripe Dashboard
@@ -545,7 +583,9 @@ export default function CommunitySettingsModal({
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium">Paid Membership</h4>
-                <p className="text-sm text-gray-500">Enable paid membership for your community</p>
+                <p className="text-sm text-gray-500">
+                  Enable paid membership for your community
+                </p>
               </div>
               <Switch
                 checked={isMembershipEnabled}
@@ -587,7 +627,8 @@ export default function CommunitySettingsModal({
             {!isMembershipEnabled && (
               <div className="bg-gray-100 p-4 rounded-md">
                 <p className="text-sm text-gray-600">
-                  Your community is currently free to join. Enable paid membership to start monetizing your community.
+                  Your community is currently free to join. Enable paid
+                  membership to start monetizing your community.
                 </p>
               </div>
             )}
@@ -596,9 +637,10 @@ export default function CommunitySettingsModal({
           // Show Stripe Connect button if not connected
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Connect your Stripe account to start accepting payments from your community members.
+              Connect your Stripe account to start accepting payments from your
+              community members.
             </p>
-            
+
             <Button
               onClick={handleStripeConnect}
               disabled={isConnectingStripe}
@@ -623,11 +665,7 @@ export default function CommunitySettingsModal({
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium">Thread Categories</h3>
-        <Button
-          onClick={handleAddCategory}
-          variant="outline"
-          size="sm"
-        >
+        <Button onClick={handleAddCategory} variant="outline" size="sm">
           <Plus className="h-4 w-4 mr-2" />
           Add Category
         </Button>
@@ -639,7 +677,7 @@ export default function CommunitySettingsModal({
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={categories.map(cat => cat.id)}
+          items={categories.map((cat) => cat.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-4">
@@ -656,17 +694,15 @@ export default function CommunitySettingsModal({
       </DndContext>
 
       {categories.length > 0 && (
-        <Button
-          onClick={handleSaveCategories}
-          className="w-full"
-        >
+        <Button onClick={handleSaveCategories} className="w-full">
           Save Categories
         </Button>
       )}
 
       {categories.length === 0 && (
         <p className="text-sm text-gray-500 text-center">
-          No categories yet. Add some to help organize threads in your community.
+          No categories yet. Add some to help organize threads in your
+          community.
         </p>
       )}
     </div>
@@ -681,16 +717,20 @@ export default function CommunitySettingsModal({
             <h3 className="text-sm font-medium text-gray-500">Total Members</h3>
             <Users className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.totalMembers || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.totalMembers || 0}
+          </p>
           <p className="text-sm text-green-600">
-            <TrendingUp className="h-4 w-4 inline mr-1" />
-            +{localCommunityStats?.membershipGrowth || 0}% this month
+            <TrendingUp className="h-4 w-4 inline mr-1" />+
+            {localCommunityStats?.membershipGrowth || 0}% this month
           </p>
         </Card>
 
         <Card className="p-6 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Monthly Revenue</h3>
+            <h3 className="text-sm font-medium text-gray-500">
+              Monthly Revenue
+            </h3>
             <DollarSign className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold">
@@ -706,16 +746,22 @@ export default function CommunitySettingsModal({
             <h3 className="text-sm font-medium text-gray-500">Total Threads</h3>
             <MessageSquare className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.totalThreads || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.totalThreads || 0}
+          </p>
           <p className="text-sm text-gray-500">Across all categories</p>
         </Card>
 
         <Card className="p-6 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Active Members</h3>
+            <h3 className="text-sm font-medium text-gray-500">
+              Active Members
+            </h3>
             <BarChart3 className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.activeMembers || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.activeMembers || 0}
+          </p>
           <p className="text-sm text-gray-500">In the last 30 days</p>
         </Card>
       </div>
@@ -725,7 +771,10 @@ export default function CommunitySettingsModal({
         <h3 className="text-lg font-medium mb-4">Recent Activity</h3>
         <div className="space-y-4">
           {/* We'll implement this later */}
-          <p className="text-sm text-gray-500">Coming soon: Activity feed showing recent joins, posts, and interactions</p>
+          <p className="text-sm text-gray-500">
+            Coming soon: Activity feed showing recent joins, posts, and
+            interactions
+          </p>
         </div>
       </Card>
 
@@ -755,89 +804,103 @@ export default function CommunitySettingsModal({
   );
 
   const renderMembers = () => (
-    <div>
-      <h3 className="text-lg font-medium">Community Members</h3>
-      <p className="text-sm text-gray-500">Total: {members.length} members</p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Community Members</h3>
+        <p className="text-sm text-gray-500">Total: {members.length} members</p>
+      </div>
 
       {isLoadingMembers ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
         </div>
       ) : (
-        <div className="mt-6">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Member
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Joined
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Active
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {members.map((member) => (
-                <tr key={member.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 flex-shrink-0">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.imageUrl} alt={member.displayName} />
-                          <AvatarFallback>
-                            {member.displayName[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {member.displayName}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Member
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Active
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {members.map((member) => (
+                  <tr key={member.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0">
+                          <img
+                            className="h-10 w-10 rounded-full"
+                            src={member.imageUrl}
+                            alt={member.displayName}
+                          />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {member.displayName}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{member.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {new Date(member.joinedAt).toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {member.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {member.lastActive ? new Date(member.lastActive).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleRemoveMember(member.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {member.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(member.joinedAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${
+                          member.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {member.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {member.lastActive
+                        ? new Date(member.lastActive).toLocaleDateString()
+                        : "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-900"
+                        onClick={() => handleRemoveMember(member.id)}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -916,7 +979,11 @@ export default function CommunitySettingsModal({
                   {/* Main content */}
                   <div className="w-3/4 p-6 overflow-y-auto">
                     <h2 className="text-2xl font-semibold mb-4">
-                      {navigationCategories.find((c) => c.id === activeCategory)?.name}
+                      {
+                        navigationCategories.find(
+                          (c) => c.id === activeCategory
+                        )?.name
+                      }
                     </h2>
 
                     {activeCategory === "general" && (
@@ -954,32 +1021,32 @@ export default function CommunitySettingsModal({
                             Community Cover Image
                           </label>
                           <div className="mt-2">
-                            <div className="w-1/2 mx-auto">
-                              <div className="relative w-full h-40 mb-4">
-                                <img
-                                  src={imageUrl || "/placeholder.svg"}
-                                  alt="Community preview"
-                                  className="w-full h-full object-cover rounded-lg"
-                                />
-                                <label
-                                  htmlFor="community-image"
-                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                                >
-                                  {isUploading ? (
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                  ) : (
-                                    <span>Change Image</span>
-                                  )}
-                                </label>
-                                <input
-                                  type="file"
-                                  id="community-image"
-                                  accept="image/*"
-                                  onChange={handleImageUpload}
-                                  className="hidden"
-                                />
+                            <div className="flex items-center space-x-4">
+                              <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt="Community cover"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-center h-full">
+                                    <span className="text-gray-500">
+                                      No image uploaded
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              className="mt-2"
+                            />
+                            <p className="mt-1 text-sm text-gray-500">
+                              Recommended size: 1200x400 pixels
+                            </p>
                           </div>
                         </div>
 
@@ -994,13 +1061,25 @@ export default function CommunitySettingsModal({
                                 <Input
                                   placeholder="Link Title (e.g., Instagram)"
                                   value={link.title}
-                                  onChange={(e) => handleLinkChange(index, 'title', e.target.value)}
+                                  onChange={(e) =>
+                                    handleLinkChange(
+                                      index,
+                                      "title",
+                                      e.target.value
+                                    )
+                                  }
                                   className="flex-1"
                                 />
                                 <Input
                                   placeholder="URL (e.g., instagram.com/your-profile)"
                                   value={link.url}
-                                  onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
+                                  onChange={(e) =>
+                                    handleLinkChange(
+                                      index,
+                                      "url",
+                                      e.target.value
+                                    )
+                                  }
                                   className="flex-1"
                                 />
                                 <Button
@@ -1022,7 +1101,8 @@ export default function CommunitySettingsModal({
                             </Button>
                           </div>
                           <p className="mt-1 text-sm text-gray-500">
-                            Add useful links for your community members (e.g., social media profiles, website)
+                            Add useful links for your community members (e.g.,
+                            social media profiles, website)
                           </p>
                         </div>
 
@@ -1035,9 +1115,11 @@ export default function CommunitySettingsModal({
                       </div>
                     )}
 
-                    {activeCategory === "subscriptions" && renderSubscriptions()}
+                    {activeCategory === "subscriptions" &&
+                      renderSubscriptions()}
 
-                    {activeCategory === "thread_categories" && renderThreadCategories()}
+                    {activeCategory === "thread_categories" &&
+                      renderThreadCategories()}
 
                     {activeCategory === "dashboard" && renderDashboard()}
 
@@ -1053,4 +1135,4 @@ export default function CommunitySettingsModal({
       </Dialog>
     </Transition.Root>
   );
-} 
+}
