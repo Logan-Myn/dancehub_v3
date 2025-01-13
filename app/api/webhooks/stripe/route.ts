@@ -100,19 +100,142 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
-          const { error: updateError } = await supabase
-            .from('memberships')
+          // Update member status and subscription details
+          const { error: memberUpdateError } = await supabase
+            .from('community_members')
             .update({
               status: 'active',
-              last_payment_date: new Date().toISOString(),
+              subscription_status: subscription.status,
               current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              last_payment_date: new Date().toISOString()
             })
-            .eq('id', `${subscription.metadata.community_id}_${subscription.metadata.user_id}`);
+            .eq('community_id', subscription.metadata.community_id)
+            .eq('user_id', subscription.metadata.user_id);
 
-          if (updateError) {
-            console.error('Error updating membership:', updateError);
+          if (memberUpdateError) {
+            console.error('Error updating member status:', memberUpdateError);
             return NextResponse.json(
-              { error: 'Failed to update membership' },
+              { error: 'Failed to update member status' },
+              { status: 500 }
+            );
+          }
+
+          // Update members_count in communities table if this is the first payment
+          const { data: member } = await supabase
+            .from('community_members')
+            .select('status')
+            .eq('community_id', subscription.metadata.community_id)
+            .eq('user_id', subscription.metadata.user_id)
+            .single();
+
+          if (member && member.status === 'pending') {
+            const { error: countError } = await supabase.rpc(
+              'increment_members_count',
+              { community_id: subscription.metadata.community_id }
+            );
+
+            if (countError) {
+              console.error('Error updating members count:', countError);
+              return NextResponse.json(
+                { error: 'Failed to update members count' },
+                { status: 500 }
+              );
+            }
+          }
+        }
+        break;
+
+      case 'customer.subscription.deleted':
+      case 'customer.subscription.updated':
+        const subscription = event.data.object as Stripe.Subscription;
+        
+        if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
+          console.error('Missing metadata in subscription:', subscription.id);
+          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        }
+
+        // Update member subscription status
+        const { error: statusUpdateError } = await supabase
+          .from('community_members')
+          .update({
+            subscription_status: subscription.status,
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('community_id', subscription.metadata.community_id)
+          .eq('user_id', subscription.metadata.user_id);
+
+        if (statusUpdateError) {
+          console.error('Error updating subscription status:', statusUpdateError);
+          return NextResponse.json(
+            { error: 'Failed to update subscription status' },
+            { status: 500 }
+          );
+        }
+
+        // If subscription is canceled or expired, update member status and decrement count
+        if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
+          const { error: memberStatusError } = await supabase
+            .from('community_members')
+            .update({
+              status: 'inactive',
+              updated_at: new Date().toISOString()
+            })
+            .eq('community_id', subscription.metadata.community_id)
+            .eq('user_id', subscription.metadata.user_id);
+
+          if (memberStatusError) {
+            console.error('Error updating member status:', memberStatusError);
+            return NextResponse.json(
+              { error: 'Failed to update member status' },
+              { status: 500 }
+            );
+          }
+
+          const { error: countError } = await supabase.rpc(
+            'decrement_members_count',
+            { community_id: subscription.metadata.community_id }
+          );
+
+          if (countError) {
+            console.error('Error updating members count:', countError);
+            return NextResponse.json(
+              { error: 'Failed to update members count' },
+              { status: 500 }
+            );
+          }
+        }
+        break;
+
+      case 'invoice.payment_failed':
+        const failedInvoice = event.data.object as Stripe.Invoice;
+        if (failedInvoice.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(
+            failedInvoice.subscription as string,
+            {
+              stripeAccount: stripe_account_id,
+            }
+          );
+
+          if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
+            console.error('Missing metadata in subscription:', subscription.id);
+            return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+          }
+
+          // Update member subscription status to reflect payment failure
+          const { error: failureUpdateError } = await supabase
+            .from('community_members')
+            .update({
+              subscription_status: 'past_due',
+              updated_at: new Date().toISOString()
+            })
+            .eq('community_id', subscription.metadata.community_id)
+            .eq('user_id', subscription.metadata.user_id);
+
+          if (failureUpdateError) {
+            console.error('Error updating subscription status:', failureUpdateError);
+            return NextResponse.json(
+              { error: 'Failed to update subscription status' },
               { status: 500 }
             );
           }

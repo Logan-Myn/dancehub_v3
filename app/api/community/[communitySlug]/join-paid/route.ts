@@ -51,23 +51,43 @@ export async function POST(
       );
     }
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create(
+    // Create a customer in Stripe
+    const customer = await stripe.customers.create(
       {
-        amount: (community.membership_price || 0) * 100,
-        currency: "eur",
+        email,
         metadata: {
-          community_id: community.id,
           user_id: userId,
-        },
-        automatic_payment_methods: {
-          enabled: true,
+          community_id: community.id,
         },
       },
       {
         stripeAccount: community.stripe_account_id,
       }
     );
+
+    // Create a subscription
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: customer.id,
+        items: [{ price: community.stripe_price_id }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { 
+          payment_method_types: ['card'],
+          save_default_payment_method: 'on_subscription'
+        },
+        metadata: {
+          user_id: userId,
+          community_id: community.id,
+        },
+        expand: ['latest_invoice.payment_intent'],
+      },
+      {
+        stripeAccount: community.stripe_account_id,
+      }
+    );
+
+    // Get the client secret from the subscription's invoice
+    const clientSecret = (subscription.latest_invoice as any).payment_intent.client_secret;
 
     // Add member to community_members table
     const { error: memberError } = await supabase
@@ -77,18 +97,24 @@ export async function POST(
         user_id: userId,
         joined_at: new Date().toISOString(),
         role: "member",
-        status: "active",
-        subscription_status: "active",
-        payment_intent_id: paymentIntent.id
+        status: "pending", // Will be updated to active when payment succeeds
+        subscription_status: "incomplete",
+        stripe_customer_id: customer.id,
+        stripe_subscription_id: subscription.id
       });
 
     if (memberError) {
       console.error("Error adding member:", memberError);
-      // Attempt to cancel the payment intent if member creation fails
+      // Cancel the subscription if member creation fails
       try {
-        await stripe.paymentIntents.cancel(paymentIntent.id);
+        await stripe.subscriptions.cancel(
+          subscription.id,
+          {
+            stripeAccount: community.stripe_account_id,
+          }
+        );
       } catch (cancelError) {
-        console.error("Error canceling payment intent:", cancelError);
+        console.error("Error canceling subscription:", cancelError);
       }
       return NextResponse.json(
         { error: "Failed to add member" },
@@ -96,41 +122,15 @@ export async function POST(
       );
     }
 
-    // Update members_count in communities table
-    const { error: updateError } = await supabase.rpc(
-      'increment_members_count',
-      { community_id: community.id }
-    );
-
-    if (updateError) {
-      console.error("Error updating members count:", updateError);
-      // Rollback the member addition and cancel payment intent
-      await supabase
-        .from("community_members")
-        .delete()
-        .eq("community_id", community.id)
-        .eq("user_id", userId);
-      
-      try {
-        await stripe.paymentIntents.cancel(paymentIntent.id);
-      } catch (cancelError) {
-        console.error("Error canceling payment intent:", cancelError);
-      }
-
-      return NextResponse.json(
-        { error: "Failed to update members count" },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
-      stripeAccountId: community.stripe_account_id
+      clientSecret,
+      stripeAccountId: community.stripe_account_id,
+      subscriptionId: subscription.id
     });
   } catch (error) {
-    console.error("Error creating payment intent:", error);
+    console.error("Error creating subscription:", error);
     return NextResponse.json(
-      { error: "Failed to create payment" },
+      { error: "Failed to create subscription" },
       { status: 500 }
     );
   }
