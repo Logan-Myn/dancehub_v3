@@ -16,10 +16,28 @@ import {
 } from "@heroicons/react/24/outline";
 import { createClient } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
-import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users, BarChart3, MessageSquare, TrendingUp } from 'lucide-react';
+import {
+  DollarSign,
+  ExternalLink,
+  Loader2,
+  Plus,
+  X,
+  MessageCircle,
+  Lock,
+  Users,
+  BarChart3,
+  MessageSquare,
+  TrendingUp,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ThreadCategory } from "@/types/community";
 import {
   DndContext,
@@ -28,14 +46,14 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { DraggableCategory } from './DraggableCategory';
+} from "@dnd-kit/sortable";
+import { DraggableCategory } from "./DraggableCategory";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -63,55 +81,15 @@ interface CommunityMember {
   email: string;
   imageUrl: string;
   joinedAt: string;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   lastActive?: string;
-}
-
-interface StripeRequirement {
-  code: string;
-  message: string;
-}
-
-interface StripeRequirements {
-  currentlyDue: StripeRequirement[];
-  pastDue: StripeRequirement[];
-  eventuallyDue: StripeRequirement[];
-  currentDeadline?: number;
-  disabledReason?: string;
 }
 
 interface StripeAccountStatus {
   isEnabled: boolean;
   needsSetup: boolean;
   accountId?: string;
-  details?: {
-    chargesEnabled: boolean;
-    payoutsEnabled: boolean;
-    detailsSubmitted: boolean;
-    requirements: StripeRequirements;
-    businessType?: string;
-    capabilities?: Record<string, string>;
-    payoutSchedule?: any;
-    defaultCurrency?: string;
-    email?: string;
-  };
-}
-
-interface PayoutData {
-  balance: {
-    available: number;
-    pending: number;
-    currency: string;
-  };
-  payouts: Array<{
-    id: string;
-    amount: number;
-    currency: string;
-    arrivalDate: string;
-    status: string;
-    type: string;
-    bankAccount: any;
-  }>;
+  details?: any;
 }
 
 interface CommunitySettingsModalProps {
@@ -143,7 +121,7 @@ const navigationCategories = [
 
 const formatUrl = (url: string): string => {
   if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
   return `https://${url}`;
@@ -175,19 +153,21 @@ export default function CommunitySettingsModal({
   const [newCategoryIconType, setNewCategoryIconType] = useState("");
   const [isCreatorOnly, setIsCreatorOnly] = useState(false);
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
-  const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus>({
-    isEnabled: false,
-    needsSetup: true,
-  });
+  const [stripeAccountStatus, setStripeAccountStatus] =
+    useState<StripeAccountStatus>({
+      isEnabled: false,
+      needsSetup: true,
+    });
   const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(false);
   const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
   const [price, setPrice] = useState(0);
-  const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
-  const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
+  const [localCommunityStats, setLocalCommunityStats] =
+    useState<DashboardStats | null>(null);
+  const [revenueData, setRevenueData] = useState<RevenueData>({
+    monthlyRevenue: 0,
+  });
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
-  const [payoutData, setPayoutData] = useState<PayoutData | null>(null);
-  const [isLoadingPayouts, setIsLoadingPayouts] = useState(false);
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -196,13 +176,13 @@ export default function CommunitySettingsModal({
     async function fetchMembershipState() {
       try {
         const response = await fetch(`/api/community/${communitySlug}`);
-        if (!response.ok) throw new Error('Failed to fetch community data');
-        
+        if (!response.ok) throw new Error("Failed to fetch community data");
+
         const data = await response.json();
         setIsMembershipEnabled(data.membership_enabled || false);
         setPrice(data.membership_price || 0);
       } catch (error) {
-        console.error('Error fetching membership state:', error);
+        console.error("Error fetching membership state:", error);
       }
     }
 
@@ -220,14 +200,14 @@ export default function CommunitySettingsModal({
       }
 
       try {
-        const response = await fetch(`/api/stripe/account-status/${stripeAccountId}`);
+        const response = await fetch(
+          `/api/stripe/account-status/${stripeAccountId}`
+        );
         if (!response.ok) {
-          throw new Error('Failed to fetch Stripe status');
+          throw new Error("Failed to fetch Stripe status");
         }
-        
-        const data = await response.json();
-        console.log('Stripe account status:', data);
 
+        const data = await response.json();
         setStripeAccountStatus({
           isEnabled: data.chargesEnabled && data.payoutsEnabled,
           needsSetup: !data.detailsSubmitted,
@@ -235,7 +215,7 @@ export default function CommunitySettingsModal({
           details: data,
         });
       } catch (error) {
-        console.error('Error fetching Stripe status:', error);
+        console.error("Error fetching Stripe status:", error);
         setStripeAccountStatus({
           isEnabled: false,
           needsSetup: true,
@@ -245,66 +225,60 @@ export default function CommunitySettingsModal({
       }
     }
 
-    if (isOpen) {
-      setIsLoadingStripeStatus(true);
-      fetchStripeStatus();
-    }
-  }, [stripeAccountId, isOpen]);
+    fetchStripeStatus();
+  }, [stripeAccountId]);
 
-  // Fetch community stats
   useEffect(() => {
     async function fetchCommunityStats() {
-      if (activeCategory === 'dashboard') {
-        try {
-          const response = await fetch(`/api/community/${communitySlug}/stats`);
-          if (!response.ok) throw new Error('Failed to fetch community stats');
-          const data = await response.json();
-          setLocalCommunityStats(data);
-        } catch (error) {
-          console.error('Error fetching community stats:', error);
-          toast.error('Failed to fetch community stats');
-        }
+      try {
+        const response = await fetch(`/api/community/${communitySlug}/stats`);
+        if (!response.ok) throw new Error("Failed to fetch stats");
+        const stats = await response.json();
+        setLocalCommunityStats(stats);
+      } catch (error) {
+        console.error("Error fetching community stats:", error);
       }
     }
 
-    if (isOpen) {
+    if (activeCategory === "dashboard") {
       fetchCommunityStats();
     }
-  }, [communitySlug, activeCategory, isOpen]);
+  }, [communitySlug, activeCategory]);
 
-  // Fetch revenue data
   useEffect(() => {
     async function fetchRevenueData() {
-      if (activeCategory === 'dashboard') {
+      if (activeCategory === "dashboard" && stripeAccountId) {
         try {
-          const response = await fetch(`/api/community/${communitySlug}/stripe-revenue`);
-          if (!response.ok) throw new Error('Failed to fetch revenue data');
+          const response = await fetch(
+            `/api/community/${communitySlug}/stripe-revenue`
+          );
+          if (!response.ok) throw new Error("Failed to fetch revenue data");
           const data = await response.json();
           setRevenueData(data);
         } catch (error) {
-          console.error('Error fetching revenue data:', error);
-          toast.error('Failed to fetch revenue data');
+          console.error("Error fetching revenue data:", error);
+          toast.error("Failed to fetch revenue data");
         }
       }
     }
 
-    if (isOpen) {
-      fetchRevenueData();
-    }
-  }, [communitySlug, activeCategory, isOpen]);
+    fetchRevenueData();
+  }, [activeCategory, communitySlug, stripeAccountId]);
 
   useEffect(() => {
     async function fetchMembers() {
-      if (activeCategory === 'members') {
+      if (activeCategory === "members") {
         setIsLoadingMembers(true);
         try {
-          const response = await fetch(`/api/community/${communitySlug}/members`);
-          if (!response.ok) throw new Error('Failed to fetch members');
+          const response = await fetch(
+            `/api/community/${communitySlug}/members`
+          );
+          if (!response.ok) throw new Error("Failed to fetch members");
           const data = await response.json();
           setMembers(data.members);
         } catch (error) {
-          console.error('Error fetching members:', error);
-          toast.error('Failed to fetch members');
+          console.error("Error fetching members:", error);
+          toast.error("Failed to fetch members");
         } finally {
           setIsLoadingMembers(false);
         }
@@ -314,29 +288,8 @@ export default function CommunitySettingsModal({
     fetchMembers();
   }, [communitySlug, activeCategory]);
 
-  useEffect(() => {
-    async function fetchPayoutData() {
-      if (activeCategory === 'subscriptions' && stripeAccountId) {
-        setIsLoadingPayouts(true);
-        try {
-          const response = await fetch(`/api/community/${communitySlug}/payouts`);
-          if (!response.ok) throw new Error('Failed to fetch payout data');
-          const data = await response.json();
-          setPayoutData(data);
-        } catch (error) {
-          console.error('Error fetching payout data:', error);
-          toast.error('Failed to fetch payout data');
-        } finally {
-          setIsLoadingPayouts(false);
-        }
-      }
-    }
-
-    fetchPayoutData();
-  }, [activeCategory, communitySlug, stripeAccountId]);
-
   const handleAddLink = () => {
-    setLinks([...links, { title: '', url: '' }]);
+    setLinks([...links, { title: "", url: "" }]);
   };
 
   const handleRemoveLink = (index: number) => {
@@ -344,10 +297,14 @@ export default function CommunitySettingsModal({
     setLinks(newLinks);
   };
 
-  const handleLinkChange = (index: number, field: 'title' | 'url', value: string) => {
+  const handleLinkChange = (
+    index: number,
+    field: "title" | "url",
+    value: string
+  ) => {
     const newLinks = links.map((link: CustomLink, i: number) => {
       if (i === index) {
-        if (field === 'url') {
+        if (field === "url") {
           return { ...link, [field]: formatUrl(value) };
         }
         return { ...link, [field]: value };
@@ -360,14 +317,14 @@ export default function CommunitySettingsModal({
   const handleSaveChanges = useCallback(async () => {
     try {
       // Show loading toast
-      const loadingToast = toast.loading('Saving your changes...', {
+      const loadingToast = toast.loading("Saving your changes...", {
         duration: Infinity, // The toast will remain until we dismiss it
       });
 
       const response = await fetch(`/api/community/${communitySlug}/update`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name,
@@ -378,14 +335,14 @@ export default function CommunitySettingsModal({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update community');
+        throw new Error("Failed to update community");
       }
 
       const data = await response.json();
 
       // Update all the data through parent component
-      onCommunityUpdate({ 
-        name: data.data.name, 
+      onCommunityUpdate({
+        name: data.data.name,
         description: data.data.description,
       });
       onImageUpdate(data.data.imageUrl);
@@ -393,18 +350,27 @@ export default function CommunitySettingsModal({
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
-      toast.success('Your changes have been saved successfully!', {
+      toast.success("Your changes have been saved successfully!", {
         duration: 3000, // Toast will show for 3 seconds
-        icon: '✅',
+        icon: "✅",
       });
     } catch (error) {
-      console.error('Error saving changes:', error);
-      toast.error('Failed to save changes. Please try again.', {
+      console.error("Error saving changes:", error);
+      toast.error("Failed to save changes. Please try again.", {
         duration: 3000,
-        icon: '❌',
+        icon: "❌",
       });
     }
-  }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
+  }, [
+    name,
+    description,
+    imageUrl,
+    links,
+    communitySlug,
+    onCommunityUpdate,
+    onImageUpdate,
+    onCustomLinksUpdate,
+  ]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -420,12 +386,12 @@ export default function CommunitySettingsModal({
 
     try {
       // Create a unique file name with community folder
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const filePath = `${communityId}/${Date.now()}.${fileExt}`;
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('community-images')
+        .from("community-images")
         .upload(filePath, file);
 
       if (uploadError) {
@@ -434,18 +400,18 @@ export default function CommunitySettingsModal({
 
       // Get the public URL
       const { data: urlData } = supabase.storage
-        .from('community-images')
+        .from("community-images")
         .getPublicUrl(filePath);
 
       if (!urlData.publicUrl) {
-        throw new Error('Failed to get public URL');
+        throw new Error("Failed to get public URL");
       }
 
       // Update community image URL
       const { error: updateError } = await supabase
-        .from('communities')
+        .from("communities")
         .update({ image_url: urlData.publicUrl })
-        .eq('id', communityId);
+        .eq("id", communityId);
 
       if (updateError) {
         throw updateError;
@@ -464,10 +430,10 @@ export default function CommunitySettingsModal({
   const handleStripeConnect = async () => {
     try {
       setIsConnectingStripe(true);
-      const response = await fetch('/api/stripe/connect', {
-        method: 'POST',
+      const response = await fetch("/api/stripe/connect", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           communityId,
@@ -475,65 +441,42 @@ export default function CommunitySettingsModal({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to connect Stripe');
+        throw new Error("Failed to connect Stripe");
       }
 
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
-      console.error('Error connecting Stripe:', error);
-      toast.error('Failed to connect Stripe');
+      console.error("Error connecting Stripe:", error);
+      toast.error("Failed to connect Stripe");
     } finally {
       setIsConnectingStripe(false);
     }
   };
 
-  const handleCompleteVerification = async () => {
-    try {
-      // Create an account link specifically for updates
-      const response = await fetch('/api/stripe/create-update-link', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accountId: stripeAccountId,
-          returnUrl: window.location.href,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create update link');
-      }
-
-      const { url } = await response.json();
-      window.location.href = url;
-    } catch (error) {
-      console.error('Error creating update link:', error);
-      toast.error('Failed to open verification form');
-    }
-  };
-
   const handlePriceUpdate = async () => {
     try {
-      const response = await fetch(`/api/community/${communitySlug}/update-price`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          price,
-          enabled: isMembershipEnabled,
-        }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/update-price`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            price,
+            enabled: isMembershipEnabled,
+          }),
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Server error details:', data);
-        throw new Error(data.error || 'Failed to update price');
+        console.error("Server error details:", data);
+        throw new Error(data.error || "Failed to update price");
       }
-      
+
       // Update local state
       onCommunityUpdate({
         membership_enabled: isMembershipEnabled,
@@ -541,50 +484,62 @@ export default function CommunitySettingsModal({
         stripe_price_id: data.stripe_price_id,
       });
 
-      toast.success('Price updated successfully');
+      toast.success("Price updated successfully");
     } catch (error) {
-      console.error('Error updating price:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update price');
+      console.error("Error updating price:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update price"
+      );
     }
   };
 
   const handleAddCategory = () => {
     const newCategory: ThreadCategory = {
       id: crypto.randomUUID(),
-      name: '',
-      iconType: CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
-      color: '#000000',
+      name: "",
+      iconType:
+        CATEGORY_ICONS[Math.floor(Math.random() * CATEGORY_ICONS.length)].label,
+      color: "#000000",
     };
     setCategories([...categories, newCategory]);
   };
 
   const handleRemoveCategory = (id: string) => {
-    setCategories(categories.filter(cat => cat.id !== id));
+    setCategories(categories.filter((cat) => cat.id !== id));
   };
 
-  const handleCategoryChange = (id: string, field: keyof ThreadCategory, value: string | boolean) => {
-    setCategories(categories.map(cat => 
-      cat.id === id ? { ...cat, [field]: value } : cat
-    ));
+  const handleCategoryChange = (
+    id: string,
+    field: keyof ThreadCategory,
+    value: string | boolean
+  ) => {
+    setCategories(
+      categories.map((cat) =>
+        cat.id === id ? { ...cat, [field]: value } : cat
+      )
+    );
   };
 
   const handleSaveCategories = async () => {
     try {
-      const response = await fetch(`/api/community/${communitySlug}/categories`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ categories }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/categories`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ categories }),
+        }
+      );
 
-      if (!response.ok) throw new Error('Failed to update categories');
+      if (!response.ok) throw new Error("Failed to update categories");
 
       onThreadCategoriesUpdate(categories);
-      toast.success('Categories updated successfully');
+      toast.success("Categories updated successfully");
     } catch (error) {
-      console.error('Error updating categories:', error);
-      toast.error('Failed to update categories');
+      console.error("Error updating categories:", error);
+      toast.error("Failed to update categories");
     }
   };
 
@@ -609,298 +564,138 @@ export default function CommunitySettingsModal({
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('Are you sure you want to remove this member?')) return;
+    if (!confirm("Are you sure you want to remove this member?")) return;
 
     try {
       const response = await fetch(
         `/api/community/${communitySlug}/members/${memberId}`,
         {
-          method: 'DELETE',
+          method: "DELETE",
         }
       );
 
-      if (!response.ok) throw new Error('Failed to remove member');
+      if (!response.ok) throw new Error("Failed to remove member");
 
-      setMembers(members.filter(member => member.id !== memberId));
-      toast.success('Member removed successfully');
+      setMembers(members.filter((member) => member.id !== memberId));
+      toast.success("Member removed successfully");
     } catch (error) {
-      console.error('Error removing member:', error);
-      toast.error('Failed to remove member');
+      console.error("Error removing member:", error);
+      toast.error("Failed to remove member");
     }
   };
 
-  const RequirementsSection = ({ requirements }: { requirements: StripeRequirements }) => {
-    console.log('Requirements data:', requirements);
-
-    if (!requirements) {
-      console.log('No requirements data');
-      return null;
-    }
-
-    const hasRequirements = requirements.currentlyDue.length > 0 || 
-      requirements.pastDue.length > 0 || 
-      requirements.eventuallyDue.length > 0;
-    
-    console.log('Has requirements:', hasRequirements);
-    console.log('Currently due:', requirements.currentlyDue);
-    console.log('Past due:', requirements.pastDue);
-    console.log('Eventually due:', requirements.eventuallyDue);
-
-    if (!hasRequirements) return null;
-
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <h4 className="text-sm font-medium text-amber-800 mb-2">
-          Action Required for Stripe Payouts
-        </h4>
-        <div className="space-y-3">
-          {requirements.pastDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-red-800">Past Due:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.pastDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-red-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.currentlyDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-amber-800">Currently Due:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.currentlyDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-amber-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.eventuallyDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-800">Required Soon:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.eventuallyDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-blue-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.currentDeadline && (
-            <p className="text-sm text-amber-700">
-              Deadline: {new Date(requirements.currentDeadline * 1000).toLocaleDateString()}
-            </p>
-          )}
-          <div className="mt-4">
+  const renderSubscriptions = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-medium">Community Membership</h3>
+          {stripeAccountStatus.isEnabled && (
             <Button
-              onClick={handleCompleteVerification}
               variant="outline"
               size="sm"
-              className="w-full bg-white hover:bg-amber-50"
+              onClick={() =>
+                window.open("https://dashboard.stripe.com", "_blank")
+              }
             >
-              Complete Verification
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Stripe Dashboard
             </Button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderSubscriptions = () => {
-    // Debug logs
-    console.log('Stripe account status in render:', stripeAccountStatus);
-    
-    return (
-      <div className="space-y-6">
-        {stripeAccountStatus.details?.requirements && (
-          <RequirementsSection requirements={stripeAccountStatus.details.requirements} />
-        )}
-        
-        <div className="bg-gray-50 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium">Community Membership</h3>
-            {stripeAccountStatus.isEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Stripe Dashboard
-              </Button>
-            )}
-          </div>
-
-          {isLoadingStripeStatus ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-            </div>
-          ) : stripeAccountStatus.isEnabled ? (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Paid Membership</h4>
-                  <p className="text-sm text-gray-500">Enable paid membership for your community</p>
-                </div>
-                <Switch
-                  checked={isMembershipEnabled}
-                  onCheckedChange={setIsMembershipEnabled}
-                />
-              </div>
-
-              {isMembershipEnabled && (
-                <div className="space-y-4 pt-4 border-t">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Monthly Membership Price
-                    </label>
-                    <div className="mt-1 relative rounded-md shadow-sm">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">€</span>
-                      </div>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={price}
-                        onChange={(e) => setPrice(Number(e.target.value))}
-                        className="pl-7"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Set the monthly price for your community membership
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={handlePriceUpdate}
-                    className="w-full"
-                  >
-                    Update Membership Price
-                  </Button>
-                </div>
-              )}
-
-              <div className="mt-8 pt-6 border-t">
-                <h3 className="text-lg font-medium mb-4">Payout Management</h3>
-                
-                {isLoadingPayouts ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-                  </div>
-                ) : payoutData ? (
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-lg border border-gray-200">
-                      <h4 className="text-sm font-medium text-gray-500 mb-4">Current Balance</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-2xl font-bold">
-                            €{payoutData.balance.available.toFixed(2)}
-                          </p>
-                          <p className="text-sm text-gray-500">Available</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold">
-                            €{payoutData.balance.pending.toFixed(2)}
-                          </p>
-                          <p className="text-sm text-gray-500">Pending</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500 mb-4">Recent Payouts</h4>
-                      <div className="space-y-4">
-                        {payoutData.payouts.length > 0 ? (
-                          payoutData.payouts.map((payout) => (
-                            <div
-                              key={payout.id}
-                              className="bg-white p-4 rounded-lg border border-gray-200"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="font-medium">
-                                    €{payout.amount.toFixed(2)}
-                                  </p>
-                                  <p className="text-sm text-gray-500">
-                                    {new Date(payout.arrivalDate).toLocaleDateString()}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                    payout.status === 'paid'
-                                      ? 'bg-green-100 text-green-800'
-                                      : payout.status === 'pending'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-gray-100 text-gray-800'
-                                  }`}
-                                >
-                                  {payout.status}
-                                </span>
-                              </div>
-                              {payout.bankAccount && (
-                                <p className="text-sm text-gray-500 mt-2">
-                                  To: •••• {payout.bankAccount.last4}
-                                </p>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500 text-center py-4">
-                            No recent payouts
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    Failed to load payout information
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Connect your Stripe account to start accepting payments from your community members.
-              </p>
-              
-              <Button
-                onClick={handleStripeConnect}
-                disabled={isConnectingStripe}
-                className="w-full"
-              >
-                {isConnectingStripe ? (
-                  'Connecting...'
-                ) : (
-                  <>
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Connect Stripe Account
-                  </>
-                )}
-              </Button>
-            </div>
           )}
         </div>
+
+        {isLoadingStripeStatus ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          </div>
+        ) : stripeAccountStatus.isEnabled ? (
+          // Show membership settings if Stripe is connected
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium">Paid Membership</h4>
+                <p className="text-sm text-gray-500">
+                  Enable paid membership for your community
+                </p>
+              </div>
+              <Switch
+                checked={isMembershipEnabled}
+                onCheckedChange={setIsMembershipEnabled}
+              />
+            </div>
+
+            {isMembershipEnabled && (
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Monthly Membership Price
+                  </label>
+                  <div className="mt-1 relative rounded-md shadow-sm">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-500 sm:text-sm">€</span>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={price}
+                      onChange={(e) => setPrice(Number(e.target.value))}
+                      className="pl-7"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Set the monthly price for your community membership
+                  </p>
+                </div>
+
+                <Button onClick={handlePriceUpdate} className="w-full">
+                  Update Membership Price
+                </Button>
+              </div>
+            )}
+
+            {!isMembershipEnabled && (
+              <div className="bg-gray-100 p-4 rounded-md">
+                <p className="text-sm text-gray-600">
+                  Your community is currently free to join. Enable paid
+                  membership to start monetizing your community.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          // Show Stripe Connect button if not connected
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Connect your Stripe account to start accepting payments from your
+              community members.
+            </p>
+
+            <Button
+              onClick={handleStripeConnect}
+              disabled={isConnectingStripe}
+              className="w-full"
+            >
+              {isConnectingStripe ? (
+                "Connecting..."
+              ) : (
+                <>
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Connect Stripe Account
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
   const renderThreadCategories = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium">Thread Categories</h3>
-        <Button
-          onClick={handleAddCategory}
-          variant="outline"
-          size="sm"
-        >
+        <Button onClick={handleAddCategory} variant="outline" size="sm">
           <Plus className="h-4 w-4 mr-2" />
           Add Category
         </Button>
@@ -912,7 +707,7 @@ export default function CommunitySettingsModal({
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={categories.map(cat => cat.id)}
+          items={categories.map((cat) => cat.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-4">
@@ -929,17 +724,15 @@ export default function CommunitySettingsModal({
       </DndContext>
 
       {categories.length > 0 && (
-        <Button
-          onClick={handleSaveCategories}
-          className="w-full"
-        >
+        <Button onClick={handleSaveCategories} className="w-full">
           Save Categories
         </Button>
       )}
 
       {categories.length === 0 && (
         <p className="text-sm text-gray-500 text-center">
-          No categories yet. Add some to help organize threads in your community.
+          No categories yet. Add some to help organize threads in your
+          community.
         </p>
       )}
     </div>
@@ -954,16 +747,20 @@ export default function CommunitySettingsModal({
             <h3 className="text-sm font-medium text-gray-500">Total Members</h3>
             <Users className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.totalMembers || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.totalMembers || 0}
+          </p>
           <p className="text-sm text-green-600">
-            <TrendingUp className="h-4 w-4 inline mr-1" />
-            +{localCommunityStats?.membershipGrowth || 0}% this month
+            <TrendingUp className="h-4 w-4 inline mr-1" />+
+            {localCommunityStats?.membershipGrowth || 0}% this month
           </p>
         </Card>
 
         <Card className="p-6 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Monthly Revenue</h3>
+            <h3 className="text-sm font-medium text-gray-500">
+              Monthly Revenue
+            </h3>
             <DollarSign className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold">
@@ -979,16 +776,22 @@ export default function CommunitySettingsModal({
             <h3 className="text-sm font-medium text-gray-500">Total Threads</h3>
             <MessageSquare className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.totalThreads || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.totalThreads || 0}
+          </p>
           <p className="text-sm text-gray-500">Across all categories</p>
         </Card>
 
         <Card className="p-6 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Active Members</h3>
+            <h3 className="text-sm font-medium text-gray-500">
+              Active Members
+            </h3>
             <BarChart3 className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-bold">{localCommunityStats?.activeMembers || 0}</p>
+          <p className="text-2xl font-bold">
+            {localCommunityStats?.activeMembers || 0}
+          </p>
           <p className="text-sm text-gray-500">In the last 30 days</p>
         </Card>
       </div>
@@ -998,7 +801,10 @@ export default function CommunitySettingsModal({
         <h3 className="text-lg font-medium mb-4">Recent Activity</h3>
         <div className="space-y-4">
           {/* We'll implement this later */}
-          <p className="text-sm text-gray-500">Coming soon: Activity feed showing recent joins, posts, and interactions</p>
+          <p className="text-sm text-gray-500">
+            Coming soon: Activity feed showing recent joins, posts, and
+            interactions
+          </p>
         </div>
       </Card>
 
@@ -1068,7 +874,10 @@ export default function CommunitySettingsModal({
                     <div className="flex items-center">
                       <div className="h-10 w-10 flex-shrink-0">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.imageUrl} alt={member.displayName} />
+                          <AvatarImage
+                            src={member.imageUrl}
+                            alt={member.displayName}
+                          />
                           <AvatarFallback>
                             {member.displayName[0]?.toUpperCase() || "?"}
                           </AvatarFallback>
@@ -1090,14 +899,20 @@ export default function CommunitySettingsModal({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        member.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
                       {member.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {member.lastActive ? new Date(member.lastActive).toLocaleDateString() : 'N/A'}
+                    {member.lastActive
+                      ? new Date(member.lastActive).toLocaleDateString()
+                      : "N/A"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
@@ -1189,7 +1004,11 @@ export default function CommunitySettingsModal({
                   {/* Main content */}
                   <div className="w-3/4 p-6 overflow-y-auto">
                     <h2 className="text-2xl font-semibold mb-4">
-                      {navigationCategories.find((c) => c.id === activeCategory)?.name}
+                      {
+                        navigationCategories.find(
+                          (c) => c.id === activeCategory
+                        )?.name
+                      }
                     </h2>
 
                     {activeCategory === "general" && (
@@ -1267,13 +1086,25 @@ export default function CommunitySettingsModal({
                                 <Input
                                   placeholder="Link Title (e.g., Instagram)"
                                   value={link.title}
-                                  onChange={(e) => handleLinkChange(index, 'title', e.target.value)}
+                                  onChange={(e) =>
+                                    handleLinkChange(
+                                      index,
+                                      "title",
+                                      e.target.value
+                                    )
+                                  }
                                   className="flex-1"
                                 />
                                 <Input
                                   placeholder="URL (e.g., instagram.com/your-profile)"
                                   value={link.url}
-                                  onChange={(e) => handleLinkChange(index, 'url', e.target.value)}
+                                  onChange={(e) =>
+                                    handleLinkChange(
+                                      index,
+                                      "url",
+                                      e.target.value
+                                    )
+                                  }
                                   className="flex-1"
                                 />
                                 <Button
@@ -1295,7 +1126,8 @@ export default function CommunitySettingsModal({
                             </Button>
                           </div>
                           <p className="mt-1 text-sm text-gray-500">
-                            Add useful links for your community members (e.g., social media profiles, website)
+                            Add useful links for your community members (e.g.,
+                            social media profiles, website)
                           </p>
                         </div>
 
@@ -1308,9 +1140,11 @@ export default function CommunitySettingsModal({
                       </div>
                     )}
 
-                    {activeCategory === "subscriptions" && renderSubscriptions()}
+                    {activeCategory === "subscriptions" &&
+                      renderSubscriptions()}
 
-                    {activeCategory === "thread_categories" && renderThreadCategories()}
+                    {activeCategory === "thread_categories" &&
+                      renderThreadCategories()}
 
                     {activeCategory === "dashboard" && renderDashboard()}
 
@@ -1326,4 +1160,4 @@ export default function CommunitySettingsModal({
       </Dialog>
     </Transition.Root>
   );
-} 
+}

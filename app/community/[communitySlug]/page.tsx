@@ -32,6 +32,8 @@ import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
+import { StripeRequirementsAlert } from '@/components/StripeRequirementsAlert';
+import { CommunityHeader } from '@/components/CommunityHeader';
 
 interface CustomLink {
   title: string;
@@ -791,6 +793,34 @@ export default function CommunityPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add the alert if user is the community creator */}
+      {community.created_by === currentUser?.id && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <StripeRequirementsAlert 
+            stripeAccountId={community.stripe_account_id}
+            onSettingsClick={() => {
+              // Open settings modal and navigate to subscriptions tab
+              setIsSettingsModalOpen(true);
+              setActiveSettingsTab('subscriptions');
+            }}
+          />
+        </div>
+      )}
+
+      <CommunityHeader 
+        community={{
+          id: community.id,
+          name: community.name,
+          description: community.description,
+          image_url: community.image_url,
+          created_by: community.created_by,
+          stripeAccountId: community.stripe_account_id,
+          customLinks: community.custom_links || [],
+          threadCategories: community.thread_categories || [],
+        }}
+        currentUserId={currentUser?.id || null}
+      />
     </div>
   );
 }
