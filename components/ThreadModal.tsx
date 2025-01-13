@@ -238,6 +238,9 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
         content: editedContent.trim(),
       });
 
+      thread.title = editedTitle.trim();
+      thread.content = editedContent.trim();
+
       setIsEditing(false);
       toast.success('Thread updated successfully');
     } catch (error) {
@@ -453,7 +456,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   placeholder="Thread title"
                 />
                 <Editor
-                  content={thread.content}
+                  content={editedContent}
                   onChange={(html) => setEditedContent(html)}
                   editable={true}
                 />
@@ -474,9 +477,9 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
               </div>
             ) : (
               <>
-                <h2 className="text-2xl font-semibold mb-4">{thread.title}</h2>
+                <h2 className="text-2xl font-semibold mb-4">{editedTitle}</h2>
                 <Editor
-                  content={thread.content}
+                  content={editedContent}
                   onChange={() => {}}
                   editable={false}
                 />
