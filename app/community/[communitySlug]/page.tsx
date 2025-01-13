@@ -361,11 +361,12 @@ export default function CommunityPage() {
   };
 
   const handleNewThread = async (newThread: any) => {
+    const userProfile = members.find(m => m.user_id === currentUser?.id)?.profile;
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: formatDisplayName(currentUser?.user_metadata?.full_name) || currentUser?.email?.split('@')[0] || "Anonymous",
-        image: currentUser?.user_metadata?.avatar_url || "",
+        name: userProfile?.full_name || formatDisplayName(currentUser?.user_metadata?.full_name) || currentUser?.email?.split('@')[0] || "Anonymous",
+        image: userProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,
       category: community?.threadCategories?.find(
@@ -443,6 +444,54 @@ export default function CommunityPage() {
     return threads.filter((thread) => thread.categoryId === selectedCategory);
   }, [threads, selectedCategory]);
 
+  const fetchThreads = async () => {
+    if (!community) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Get threads with profile data
+      const { data: threadsData, error } = await supabase
+        .from('threads')
+        .select(`
+          *,
+          profiles:user_id (
+            avatar_url,
+            full_name
+          )
+        `)
+        .eq('community_id', community.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedThreads = threadsData.map((thread: any) => ({
+        id: thread.id,
+        title: thread.title,
+        content: thread.content,
+        createdAt: thread.created_at,
+        userId: thread.user_id,
+        author: {
+          name: thread.author_name || thread.profiles?.full_name || 'Anonymous',
+          image: thread.profiles?.avatar_url || thread.author_image || '',
+        },
+        category: thread.category_name,
+        categoryId: thread.category_id,
+        likesCount: thread.likes?.length || 0,
+        commentsCount: thread.comments?.length || 0,
+        likes: thread.likes || [],
+        comments: thread.comments || [],
+      }));
+
+      setThreads(formattedThreads);
+    } catch (error) {
+      console.error('Error fetching threads:', error);
+      setError(error as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (error) {
     return <div>Error loading community: {error.message}</div>;
   }
@@ -479,11 +528,11 @@ export default function CommunityPage() {
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={currentUser?.user_metadata?.avatar_url || ""}
-                        alt={currentUser?.user_metadata?.full_name || "User"}
+                        src={members.find(m => m.user_id === currentUser?.id)?.profile?.avatar_url || currentUser?.user_metadata?.avatar_url || ""}
+                        alt={members.find(m => m.user_id === currentUser?.id)?.profile?.full_name || currentUser?.user_metadata?.full_name || "User"}
                       />
                       <AvatarFallback>
-                        {currentUser?.user_metadata?.full_name?.[0] || "U"}
+                        {(members.find(m => m.user_id === currentUser?.id)?.profile?.full_name?.[0] || currentUser?.user_metadata?.full_name?.[0] || "U").toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div

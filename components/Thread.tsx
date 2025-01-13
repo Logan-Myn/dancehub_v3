@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { toast } from "react-hot-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -43,9 +43,27 @@ export default function Thread({
   const [selectedCategory, setSelectedCategory] = useState("");
   const { user } = useAuth();
   const [content, setContent] = useState("");
+  const [profile, setProfile] = useState<any>(null);
   const supabase = createClient();
 
   const isCreator = user?.id === community.created_by;
+
+  // Fetch user's profile data
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      setProfile(data);
+    }
+    
+    fetchProfile();
+  }, [user, supabase]);
 
   const editor = useEditor({
     extensions: [
@@ -103,8 +121,8 @@ export default function Thread({
           )?.name,
           author: {
             id: user.id,
-            name: formatDisplayName(user.user_metadata?.full_name) || 'Anonymous',
-            avatar_url: user.user_metadata?.avatar_url,
+            name: formatDisplayName(profile?.full_name) || formatDisplayName(user?.user_metadata?.full_name) || 'Anonymous',
+            avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url,
           },
         }),
       });
@@ -140,8 +158,8 @@ export default function Thread({
     }
   };
 
-  const userDisplayName = formatDisplayName(user?.user_metadata?.full_name) || user?.email?.split('@')[0] || 'Anonymous';
-  const userAvatarUrl = user?.user_metadata?.avatar_url;
+  const userDisplayName = formatDisplayName(profile?.full_name) || formatDisplayName(user?.user_metadata?.full_name) || user?.email?.split('@')[0] || 'Anonymous';
+  const userAvatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
   return (

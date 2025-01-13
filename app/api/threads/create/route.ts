@@ -32,6 +32,13 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get user's profile to ensure we have the correct avatar URL
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .single();
+
     // Create the thread with author info included
     const { data: thread, error: threadError } = await supabase
       .from('threads')
@@ -44,7 +51,7 @@ export async function POST(request: Request) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         author_name: author.name,
-        author_image: author.avatar_url,
+        author_image: profile?.avatar_url || author.avatar_url,
         category_id: categoryId,
         category_name: categoryName,
       })
