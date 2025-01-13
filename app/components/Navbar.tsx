@@ -5,24 +5,42 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
-import { auth } from "@/lib/firebase";
-import { User } from "firebase/auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { createClient } from "@/lib/supabase/client";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 export default function Navbar() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [user, setUser] = useState<User | null>(null);
+  const [initialTab, setInitialTab] = useState<"signin" | "signup">("signin");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const { user } = useAuth();
+  const supabase = createClient();
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-    });
+    async function fetchProfile() {
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
 
-    return () => unsubscribe();
-  }, []);
+        if (!error && data) {
+          setProfile(data);
+        }
+      }
+    }
 
-  const handleAuthClick = (mode: "signin" | "signup") => {
-    setAuthMode(mode);
+    fetchProfile();
+  }, [user]);
+
+  const handleAuthClick = (tab: "signin" | "signup") => {
+    setInitialTab(tab);
     setShowAuthModal(true);
   };
 
@@ -36,7 +54,7 @@ export default function Navbar() {
 
           <div className="flex gap-4 items-center">
             {user ? (
-              <UserAccountNav user={user} />
+              <UserAccountNav user={user} profile={profile} />
             ) : (
               <>
                 <Button
@@ -57,7 +75,7 @@ export default function Navbar() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        mode={authMode}
+        initialTab={initialTab}
       />
     </>
   );

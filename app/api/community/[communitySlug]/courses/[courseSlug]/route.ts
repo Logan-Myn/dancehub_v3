@@ -1,97 +1,129 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function GET(
   req: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string } }
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string };
+  }
 ) {
   try {
-    console.log("API: Fetching course with params:", params);
+    const supabase = createAdminClient();
 
-    // First get the community document
-    const communityQuery = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community ID
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communityQuery.empty) {
-      console.log("Community not found");
-      return NextResponse.json({ error: "Community not found" }, { status: 404 });
+    if (communityError || !community) {
+      return new NextResponse("Community not found", { status: 404 });
     }
 
-    const communityDoc = communityQuery.docs[0];
+    // Get course with basic info
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select(`
+        id,
+        title,
+        description,
+        slug
+      `)
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    // Then get the course using the community document reference
-    const courseQuery = await communityDoc.ref
-      .collection("courses")
-      .where("slug", "==", params.courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseQuery.empty) {
-      console.log("Course not found");
-      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    if (courseError || !course) {
+      console.error("Error fetching course:", courseError);
+      return new NextResponse("Course not found", { status: 404 });
     }
 
-    const courseDoc = courseQuery.docs[0];
-    const courseData: any = {
-      id: courseDoc.id,
-      ...courseDoc.data()
-    };
+    // Get chapters with explicit ordering
+    const { data: chapters, error: chaptersError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("course_id", course.id)
+      .order("chapter_position", { ascending: true });
 
-    // Get all chapters with their lessons
-    const chaptersSnapshot = await courseDoc.ref
-      .collection("chapters")
-      .orderBy("order")
-      .get();
+    if (chaptersError) {
+      console.error("Error fetching chapters:", chaptersError);
+      return new NextResponse("Failed to fetch chapters", { status: 500 });
+    }
 
-    const chapters = await Promise.all(
-      chaptersSnapshot.docs.map(async (chapterDoc) => {
-        // Get lessons for each chapter
-        const lessonsSnapshot = await chapterDoc.ref
-          .collection("lessons")
-          .orderBy("order")
-          .get();
+    console.log('Fetched chapters:', chapters.map(c => ({
+      id: c.id,
+      title: c.title,
+      chapter_position: c.chapter_position
+    })));
 
-        // Make sure to include all lesson data, including videoAssetId
-        const lessons = lessonsSnapshot.docs.map((lessonDoc) => {
-          const lessonData = lessonDoc.data();
-          console.log("Raw lesson data from Firestore:", lessonData);
-          return {
-            id: lessonDoc.id,
-            title: lessonData.title,
-            content: lessonData.content,
-            videoAssetId: lessonData.videoAssetId || null,
-            order: lessonData.order,
-            createdAt: lessonData.createdAt,
-            updatedAt: lessonData.updatedAt,
-            createdBy: lessonData.createdBy,
-          };
-        });
+    // Get lessons for each chapter with explicit ordering
+    const chaptersWithLessons = await Promise.all(
+      chapters.map(async (chapter) => {
+        console.log(`Fetching lessons for chapter ${chapter.id} (${chapter.title})`);
+        
+        // Get raw lessons data directly from database with explicit ordering
+        const { data: lessons, error: lessonsError } = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("chapter_id", chapter.id)
+          .order("lesson_position", { ascending: true });
 
+        if (lessonsError) {
+          console.error("Error fetching lessons:", lessonsError);
+          throw lessonsError;
+        }
+
+        console.log(`Raw lessons for chapter ${chapter.id}:`, 
+          lessons.map(l => ({
+            id: l.id,
+            title: l.title,
+            lesson_position: l.lesson_position
+          }))
+        );
+
+        // Return chapter with its raw lessons data
         return {
-          id: chapterDoc.id,
-          title: chapterDoc.data().title,
-          order: chapterDoc.data().order,
-          lessons,
+          ...chapter,
+          lessons: lessons
         };
       })
     );
 
-    courseData.chapters = chapters;
+    const fullCourse = {
+      ...course,
+      chapters: chaptersWithLessons
+    };
 
-    console.log("API: Successfully fetched course data with lessons:", {
-      chaptersCount: chapters.length,
-      lessonsCount: chapters.reduce((acc, chapter) => acc + chapter.lessons.length, 0),
+    console.log('Final data structure:', {
+      course_id: course.id,
+      chapters: fullCourse.chapters.map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        chapter_position: c.chapter_position,
+        lessons: c.lessons.map((l: any) => ({
+          id: l.id,
+          title: l.title,
+          lesson_position: l.lesson_position
+        }))
+      }))
     });
 
-    return NextResponse.json(courseData);
+    console.log('Final data being sent:', JSON.stringify(fullCourse, null, 2));
+
+    return new NextResponse(JSON.stringify(fullCourse), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store'
+      }
+    });
   } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch course" },
-      { status: 500 }
-    );
+    console.error("Error in course route:", error);
+    return new NextResponse("Internal server error", { status: 500 });
   }
 } 

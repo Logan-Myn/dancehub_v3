@@ -1,56 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { ThumbsUp, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName } from "@/lib/utils";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
-import { ThumbsUp } from "lucide-react";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+import { createClient } from "@/lib/supabase";
 
 interface CommentProps {
   id: string;
-  threadId: string;
   content: string;
   author: {
     name: string;
     image: string;
   };
-  createdAt: string;
-  replies?: CommentProps[];
-  onReply: (commentId: string, content: string) => Promise<void>;
-  depth?: number;
+  created_at: string;
+  threadId: string;
+  parent_id?: string;
   likes?: string[];
-  likesCount?: number;
-  onLikeUpdate?: (commentId: string, newLikesCount: number, liked: boolean) => void;
+  likes_count?: number;
+  replies?: CommentProps[];
+  onLike?: (commentId: string, newLikesCount: number, liked: boolean) => void;
+  onReply?: (commentId: string, content: string) => Promise<any>;
 }
 
-export default function Comment({ 
-  id, 
-  threadId, 
-  content, 
-  author, 
-  createdAt, 
-  replies = [], 
-  onReply,
-  depth = 0,
+export default function Comment({
+  id,
+  content,
+  author,
+  created_at,
+  threadId,
+  parent_id,
   likes = [],
-  likesCount = 0,
-  onLikeUpdate,
+  likes_count = 0,
+  replies = [],
+  onLike,
+  onReply
 }: CommentProps) {
   const { user } = useAuth();
+  const supabase = createClient();
+  const [isLiking, setIsLiking] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLiking, setIsLiking] = useState(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
   const [localLikes, setLocalLikes] = useState(likes);
-  const [localLikesCount, setLocalLikesCount] = useState(likesCount);
-
-  const formattedAuthorName = formatDisplayName(author.name);
-  const maxDepth = 5;
-  const isLiked = user ? localLikes.includes(user.uid) : false;
+  const [localLikesCount, setLocalLikesCount] = useState(likes_count);
+  const isLiked = user?.id ? localLikes.includes(user.id) : false;
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -63,158 +63,156 @@ export default function Comment({
     if (isLiking) return;
 
     setIsLiking(true);
-
-    const newLikes = isLiked
-      ? localLikes.filter(id => id !== user.uid)
-      : [...localLikes, user.uid];
-    
+    const newLikes = isLiked 
+      ? localLikes.filter(id => id !== user.id)
+      : [...localLikes, user.id];
+    const newLikesCount = isLiked ? localLikesCount - 1 : localLikesCount + 1;
     setLocalLikes(newLikes);
-    setLocalLikesCount(newLikes.length);
-    onLikeUpdate?.(id, newLikes.length, !isLiked);
+    setLocalLikesCount(newLikesCount);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const response = await fetch(`/api/threads/${threadId}/comments/${id}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ userId: user.uid }),
+        body: JSON.stringify({ userId: user.id }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to like comment');
+        setLocalLikes(likes);
+        setLocalLikesCount(likes_count);
+        const error = await response.text();
+        throw new Error(error || 'Failed to like comment');
       }
 
       const data = await response.json();
-      
-      setLocalLikes(isLiked ? localLikes.filter(id => id !== user.uid) : [...localLikes, user.uid]);
-      setLocalLikesCount(data.likesCount);
-      onLikeUpdate?.(id, data.likesCount, data.liked);
+      onLike?.(id, data.likes_count, data.liked);
     } catch (error) {
-      setLocalLikes(likes);
-      setLocalLikesCount(likesCount);
-      onLikeUpdate?.(id, likesCount, isLiked);
       console.error('Error liking comment:', error);
-      toast.error('Failed to like comment');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to like comments');
+      } else {
+        toast.error('Failed to like comment. Please try again.');
+      }
     } finally {
       setIsLiking(false);
     }
   };
 
-  const handleSubmitReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!user) {
-      toast.error('Please sign in to reply');
-      return;
-    }
-
-    if (!replyContent.trim()) {
-      return;
-    }
-
-    setIsSubmitting(true);
+  const handleSubmitReply = async () => {
+    if (!replyContent.trim()) return;
 
     try {
-      await onReply(id, replyContent);
-      setReplyContent('');
-      setIsReplying(false);
-      toast.success('Reply posted successfully');
+      setIsSubmittingReply(true);
+      const newReply = await onReply?.(id, replyContent);
+      if (newReply) {
+        setReplyContent('');
+        setIsReplying(false);
+        setShowReplies(true);
+      }
     } catch (error) {
-      console.error('Error posting reply:', error);
-      toast.error('Failed to post reply');
+      console.error('Error submitting reply:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingReply(false);
     }
   };
 
+  useEffect(() => {
+    setLocalLikes(likes);
+    setLocalLikesCount(likes_count);
+  }, [likes, likes_count]);
+
   return (
-    <div className={`${depth > 0 ? 'ml-6 mt-4' : ''}`}>
-      <div className="flex space-x-3">
+    <div className="space-y-4">
+      <div className="flex items-start gap-4">
         <Avatar className="h-8 w-8">
-          <AvatarImage src={author.image} alt={formattedAuthorName} />
-          <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
+          <AvatarImage src={author.image} alt={formatDisplayName(author.name)} />
+          <AvatarFallback>{formatDisplayName(author.name)[0]}</AvatarFallback>
         </Avatar>
-        <div className="flex-1">
-          <div className="flex items-center space-x-2">
-            <span className="font-medium">{formattedAuthorName}</span>
-            <span className="text-gray-500">·</span>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{formatDisplayName(author.name)}</span>
             <span className="text-sm text-gray-500">
-              {formatDistanceToNow(new Date(createdAt))} ago
+              {formatDistanceToNow(new Date(created_at), { addSuffix: true })}
             </span>
           </div>
-          <p className="mt-1 text-gray-800">{content}</p>
-          
-          <div className="mt-2 flex items-center space-x-4">
-            <button 
+          <p className="text-sm text-gray-700">{content}</p>
+          <div className="flex items-center gap-4">
+            <button
               onClick={handleLike}
-              className={`flex items-center space-x-1 text-sm ${
-                isLiked ? 'text-blue-500' : 'text-gray-500'
-              } hover:text-blue-500 transition-colors`}
-              disabled={isLiking}
+              className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
+                isLiked ? 'text-blue-500' : ''
+              }`}
+              disabled={isLiking || !user}
             >
-              <ThumbsUp className="h-4 w-4" />
+              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''}`} />
               <span>{localLikesCount}</span>
             </button>
-
-            {!isReplying && depth < maxDepth && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsReplying(true)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                Reply
-              </Button>
-            )}
+            <button
+              onClick={() => setIsReplying(!isReplying)}
+              className="text-sm text-gray-500 hover:text-blue-500"
+            >
+              Reply
+            </button>
           </div>
-
           {isReplying && (
-            <form onSubmit={handleSubmitReply} className="mt-2">
-              <Textarea
+            <div className="mt-4 space-y-2">
+              <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder="Write a reply..."
-                className="min-h-[80px] mb-2"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                rows={3}
               />
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setIsReplying(false);
-                    setReplyContent('');
-                  }}
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsReplying(false)}
+                  className="rounded-md px-3 py-1 text-sm text-gray-500 hover:bg-gray-100"
                 >
                   Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isSubmitting || !replyContent.trim()}
+                </button>
+                <button
+                  onClick={handleSubmitReply}
+                  disabled={isSubmittingReply || !replyContent.trim()}
+                  className="rounded-md bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Posting...' : 'Post'}
-                </Button>
+                  {isSubmittingReply ? 'Posting...' : 'Reply'}
+                </button>
               </div>
-            </form>
+            </div>
           )}
-
-          {replies && replies.length > 0 && (
-            <div className="mt-4">
+        </div>
+      </div>
+      {replies.length > 0 && (
+        <div className="ml-12">
+          <button
+            onClick={() => setShowReplies(!showReplies)}
+            className="mb-2 text-sm text-gray-500 hover:text-blue-500"
+          >
+            {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          </button>
+          {showReplies && (
+            <div className="space-y-4">
               {replies.map((reply) => (
                 <Comment
                   key={reply.id}
                   {...reply}
-                  depth={depth + 1}
+                  threadId={threadId}
+                  onLike={onLike}
                   onReply={onReply}
-                  onLikeUpdate={onLikeUpdate}
                 />
               ))}
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 } 

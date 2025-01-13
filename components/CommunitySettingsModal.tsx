@@ -14,8 +14,7 @@ import {
   CurrencyDollarIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { storage, auth } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { createClient } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 import { DollarSign, ExternalLink, Loader2, Plus, X, MessageCircle, Lock, Users, BarChart3, MessageSquare, TrendingUp } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
@@ -38,6 +37,8 @@ import {
 } from '@dnd-kit/sortable';
 import { DraggableCategory } from './DraggableCategory';
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface CustomLink {
   title: string;
@@ -52,28 +53,6 @@ interface DashboardStats {
   membershipGrowth: number;
 }
 
-interface CommunitySettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  communityId: string;
-  communitySlug: string;
-  communityName: string;
-  communityDescription: string;
-  imageUrl: string;
-  onImageUpdate: (newImageUrl: string) => void;
-  onCommunityUpdate: (updates: {
-    name?: string;
-    description?: string;
-    slug?: string;
-  }) => void;
-  customLinks?: CustomLink[];
-  onCustomLinksUpdate?: (links: CustomLink[]) => void;
-  stripeAccountId?: string | null;
-  threadCategories?: ThreadCategory[];
-  onThreadCategoriesUpdate?: (categories: ThreadCategory[]) => void;
-  communityStats?: DashboardStats;
-}
-
 interface RevenueData {
   monthlyRevenue: number;
 }
@@ -86,6 +65,31 @@ interface CommunityMember {
   joinedAt: string;
   status: 'active' | 'inactive';
   lastActive?: string;
+}
+
+interface StripeAccountStatus {
+  isEnabled: boolean;
+  needsSetup: boolean;
+  accountId?: string;
+  details?: any;
+}
+
+interface CommunitySettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  communityId: string;
+  communitySlug: string;
+  communityName: string;
+  communityDescription: string;
+  imageUrl: string;
+  onImageUpdate: (newImageUrl: string) => void;
+  onCommunityUpdate: (updates: any) => void;
+  customLinks: CustomLink[];
+  onCustomLinksUpdate: (newLinks: CustomLink[]) => void;
+  stripeAccountId: string | null;
+  threadCategories: ThreadCategory[];
+  onThreadCategoriesUpdate: (categories: ThreadCategory[]) => void;
+  communityStats?: DashboardStats;
 }
 
 const navigationCategories = [
@@ -113,41 +117,37 @@ export default function CommunitySettingsModal({
   communityName,
   communityDescription,
   imageUrl,
+  customLinks,
+  stripeAccountId,
+  threadCategories,
   onImageUpdate,
   onCommunityUpdate,
-  customLinks = [],
-  onCustomLinksUpdate = () => {},
-  stripeAccountId,
-  threadCategories = [],
-  onThreadCategoriesUpdate = () => {},
-  communityStats,
+  onCustomLinksUpdate,
+  onThreadCategoriesUpdate,
 }: CommunitySettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
   const [description, setDescription] = useState(communityDescription);
-  const [links, setLinks] = useState<CustomLink[]>(customLinks);
+  const [isUploading, setIsUploading] = useState(false);
+  const [links, setLinks] = useState(customLinks);
+  const [categories, setCategories] = useState(threadCategories);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIconType, setNewCategoryIconType] = useState("");
+  const [isCreatorOnly, setIsCreatorOnly] = useState(false);
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
-  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(true);
-  const [price, setPrice] = useState<number>(0);
-  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
-  const [stripeAccountStatus, setStripeAccountStatus] = useState<{
-    isEnabled: boolean;
-    needsSetup: boolean;
-    accountId?: string;
-    details?: {
-      chargesEnabled: boolean;
-      payoutsEnabled: boolean;
-      requirements?: string[];
-    };
-  }>({
+  const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus>({
     isEnabled: false,
     needsSetup: true,
   });
-  const [categories, setCategories] = useState<ThreadCategory[]>(threadCategories);
+  const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(false);
+  const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
+  const [price, setPrice] = useState(0);
   const [localCommunityStats, setLocalCommunityStats] = useState<DashboardStats | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueData>({ monthlyRevenue: 0 });
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const supabase = createClient();
+  const { user } = useAuth();
 
   // Fetch Stripe account status when component mounts
   useEffect(() => {
@@ -245,12 +245,12 @@ export default function CommunitySettingsModal({
   };
 
   const handleRemoveLink = (index: number) => {
-    const newLinks = links.filter((_, i) => i !== index);
+    const newLinks = links.filter((_, i: number) => i !== index);
     setLinks(newLinks);
   };
 
   const handleLinkChange = (index: number, field: 'title' | 'url', value: string) => {
-    const newLinks = links.map((link, i) => {
+    const newLinks = links.map((link: CustomLink, i: number) => {
       if (i === index) {
         if (field === 'url') {
           return { ...link, [field]: formatUrl(value) };
@@ -311,54 +311,58 @@ export default function CommunitySettingsModal({
     }
   }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    setIsUploading(true);
+
     try {
-      // Check file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('File size must be less than 5MB');
+      // Create a unique file name with community folder
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${communityId}/${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('community-images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
       }
 
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        throw new Error('File must be an image');
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('community-images')
+        .getPublicUrl(filePath);
+
+      if (!urlData.publicUrl) {
+        throw new Error('Failed to get public URL');
       }
 
-      // Get current user
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error('You must be logged in to upload images');
+      // Update community image URL
+      const { error: updateError } = await supabase
+        .from('communities')
+        .update({ image_url: urlData.publicUrl })
+        .eq('id', communityId);
+
+      if (updateError) {
+        throw updateError;
       }
 
-      // Create a reference to the file in Firebase Storage
-      const storageRef = ref(storage, `community-images/${communitySlug}-${Date.now()}`);
-      
-      // Upload the file with metadata
-      const metadata = {
-        contentType: file.type,
-        customMetadata: {
-          uploadedBy: currentUser.uid,
-          communityId: communityId,
-        },
-      };
-      
-      // Show loading toast
-      const loadingToast = toast.loading('Uploading image...');
-      
-      const snapshot = await uploadBytes(storageRef, file, metadata);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      // Update the image URL
-      onImageUpdate(downloadURL);
-      
-      // Dismiss loading toast and show success
-      toast.dismiss(loadingToast);
-      toast.success('Image uploaded successfully');
-    } catch (error: any) {
-      console.error('Error uploading image:', error);
-      toast.error(error.message || 'Failed to upload image. Please try again.');
+      onImageUpdate(urlData.publicUrl);
+      toast.success("Community image updated successfully");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -372,7 +376,7 @@ export default function CommunitySettingsModal({
         },
         body: JSON.stringify({
           communityId,
-          userId: auth.currentUser?.uid,
+          userId: user?.id,
         }),
       });
 
@@ -735,98 +739,89 @@ export default function CommunitySettingsModal({
   );
 
   const renderMembers = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Community Members</h3>
-        <p className="text-sm text-gray-500">Total: {members.length} members</p>
-      </div>
+    <div>
+      <h3 className="text-lg font-medium">Community Members</h3>
+      <p className="text-sm text-gray-500">Total: {members.length} members</p>
 
       {isLoadingMembers ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Member
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Active
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+        <div className="mt-6">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Member
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Joined
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Active
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {members.map((member) => (
+                <tr key={member.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 flex-shrink-0">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={member.imageUrl} alt={member.displayName} />
+                          <AvatarFallback>
+                            {member.displayName[0]?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {member.displayName}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{member.email}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {new Date(member.joinedAt).toLocaleDateString()}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {member.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {member.lastActive ? new Date(member.lastActive).toLocaleDateString() : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => handleRemoveMember(member.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Remove
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {members.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0">
-                          <img
-                            className="h-10 w-10 rounded-full"
-                            src={member.imageUrl}
-                            alt={member.displayName}
-                          />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {member.displayName}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{member.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(member.joinedAt).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${member.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'}`}
-                      >
-                        {member.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {member.lastActive 
-                        ? new Date(member.lastActive).toLocaleDateString()
-                        : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-900"
-                        onClick={() => handleRemoveMember(member.id)}
-                      >
-                        Remove
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -943,30 +938,32 @@ export default function CommunitySettingsModal({
                             Community Cover Image
                           </label>
                           <div className="mt-2">
-                            <div className="flex items-center space-x-4">
-                              <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
-                                {imageUrl ? (
-                                  <img
-                                    src={imageUrl}
-                                    alt="Community cover"
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full">
-                                    <span className="text-gray-500">No image uploaded</span>
-                                  </div>
-                                )}
+                            <div className="w-1/2 mx-auto">
+                              <div className="relative w-full h-40 mb-4">
+                                <img
+                                  src={imageUrl || "/placeholder.svg"}
+                                  alt="Community preview"
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                                <label
+                                  htmlFor="community-image"
+                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                                >
+                                  {isUploading ? (
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                  ) : (
+                                    <span>Change Image</span>
+                                  )}
+                                </label>
+                                <input
+                                  type="file"
+                                  id="community-image"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                />
                               </div>
                             </div>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageUpload}
-                              className="mt-2"
-                            />
-                            <p className="mt-1 text-sm text-gray-500">
-                              Recommended size: 1200x400 pixels
-                            </p>
                           </div>
                         </div>
 

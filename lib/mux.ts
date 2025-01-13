@@ -39,7 +39,7 @@ export async function getMuxAsset(uploadId: string) {
 
     // Then get the asset details
     const asset = await Video.assets.retrieve(upload.asset_id);
-    
+
     // Get the first playback ID
     const playbackId = asset.playback_ids?.[0]?.id;
     if (!playbackId) {
@@ -49,7 +49,7 @@ export async function getMuxAsset(uploadId: string) {
     return {
       id: asset.id,
       playbackId,
-      status: asset.status
+      status: asset.status,
     };
   } catch (error) {
     console.error('Error getting Mux asset:', error);

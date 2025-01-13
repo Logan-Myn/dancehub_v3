@@ -1,35 +1,33 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { categories } = await request.json();
     const { communitySlug } = params;
 
-    // Get community by slug
-    const communitiesSnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
-      .limit(1)
-      .get();
+    // Update community categories
+    const { data: community, error: communityError } = await supabase
+      .from('communities')
+      .update({
+        thread_categories: categories,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('slug', communitySlug)
+      .select()
+      .single();
 
-    if (communitiesSnapshot.empty) {
+    if (communityError) {
+      console.error('Error updating community:', communityError);
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
       );
     }
-
-    const communityDoc = communitiesSnapshot.docs[0];
-
-    // Update categories
-    await communityDoc.ref.update({
-      threadCategories: categories,
-      updatedAt: new Date().toISOString(),
-    });
 
     return NextResponse.json({ success: true, categories });
   } catch (error) {

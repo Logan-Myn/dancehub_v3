@@ -1,31 +1,33 @@
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
-
-const auth = adminAuth;
-const db = adminDb;
+import { createAdminClient } from "@/lib/supabase";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   const token = request.headers.get("Authorization")?.split(" ")[1] || "";
+  const supabase = createAdminClient();
 
   try {
-    const decodedToken = await auth.verifyIdToken(token);
-    const userId = decodedToken.uid;
+    // Verify the token and get user
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    const communitySnapshot = await db
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
-
-    if (communitySnapshot.empty) {
+    if (authError || !user) {
       return NextResponse.json({ isCreator: false });
     }
 
-    const community = communitySnapshot.docs[0].data();
-    const isCreator = community.createdBy === userId;
+    // Check if user is the community creator
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("created_by")
+      .eq("slug", params.communitySlug)
+      .single();
+
+    if (communityError || !community) {
+      return NextResponse.json({ isCreator: false });
+    }
+
+    const isCreator = community.created_by === user.id;
 
     return NextResponse.json({ isCreator });
   } catch (error) {

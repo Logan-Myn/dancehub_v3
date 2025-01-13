@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
+
+const supabase = createAdminClient();
 
 export async function GET(
   request: Request,
@@ -13,21 +15,18 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get community data to fetch stripeAccountId
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get community data to fetch stripe_account_id
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("stripe_account_id")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityData = communitySnapshot.docs[0].data();
-    const stripeAccountId = communityData.stripeAccountId;
-
-    if (!stripeAccountId) {
+    if (!community.stripe_account_id) {
       return NextResponse.json({ monthlyRevenue: 0 });
     }
 
@@ -45,7 +44,7 @@ export async function GET(
         limit: 100,
       },
       {
-        stripeAccount: stripeAccountId,
+        stripeAccount: community.stripe_account_id,
       }
     );
 

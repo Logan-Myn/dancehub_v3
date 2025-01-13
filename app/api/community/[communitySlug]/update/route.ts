@@ -1,49 +1,65 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { createAdminClient } from '@/lib/supabase';
+
+type CommunityUpdate = {
+  name: string;
+  description: string;
+  image_url: string;
+  custom_links: any[];
+};
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { communitySlug } = params;
     const updates = await request.json();
 
     // Get the community by slug
-    const communitiesSnapshot = await adminDb
-      .collection('communities')
-      .where('slug', '==', communitySlug)
-      .limit(1)
-      .get();
+    const { data: community, error: communityError } = await supabase
+      .from('communities')
+      .select('id')
+      .eq('slug', communitySlug)
+      .single();
 
-    if (communitiesSnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitiesSnapshot.docs[0];
-
-    // Update the community with all fields including customLinks
-    await adminDb
-      .collection('communities')
-      .doc(communityDoc.id)
+    // Update the community
+    const { data: updatedCommunity, error: updateError } = await supabase
+      .from('communities')
       .update({
         name: updates.name,
         description: updates.description,
-        imageUrl: updates.imageUrl,
-        customLinks: updates.customLinks || [],
-        updatedAt: new Date().toISOString(),
-      });
+        image_url: updates.imageUrl,
+        custom_links: updates.customLinks || [],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', community.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating community:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update community' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ 
       success: true,
       data: {
-        name: updates.name,
-        description: updates.description,
-        imageUrl: updates.imageUrl,
-        customLinks: updates.customLinks || [],
+        name: updatedCommunity.name,
+        description: updatedCommunity.description,
+        imageUrl: updatedCommunity.image_url,
+        customLinks: updatedCommunity.custom_links || [],
       }
     });
   } catch (error) {

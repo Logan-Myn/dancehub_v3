@@ -1,81 +1,91 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
     console.log("Updating lesson with params:", params);
     const { title, content, videoAssetId } = await request.json();
     console.log("Update data received:", { title, content, videoAssetId });
 
-    // Get the community document
-    const communityQuery = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // First, verify the community exists and get its ID
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communityQuery.empty) {
+    if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityDoc = communityQuery.docs[0];
+    // Get the course ID
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    // Get the course document
-    const courseQuery = await communityDoc.ref
-      .collection("courses")
-      .where("slug", "==", params.courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseQuery.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseDoc = courseQuery.docs[0];
+    // Verify the chapter exists
+    const { data: chapter, error: chapterError } = await supabase
+      .from("chapters")
+      .select("id")
+      .eq("course_id", course.id)
+      .eq("id", params.chapterId)
+      .single();
 
-    // Get the chapter document
-    const chapterRef = courseDoc.ref.collection("chapters").doc(params.chapterId);
-    const chapterDoc = await chapterRef.get();
-
-    if (!chapterDoc.exists) {
+    if (chapterError || !chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
-    }
-
-    // Reference to the lesson document
-    const lessonRef = chapterRef.collection("lessons").doc(params.lessonId);
-    const lessonDoc = await lessonRef.get();
-
-    if (!lessonDoc.exists) {
-      return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
     // Update data
     const updateData: any = {
-      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
-    if (videoAssetId !== undefined) updateData.videoAssetId = videoAssetId;
+    if (videoAssetId !== undefined) {
+      updateData.video_asset_id = videoAssetId;
+      updateData.playback_id = videoAssetId; // Use the same ID for playback
+    }
 
     console.log("Final update data:", updateData);
 
     // Update the lesson
-    await lessonRef.update(updateData);
+    const { data: updatedLesson, error: updateError } = await supabase
+      .from("lessons")
+      .update(updateData)
+      .eq("id", params.lessonId)
+      .eq("chapter_id", params.chapterId)
+      .select("*")
+      .single();
 
-    // Get the updated lesson data
-    const updatedLesson = await lessonRef.get();
-    const lessonData = {
-      id: updatedLesson.id,
-      ...updatedLesson.data()
+    if (updateError) {
+      console.error("Error updating lesson:", updateError);
+      return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+    }
+
+    // Transform the response for frontend compatibility
+    const transformedLesson = {
+      ...updatedLesson,
+      order: updatedLesson.position,
+      videoAssetId: updatedLesson.video_asset_id,
+      playbackId: updatedLesson.playback_id,
     };
 
-    console.log("Updated lesson data:", lessonData);
+    console.log("Updated lesson data:", transformedLesson);
 
-    return NextResponse.json(lessonData);
+    return NextResponse.json(transformedLesson);
   } catch (error) {
     console.error("Error updating lesson:", error);
     return NextResponse.json(

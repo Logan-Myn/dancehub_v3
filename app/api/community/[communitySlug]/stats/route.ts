@@ -1,47 +1,89 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
+  const supabase = createAdminClient();
+  
   try {
-    // Get community reference
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityRef = communitySnapshot.docs[0].ref;
+    // Get total active members count
+    const { count: totalMembers, error: membersError } = await supabase
+      .from("community_members")
+      .select("*", { count: 'exact', head: true })
+      .eq("community_id", community.id)
+      .eq("status", "active");
 
-    // Get members count from the members subcollection
-    const membersSnapshot = await communityRef
-      .collection("members")
-      .count()
-      .get();
-
-    const totalMembers = membersSnapshot.data().count;
+    if (membersError) {
+      console.error("Error fetching members count:", membersError);
+      return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });
+    }
 
     // Get total threads count
-    const threadsSnapshot = await communityRef
-      .collection("threads")
-      .count()
-      .get();
+    const { count: totalThreads, error: threadsError } = await supabase
+      .from("threads")
+      .select("*", { count: 'exact', head: true })
+      .eq("community_id", community.id);
 
-    const totalThreads = threadsSnapshot.data().count;
+    if (threadsError) {
+      console.error("Error fetching threads count:", threadsError);
+      return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });
+    }
 
-    // For now, return basic stats
+    // Get monthly revenue (assuming we store this in a subscriptions or payments table)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data: monthlyPayments, error: revenueError } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("community_id", community.id)
+      .gte("created_at", thirtyDaysAgo.toISOString());
+
+    const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
+
+    // Get membership growth (new members in last 30 days)
+    const { count: newMembers, error: growthError } = await supabase
+      .from("community_members")
+      .select("*", { count: 'exact', head: true })
+      .eq("community_id", community.id)
+      .eq("status", "active")
+      .gte("joined_at", thirtyDaysAgo.toISOString());
+
+    // Get active members (members who have posted or commented in last 30 days)
+    const { data: activeThreadCreators } = await supabase
+      .from("threads")
+      .select("created_by")
+      .eq("community_id", community.id)
+      .gte("created_at", thirtyDaysAgo.toISOString());
+
+    const activeUserIds = Array.from(new Set(activeThreadCreators?.map(t => t.created_by) || []));
+
+    const { count: activeMembers } = await supabase
+      .from("community_members")
+      .select("*", { count: 'exact', head: true })
+      .eq("community_id", community.id)
+      .eq("status", "active")
+      .in("user_id", activeUserIds);
+
     return NextResponse.json({
-      totalMembers,
-      monthlyRevenue: 0,
-      totalThreads,
-      activeMembers: 0,
-      membershipGrowth: 0
+      totalMembers: totalMembers || 0,
+      monthlyRevenue,
+      totalThreads: totalThreads || 0,
+      activeMembers: activeMembers || 0,
+      membershipGrowth: newMembers || 0
     });
   } catch (error) {
     console.error("Error fetching community stats:", error);

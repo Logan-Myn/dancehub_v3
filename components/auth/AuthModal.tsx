@@ -1,195 +1,296 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { auth } from "@/lib/firebase";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "firebase/auth";
-import { FcGoogle } from "react-icons/fc";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/auth";
+import toast from "react-hot-toast";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mode: "signin" | "signup";
+  initialTab: "signin" | "signup";
 }
 
-interface FormData {
-  email: string;
-  password: string;
-}
+type TabType = "signin" | "signup";
 
-interface AuthFormProps {
-  formData: FormData;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleSubmit: (e: React.FormEvent) => void;
-  handleGoogleSignIn: () => void;
-  error: string;
-  activeTab: "signin" | "signup";
-}
+export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProps) {
+  const { refreshUser } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
-const AuthForm = memo(({ 
-  formData, 
-  handleChange, 
-  handleSubmit, 
-  handleGoogleSignIn, 
-  error, 
-  activeTab 
-}: AuthFormProps) => (
-  <>
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-4">
-        <Input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
-        <Input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-      <Button type="submit" className="w-full">
-        {activeTab === "signin" ? "Sign In" : "Sign Up"}
-      </Button>
-    </form>
-
-    <div className="relative my-4">
-      <div className="absolute inset-0 flex items-center">
-        <span className="w-full border-t" />
-      </div>
-      <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-background px-2 text-muted-foreground">
-          Or continue with
-        </span>
-      </div>
-    </div>
-
-    <Button
-      type="button"
-      variant="outline"
-      className="w-full"
-      onClick={handleGoogleSignIn}
-    >
-      <FcGoogle className="mr-2 h-4 w-4" />
-      Google
-    </Button>
-  </>
-));
-
-AuthForm.displayName = "AuthForm";
-
-export default function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
-  const [formData, setFormData] = useState<FormData>({
-    email: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">(mode);
-
+  // Update active tab when initialTab changes
   useEffect(() => {
-    if (!isOpen) {
-      setFormData({ email: "", password: "" });
-      setError("");
-    }
-  }, [isOpen]);
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
-  useEffect(() => {
-    setActiveTab(mode);
-  }, [mode]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    try {
-      if (activeTab === "signup") {
-        await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      } else {
-        await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      }
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    }
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as TabType);
   };
 
   const handleGoogleSignIn = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
+      setLoading(true);
+      await signInWithGoogle();
+      await refreshUser();
+      // Note: No need to show success message or close modal here
+      // as the user will be redirected to Google's sign-in page
+    } catch (error) {
+      console.error("Google auth error:", error);
+      toast.error("Failed to sign in with Google");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (isResetMode) {
+        await resetPassword(email);
+        toast.success("Check your email for password reset instructions!");
+        setIsResetMode(false);
+        return;
+      }
+
+      if (activeTab === "signup") {
+        if (!firstName.trim() || !lastName.trim()) {
+          toast.error("Please enter your first and last name");
+          return;
+        }
+        await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`);
+        await refreshUser();
+        toast.success("Check your email to confirm your account!");
+      } else {
+        await signIn(email, password);
+        await refreshUser();
+        toast.success("Successfully signed in!");
+      }
+      onClose();
+    } catch (error) {
+      console.error("Auth error:", error);
+      if (error instanceof Error) {
+        // Handle Supabase error messages
+        if (error.message.includes("Email not confirmed")) {
+          toast.error("Please confirm your email address before signing in");
+        } else if (error.message.includes("Invalid login credentials")) {
+          toast.error("Invalid email or password");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.error("Authentication failed");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setIsResetMode(false);
+    setEmail("");
+    setPassword("");
+    setFirstName("");
+    setLastName("");
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Welcome to DanceHub</DialogTitle>
+          <DialogTitle>
+            {isResetMode ? "Reset Password" : "Welcome to DanceHub"}
+          </DialogTitle>
         </DialogHeader>
-        
-        <Tabs 
-          value={activeTab} 
-          className="w-full" 
-          onValueChange={(value) => setActiveTab(value as "signin" | "signup")}
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="signin" className="mt-4">
-            <AuthForm
-              formData={formData}
-              handleChange={handleChange}
-              handleSubmit={handleSubmit}
-              handleGoogleSignIn={handleGoogleSignIn}
-              error={error}
-              activeTab={activeTab}
+        {!isResetMode ? (
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            <TabsContent value="signin" className="mt-4">
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continue with Google
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with email
+                    </span>
+                  </div>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Loading..." : "Sign In"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="w-full"
+                    onClick={() => setIsResetMode(true)}
+                  >
+                    Forgot password?
+                  </Button>
+                </form>
+              </div>
+            </TabsContent>
+            <TabsContent value="signup" className="mt-4">
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continue with Google
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or continue with email
+                    </span>
+                  </div>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      type="text"
+                      placeholder="First Name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Last Name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Loading..." : "Create Account"}
+                  </Button>
+                </form>
+              </div>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
-          </TabsContent>
-          
-          <TabsContent value="signup" className="mt-4">
-            <AuthForm
-              formData={formData}
-              handleChange={handleChange}
-              handleSubmit={handleSubmit}
-              handleGoogleSignIn={handleGoogleSignIn}
-              error={error}
-              activeTab={activeTab}
-            />
-          </TabsContent>
-        </Tabs>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Loading..." : "Send Reset Instructions"}
+            </Button>
+            <Button
+              type="button"
+              variant="link"
+              className="w-full"
+              onClick={() => setIsResetMode(false)}
+            >
+              Back to sign in
+            </Button>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

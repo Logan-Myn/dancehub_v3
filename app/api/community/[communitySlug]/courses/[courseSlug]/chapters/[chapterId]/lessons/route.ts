@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
 
 export async function POST(
   req: Request,
@@ -13,72 +15,90 @@ export async function POST(
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    if (!decodedToken) {
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { title } = await req.json();
 
-    // Get community doc
-    const communityQuery = await adminDb
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .limit(1)
-      .get();
+    // Get community and verify it exists
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
 
-    if (communityQuery.empty) {
+    if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    const communityDoc = communityQuery.docs[0];
+    // Get course and verify it exists
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
 
-    // Get course doc
-    const courseQuery = await communityDoc.ref
-      .collection("courses")
-      .where("slug", "==", params.courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseQuery.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseDoc = courseQuery.docs[0];
+    // Verify chapter exists
+    const { data: chapter, error: chapterError } = await supabase
+      .from("chapters")
+      .select("id")
+      .eq("course_id", course.id)
+      .eq("id", params.chapterId)
+      .single();
 
-    // Get chapter doc
-    const chapterRef = courseDoc.ref
-      .collection("chapters")
-      .doc(params.chapterId);
-
-    const chapterDoc = await chapterRef.get();
-    if (!chapterDoc.exists) {
+    if (chapterError || !chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    // Get current lessons to determine the order
-    const lessonsSnapshot = await chapterRef.collection("lessons").get();
-    const order = lessonsSnapshot.size; // New lesson will be last in order
+    // Get current highest position
+    const { data: highestPositionLesson } = await supabase
+      .from("lessons")
+      .select("lesson_position")
+      .eq("chapter_id", params.chapterId)
+      .order("lesson_position", { ascending: false })
+      .limit(1)
+      .single();
+
+    const newPosition = (highestPositionLesson?.lesson_position ?? -1) + 1;
 
     // Create the new lesson
-    const lessonRef = await chapterRef.collection("lessons").add({
-      title,
-      content: "",
-      videoAssetId: null,
-      order,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdBy: decodedToken.uid,
-    });
+    const { data: lesson, error: lessonError } = await supabase
+      .from("lessons")
+      .insert({
+        title,
+        content: "",
+        video_asset_id: null,
+        playback_id: null,
+        lesson_position: newPosition,
+        chapter_id: params.chapterId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: user.id,
+      })
+      .select()
+      .single();
 
-    const lessonDoc = await lessonRef.get();
-    const lessonData = {
-      id: lessonDoc.id,
-      ...lessonDoc.data()
+    if (lessonError) {
+      console.error("Error creating lesson:", lessonError);
+      return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
+    }
+
+    // Transform the response to include videoAssetId and playbackId for frontend compatibility
+    const transformedLesson = {
+      ...lesson,
+      videoAssetId: lesson.video_asset_id,
+      playbackId: lesson.playback_id
     };
 
-    return NextResponse.json(lessonData);
+    return NextResponse.json(transformedLesson);
   } catch (error) {
     console.error("Error creating lesson:", error);
     return NextResponse.json(

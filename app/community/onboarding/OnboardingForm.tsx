@@ -31,7 +31,7 @@ export default function OnboardingForm() {
         },
         body: JSON.stringify({
           name: communityName,
-          createdBy: user.uid,
+          createdBy: user.id,
         }),
       });
 
@@ -49,7 +49,7 @@ export default function OnboardingForm() {
         },
         body: JSON.stringify({
           communityId,
-          userId: user.uid,
+          userId: user.id,
           email: user.email,
         }),
       });

@@ -1,24 +1,12 @@
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { credential } from "firebase-admin";
-
-if (!getApps().length) {
-  initializeApp({
-    credential: credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
+    const supabase = createAdminClient();
     const { chapters } = await req.json();
 
     // Get the authorization token
@@ -28,55 +16,75 @@ export async function PUT(
     }
     const token = authHeader.split("Bearer ")[1];
 
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    const userId = decodedToken.uid;
+    // Verify the token and get user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
-    const db = getFirestore();
-
-    // Check if user is the community creator
-    const communityDoc = await db
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .get();
-
-    if (communityDoc.empty || communityDoc.docs[0].data().createdBy !== userId) {
+    if (authError || !user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // First, verify that all chapters exist
-    const batch = db.batch();
-    for (const [index, chapter] of chapters.entries()) {
-      const chapterRef = db
-        .collection("courses")
-        .doc(params.courseSlug)
-        .collection("chapters")
-        .doc(chapter.id);
+    // Check if user is the community creator
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id, created_by")
+      .eq("slug", params.communitySlug)
+      .single();
 
-      // Get the current chapter data
-      const chapterDoc = await chapterRef.get();
-      
-      if (chapterDoc.exists) {
-        // Merge the new order with existing data
-        batch.set(
-          chapterRef, 
-          { 
-            order: index,
-            // Preserve existing data
-            ...chapterDoc.data(),
-          },
-          { merge: true } // This ensures we don't overwrite other fields
-        );
-      } else {
-        console.warn(`Chapter ${chapter.id} not found, skipping reorder`);
-      }
+    if (communityError || !community) {
+      return new NextResponse("Community not found", { status: 404 });
     }
 
-    await batch.commit();
+    if (community.created_by !== user.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-    return NextResponse.json({ message: "Chapters order updated successfully" });
+    // Get course ID
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
+
+    if (courseError || !course) {
+      return new NextResponse("Course not found", { status: 404 });
+    }
+
+    // Update positions for all chapters
+    const updates = chapters.map((chapter: any, index: number) => ({
+      id: chapter.id,
+      chapter_position: index,
+      title: chapter.title,
+      course_id: course.id
+    }));
+
+    const { error: updateError } = await supabase
+      .from("chapters")
+      .upsert(updates, { onConflict: 'id' });
+
+    if (updateError) {
+      console.error("Error updating chapter positions:", updateError);
+      return new NextResponse("Failed to update chapter positions", { status: 500 });
+    }
+
+    // Fetch updated chapters
+    const { data: updatedChapters, error: fetchError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("course_id", course.id)
+      .order("chapter_position", { ascending: true });
+
+    if (fetchError) {
+      console.error("Error fetching updated chapters:", fetchError);
+      return new NextResponse("Failed to fetch updated chapters", { status: 500 });
+    }
+
+    return NextResponse.json(updatedChapters);
   } catch (error) {
-    console.error("[CHAPTERS_REORDER]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error in reorder chapters:", error);
+    return new NextResponse("Internal server error", { status: 500 });
   }
 } 

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
-import { getStorage } from "firebase-admin/storage";
+import { createAdminClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils";
 
-const storage = getStorage();
+const supabase = createAdminClient();
 
 export async function GET(
   request: Request,
@@ -13,34 +12,23 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get community and its courses
+    const { data: courses, error } = await supabase
+      .from("courses")
+      .select(`
+        *,
+        community:communities!inner(slug)
+      `)
+      .eq("community.slug", communitySlug)
+      .order("created_at", { ascending: false });
 
-    if (communitySnapshot.empty) {
+    if (error) {
+      console.error("Error fetching courses:", error);
       return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
+        { error: "Failed to fetch courses" },
+        { status: 500 }
       );
     }
-
-    const communityDoc = communitySnapshot.docs[0];
-
-    // Get courses for the community
-    const coursesSnapshot = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
-      .collection("courses")
-      .orderBy("createdAt", "desc")
-      .get();
-
-    const courses = coursesSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
 
     return NextResponse.json(courses);
   } catch (error) {
@@ -59,21 +47,19 @@ export async function POST(
   try {
     const { communitySlug } = params;
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get the community
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
-
-    const communityDoc = communitySnapshot.docs[0];
 
     // Parse the form data
     const formData = await request.formData();
@@ -84,54 +70,58 @@ export async function POST(
     // Generate the slug from the title
     const slug = slugify(title);
 
-    // Upload the image to Firebase Storage
-    const imageName = `${uuidv4()}.${imageFile.name.split(".").pop()}`;
-    const bucket = storage.bucket();
-    const blob = bucket.file(`course-images/${imageName}`);
-    const blobWriter = blob.createWriteStream({
-      metadata: {
+    // Upload the image to Supabase Storage
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const { error: uploadError, data: uploadData } = await supabase
+      .storage
+      .from("course-images")
+      .upload(fileName, imageFile, {
         contentType: imageFile.type,
-      },
-    });
-
-    // Convert ArrayBuffer to Buffer
-    const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
-    blobWriter.end(imageBuffer);
-
-    await new Promise((resolve, reject) => {
-      blobWriter.on("error", (err: Error) => {
-        reject(err);
+        cacheControl: "3600",
+        upsert: false
       });
-      blobWriter.on("finish", resolve);
-    });
+
+    if (uploadError) {
+      console.error("Error uploading image:", uploadError);
+      return NextResponse.json(
+        { error: "Failed to upload image" },
+        { status: 500 }
+      );
+    }
 
     // Get the public URL of the uploaded image
-    const [imageUrl] = await blob.getSignedUrl({
-      action: "read",
-      expires: "03-09-2491",
-    });
+    const { data: { publicUrl: imageUrl } } = supabase
+      .storage
+      .from("course-images")
+      .getPublicUrl(fileName);
 
-    // Create a new course document
-    const newCourseRef = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
-      .collection("courses")
-      .add({
+    // Create a new course
+    const { data: newCourse, error: courseError } = await supabase
+      .from("courses")
+      .insert({
         title,
         description,
-        imageUrl,
+        image_url: imageUrl,
         slug,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+        community_id: community.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    // Fetch the newly created course
-    const newCourse = await newCourseRef.get();
+    if (courseError) {
+      console.error("Error creating course:", courseError);
+      // Clean up the uploaded image if course creation fails
+      await supabase.storage.from("course-images").remove([fileName]);
+      return NextResponse.json(
+        { error: "Failed to create course" },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({
-      id: newCourse.id,
-      ...newCourse.data(),
-    });
+    return NextResponse.json(newCourse);
   } catch (error) {
     console.error("Error creating course:", error);
     return NextResponse.json(

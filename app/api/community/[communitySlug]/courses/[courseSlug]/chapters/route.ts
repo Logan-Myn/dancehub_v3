@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
 
 export async function POST(
   request: Request,
@@ -9,63 +11,71 @@ export async function POST(
     const { communitySlug, courseSlug } = params;
     const { title } = await request.json();
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get community and verify it exists
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitySnapshot.docs[0];
+    // Get course and verify it exists
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", courseSlug)
+      .single();
 
-    // Get the course document
-    const courseDoc = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
-      .collection("courses")
-      .where("slug", "==", courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseDoc.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseRef = courseDoc.docs[0].ref;
-
-    // Get the current highest order
-    const chaptersSnapshot = await courseRef
-      .collection("chapters")
-      .orderBy("order", "desc")
+    // Get the current highest position
+    const { data: highestPositionChapter } = await supabase
+      .from("chapters")
+      .select("chapter_position")
+      .eq("course_id", course.id)
+      .order("chapter_position", { ascending: false })
       .limit(1)
-      .get();
+      .single();
 
-    const highestOrder = chaptersSnapshot.empty
-      ? -1
-      : chaptersSnapshot.docs[0].data().order;
+    const newPosition = (highestPositionChapter?.chapter_position ?? -1) + 1;
 
-    // Create the new chapter with order
-    const newChapterRef = await courseRef.collection("chapters").add({
-      title,
-      order: highestOrder + 1,
-      createdAt: new Date().toISOString(),
-    });
+    // Create the new chapter
+    const { data: newChapter, error: createError } = await supabase
+      .from("chapters")
+      .insert({
+        title,
+        chapter_position: newPosition,
+        course_id: course.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    const newChapter = {
-      id: newChapterRef.id,
-      title,
-      order: highestOrder + 1,
-      createdAt: new Date().toISOString(),
+    if (createError) {
+      console.error("Error creating chapter:", createError);
+      return NextResponse.json(
+        { error: "Failed to create chapter" },
+        { status: 500 }
+      );
+    }
+
+    // Transform the response for frontend compatibility
+    const transformedChapter = {
+      ...newChapter,
+      lessons: []
     };
 
-    return NextResponse.json(newChapter);
+    return NextResponse.json(transformedChapter);
   } catch (error) {
     console.error("Error creating chapter:", error);
     return NextResponse.json(
@@ -87,41 +97,49 @@ export async function PUT(
     const { communitySlug, courseSlug, chapterId } = params;
     const { title } = await request.json();
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get community and verify it exists
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitySnapshot.docs[0];
+    // Get course and verify it exists
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", courseSlug)
+      .single();
 
-    // Get the course document
-    const courseDoc = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
-      .collection("courses")
-      .where("slug", "==", courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseDoc.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseRef = courseDoc.docs[0].ref;
+    // Update the chapter
+    const { error: updateError } = await supabase
+      .from("chapters")
+      .update({
+        title,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", chapterId)
+      .eq("course_id", course.id);
 
-    // Update the chapter document
-    await courseRef.collection("chapters").doc(chapterId).update({
-      title,
-    });
+    if (updateError) {
+      console.error("Error updating chapter:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update chapter" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ message: "Chapter updated successfully" });
   } catch (error) {
@@ -144,39 +162,60 @@ export async function DELETE(
   try {
     const { communitySlug, courseSlug, chapterId } = params;
 
-    // Get the community document
-    const communitySnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get community and verify it exists
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", communitySlug)
+      .single();
 
-    if (communitySnapshot.empty) {
+    if (communityError || !community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    const communityDoc = communitySnapshot.docs[0];
+    // Get course and verify it exists
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", courseSlug)
+      .single();
 
-    // Get the course document
-    const courseDoc = await adminDb
-      .collection("communities")
-      .doc(communityDoc.id)
-      .collection("courses")
-      .where("slug", "==", courseSlug)
-      .limit(1)
-      .get();
-
-    if (courseDoc.empty) {
+    if (courseError || !course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    const courseRef = courseDoc.docs[0].ref;
+    // Delete all lessons in the chapter first (foreign key constraint)
+    const { error: lessonsDeleteError } = await supabase
+      .from("lessons")
+      .delete()
+      .eq("chapter_id", chapterId);
 
-    // Delete the chapter document
-    await courseRef.collection("chapters").doc(chapterId).delete();
+    if (lessonsDeleteError) {
+      console.error("Error deleting lessons:", lessonsDeleteError);
+      return NextResponse.json(
+        { error: "Failed to delete lessons" },
+        { status: 500 }
+      );
+    }
+
+    // Delete the chapter
+    const { error: deleteError } = await supabase
+      .from("chapters")
+      .delete()
+      .eq("id", chapterId)
+      .eq("course_id", course.id);
+
+    if (deleteError) {
+      console.error("Error deleting chapter:", deleteError);
+      return NextResponse.json(
+        { error: "Failed to delete chapter" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ message: "Chapter deleted successfully" });
   } catch (error) {

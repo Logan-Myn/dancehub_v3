@@ -1,18 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { credential } from "firebase-admin";
-
-if (!getApps().length) {
-  initializeApp({
-    credential: credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
-}
+import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   req: Request,
@@ -24,6 +11,9 @@ export async function PUT(
 ) {
   try {
     const { lessons } = await req.json();
+    console.log('Received lessons to reorder:', lessons);
+
+    const supabase = createAdminClient();
 
     // Get the authorization token
     const authHeader = req.headers.get("authorization");
@@ -32,60 +22,78 @@ export async function PUT(
     }
     const token = authHeader.split("Bearer ")[1];
 
-    // Verify the token
-    const decodedToken = await getAuth().verifyIdToken(token);
-    const userId = decodedToken.uid;
+    // Verify the token and get user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
-    const db = getFirestore();
-
-    // Check if user is the community creator
-    const communityDoc = await db
-      .collection("communities")
-      .where("slug", "==", params.communitySlug)
-      .get();
-
-    if (
-      communityDoc.empty ||
-      communityDoc.docs[0].data().createdBy !== userId
-    ) {
+    if (authError || !user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // First, verify that all lessons exist
-    const batch = db.batch();
+    // Check if user is the community creator
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id, created_by")
+      .eq("slug", params.communitySlug)
+      .single();
+
+    if (communityError || !community) {
+      return new NextResponse("Community not found", { status: 404 });
+    }
+
+    if (community.created_by !== user.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    // Update each lesson's position
     for (const [index, lesson] of lessons.entries()) {
-      const lessonRef = db
-        .collection("courses")
-        .doc(params.courseSlug)
-        .collection("chapters")
-        .doc(params.chapterId)
-        .collection("lessons")
-        .doc(lesson.id);
+      console.log(`Updating lesson ${lesson.id} to position ${index}`);
+      
+      const { error: updateError } = await supabase
+        .from('lessons')
+        .update({ lesson_position: index })
+        .eq('id', lesson.id)
+        .eq('chapter_id', params.chapterId);
 
-      // Get the current lesson data
-      const lessonDoc = await lessonRef.get();
-
-      if (lessonDoc.exists) {
-        // Merge the new order with existing data
-        batch.set(
-          lessonRef,
-          {
-            order: index,
-            // Preserve existing data
-            ...lessonDoc.data(),
-          },
-          { merge: true } // This ensures we don't overwrite other fields
-        );
-      } else {
-        console.warn(`Lesson ${lesson.id} not found, skipping reorder`);
+      if (updateError) {
+        console.error("Error updating lesson position:", updateError);
+        throw updateError;
       }
     }
 
-    await batch.commit();
+    // Fetch the updated lessons
+    const { data: updatedLessons, error: fetchError } = await supabase
+      .from('lessons')
+      .select('*')
+      .eq('chapter_id', params.chapterId)
+      .order('lesson_position', { ascending: true });
 
-    return NextResponse.json({ message: "Lessons order updated successfully" });
+    if (fetchError) {
+      console.error("Error fetching updated lessons:", fetchError);
+      throw fetchError;
+    }
+
+    console.log('Updated lessons from database:', updatedLessons);
+
+    // Transform lessons for frontend compatibility
+    const transformedLessons = updatedLessons.map(lesson => ({
+      id: lesson.id,
+      title: lesson.title,
+      content: lesson.content,
+      lesson_position: lesson.lesson_position,
+      chapter_id: lesson.chapter_id,
+      created_at: lesson.created_at,
+      updated_at: lesson.updated_at,
+      created_by: lesson.created_by,
+      videoAssetId: lesson.video_asset_id,
+      playbackId: lesson.playback_id
+    }));
+
+    return NextResponse.json(transformedLessons);
   } catch (error) {
-    console.error("[LESSONS_REORDER]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    console.error("Error in reorder lessons:", error);
+    return new NextResponse("Failed to update lessons order", { status: 500 });
   }
 }

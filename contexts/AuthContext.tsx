@@ -1,63 +1,76 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleSignUp = async (email: string, password: string) => {
-    try {
-      // Create the user with email/password
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Call our API to set up the user's profile
-      await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.email?.split('@')[0], // Use email username as display name
-        }),
-      });
-
-      return user;
-    } catch (error) {
-      console.error('Error during signup:', error);
-      throw error;
+  const refreshUser = async () => {
+    const { data: { user: refreshedUser } } = await supabase.auth.getUser();
+    if (refreshedUser) {
+      setUser(refreshedUser);
     }
   };
 
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    }).catch((error) => {
+      console.error('Error getting session:', error);
+      setUser(null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext); 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}; 

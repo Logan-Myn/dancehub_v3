@@ -1,5 +1,22 @@
 import { NextResponse } from "next/server";
-import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import { createAdminClient } from "@/lib/supabase";
+
+const supabase = createAdminClient();
+
+type Thread = {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  created_by: string;
+  community_id: string;
+  profiles: {
+    display_name: string | null;
+    image_url: string | null;
+  };
+  thread_likes: { id: string }[];
+  thread_comments: { id: string }[];
+};
 
 export async function GET(
   request: Request,
@@ -8,50 +25,46 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get community
-    const communitiesSnapshot = await adminDb
-      .collection("communities")
-      .where("slug", "==", communitySlug)
-      .limit(1)
-      .get();
+    // Get threads with community, author, likes, and comments
+    const { data: threads, error } = await supabase
+      .from("threads")
+      .select(`
+        *,
+        communities!inner(slug),
+        profiles!inner(
+          display_name,
+          image_url
+        ),
+        thread_likes(id),
+        thread_comments(id)
+      `)
+      .eq("communities.slug", communitySlug)
+      .order("created_at", { ascending: false })
+      .returns<Thread[]>();
 
-    if (communitiesSnapshot.empty) {
+    if (error) {
+      console.error("Error fetching threads:", error);
       return NextResponse.json(
-        { error: "Community not found" },
-        { status: 404 }
+        { error: "Failed to fetch threads" },
+        { status: 500 }
       );
     }
 
-    const communityDoc = communitiesSnapshot.docs[0];
+    // Transform the data to match the expected format
+    const formattedThreads = threads.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      content: thread.content,
+      createdAt: thread.created_at,
+      author: {
+        name: thread.profiles.display_name || "Anonymous",
+        image: thread.profiles.image_url || "",
+      },
+      likesCount: thread.thread_likes?.length || 0,
+      commentsCount: thread.thread_comments?.length || 0,
+    }));
 
-    // Get threads
-    const threadsSnapshot = await adminDb
-      .collection("threads")
-      .where("communityId", "==", communityDoc.id)
-      .orderBy("createdAt", "desc")
-      .get();
-
-    // Get user data for each thread
-    const threads = await Promise.all(
-      threadsSnapshot.docs.map(async (doc) => {
-        const threadData = doc.data();
-        const userRecord = await adminAuth.getUser(threadData.userId);
-
-        return {
-          id: doc.id,
-          ...threadData,
-          author: {
-            name: userRecord.displayName || "Anonymous",
-            image: userRecord.photoURL || "",
-          },
-          createdAt: threadData.createdAt,
-          likesCount: threadData.likes?.length || 0,
-          commentsCount: threadData.comments?.length || 0,
-        };
-      })
-    );
-
-    return NextResponse.json(threads);
+    return NextResponse.json(formattedThreads);
   } catch (error) {
     console.error("Error fetching threads:", error);
     return NextResponse.json(
