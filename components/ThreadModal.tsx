@@ -8,7 +8,7 @@ import { formatDisplayName } from "@/lib/utils";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Comment from "./Comment";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
@@ -98,7 +98,13 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
   const [editedContent, setEditedContent] = useState(thread.content);
   const isOwner = user?.id === thread.user_id;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [localComments, setLocalComments] = useState(thread.comments || []);
   const supabase = createClient();
+
+  // Update local state when thread comments change
+  useEffect(() => {
+    setLocalComments(thread.comments || []);
+  }, [thread.comments]);
 
   const formattedAuthorName = formatDisplayName(thread.author.name);
   const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.category_type);
@@ -327,7 +333,31 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
       }
 
       const newReply = await response.json();
-      const updatedComments = [...(thread.comments || []), newReply];
+      
+      // Update the comments array with the new reply
+      const updatedComments = localComments.map(comment => {
+        if (comment.id === commentId) {
+          // Add the reply to the parent comment's replies array
+          return {
+            ...comment,
+            replies: [...(comment.replies || []), newReply]
+          };
+        }
+        return comment;
+      });
+      
+      // Also add the reply to the flat list of comments
+      updatedComments.push({
+        ...newReply,
+        likes: [],
+        likes_count: 0,
+        replies: []
+      });
+
+      // Update local state immediately
+      setLocalComments(updatedComments);
+
+      // Update parent state
       onThreadUpdate?.(thread.id, {
         comments: updatedComments,
         comments_count: (thread.comments_count || 0) + 1,
@@ -346,19 +376,41 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
   };
 
   const handleCommentLike = (commentId: string, newLikesCount: number, liked: boolean) => {
-    const updatedComments = thread.comments?.map(comment => {
+    const updatedComments = localComments.map(comment => {
       if (comment.id === commentId) {
         return {
           ...comment,
           likes_count: newLikesCount,
-          likes: liked 
-            ? [...(comment.likes || []), user?.id]
-            : (comment.likes || []).filter(id => id !== user?.id)
+          likes: liked && user?.id
+            ? [...(comment.likes || []), user.id]
+            : (comment.likes || []).filter((likeId: string) => likeId !== user?.id)
+        };
+      }
+      // Also check nested replies
+      if (comment.replies?.length) {
+        return {
+          ...comment,
+          replies: comment.replies.map(reply => {
+            if (reply.id === commentId) {
+              return {
+                ...reply,
+                likes_count: newLikesCount,
+                likes: liked && user?.id
+                  ? [...(reply.likes || []), user.id]
+                  : (reply.likes || []).filter((likeId: string) => likeId !== user?.id)
+              };
+            }
+            return reply;
+          })
         };
       }
       return comment;
     });
 
+    // Update local state immediately
+    setLocalComments(updatedComments);
+
+    // Update parent state
     onThreadUpdate?.(thread.id, {
       comments: updatedComments
     });
@@ -392,7 +444,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     return topLevelComments;
   };
 
-  const organizedComments = organizeComments(thread.comments);
+  const organizedComments = organizeComments(localComments);
 
   // Add this helper function before the return statement
   const mapCommentToProps = (comment: Comment): CommentProps => ({

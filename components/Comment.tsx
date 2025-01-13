@@ -13,54 +13,48 @@ import { createClient } from "@/lib/supabase";
 
 interface CommentProps {
   id: string;
-  threadId: string;
   content: string;
   author: {
     name: string;
     image: string;
   };
   created_at: string;
-  replies?: CommentProps[];
+  threadId: string;
   parent_id?: string;
   likes?: string[];
   likes_count?: number;
-  onReply: (commentId: string, content: string) => Promise<void>;
-  onLikeUpdate?: (commentId: string, newLikesCount: number, liked: boolean) => void;
-  depth?: number;
+  replies?: CommentProps[];
+  onLike?: (commentId: string, newLikesCount: number, liked: boolean) => void;
+  onReply?: (commentId: string, content: string) => Promise<any>;
 }
 
-export default function Comment({ 
-  id, 
-  threadId, 
-  content, 
-  author, 
-  created_at, 
-  replies = [], 
-  onReply,
-  onLikeUpdate,
-  depth = 0,
+export default function Comment({
+  id,
+  content,
+  author,
+  created_at,
+  threadId,
+  parent_id,
   likes = [],
   likes_count = 0,
+  replies = [],
+  onLike,
+  onReply
 }: CommentProps) {
   const { user } = useAuth();
+  const supabase = createClient();
   const [isLiking, setIsLiking] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
-  const [replyContent, setReplyContent] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [replyContent, setReplyContent] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
   const [localLikes, setLocalLikes] = useState(likes);
   const [localLikesCount, setLocalLikesCount] = useState(likes_count);
-  const isLiked = user ? likes.includes(user.id) : false;
-  const supabase = createClient();
+  const isLiked = user?.id ? localLikes.includes(user.id) : false;
 
-  // Update local state when props change
-  useEffect(() => {
-    setLocalLikes(likes);
-    setLocalLikesCount(likes_count);
-  }, [likes, likes_count]);
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
 
-  const formattedAuthorName = formatDisplayName(author.name);
-
-  const handleLike = async () => {
     if (!user) {
       toast.error('Please sign in to like comments');
       return;
@@ -69,13 +63,10 @@ export default function Comment({
     if (isLiking) return;
 
     setIsLiking(true);
-    // Optimistically update UI
-    const wasLiked = localLikes.includes(user.id);
-    const newLikes = wasLiked 
+    const newLikes = isLiked 
       ? localLikes.filter(id => id !== user.id)
       : [...localLikes, user.id];
-    const newLikesCount = wasLiked ? localLikesCount - 1 : localLikesCount + 1;
-    
+    const newLikesCount = isLiked ? localLikesCount - 1 : localLikesCount + 1;
     setLocalLikes(newLikes);
     setLocalLikesCount(newLikesCount);
 
@@ -95,15 +86,14 @@ export default function Comment({
       });
 
       if (!response.ok) {
+        setLocalLikes(likes);
+        setLocalLikesCount(likes_count);
         const error = await response.text();
-        // Revert optimistic update on error
-        setLocalLikes(localLikes);
-        setLocalLikesCount(localLikesCount);
         throw new Error(error || 'Failed to like comment');
       }
 
       const data = await response.json();
-      onLikeUpdate?.(id, data.likes_count, data.liked);
+      onLike?.(id, data.likes_count, data.liked);
     } catch (error) {
       console.error('Error liking comment:', error);
       if (error instanceof Error && error.message.includes('session')) {
@@ -117,124 +107,112 @@ export default function Comment({
   };
 
   const handleSubmitReply = async () => {
-    if (!user) {
-      toast.error('Please sign in to reply');
-      return;
-    }
-
     if (!replyContent.trim()) return;
 
-    setIsSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      setIsSubmittingReply(true);
+      const newReply = await onReply?.(id, replyContent);
+      if (newReply) {
+        setReplyContent('');
+        setIsReplying(false);
+        setShowReplies(true);
       }
-
-      await onReply(id, replyContent);
-      setReplyContent("");
-      setIsReplying(false);
-      toast.success('Reply posted successfully');
     } catch (error) {
-      console.error('Error posting reply:', error);
-      if (error instanceof Error && error.message.includes('session')) {
-        toast.error('Please sign in again to post a reply');
-      } else {
-        toast.error('Failed to post reply. Please try again.');
-      }
+      console.error('Error submitting reply:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingReply(false);
     }
   };
 
-  return (
-    <div className={`pl-${depth * 8}`}>
-      <div className="flex space-x-3">
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={author.image} alt={formattedAuthorName} />
-          <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <div className="bg-gray-50 rounded-lg px-4 py-2.5">
-            <div className="flex items-center space-x-2">
-              <span className="font-medium">{formattedAuthorName}</span>
-              <span className="text-gray-500">·</span>
-              <span className="text-gray-500">
-                {formatDistanceToNow(new Date(created_at))} ago
-              </span>
-            </div>
-            <p className="mt-1">{content}</p>
-          </div>
+  useEffect(() => {
+    setLocalLikes(likes);
+    setLocalLikesCount(likes_count);
+  }, [likes, likes_count]);
 
-          {/* Action buttons */}
-          <div className="flex items-center space-x-4 mt-1 text-sm">
-            <button 
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-4">
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={author.image} alt={formatDisplayName(author.name)} />
+          <AvatarFallback>{formatDisplayName(author.name)[0]}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{formatDisplayName(author.name)}</span>
+            <span className="text-sm text-gray-500">
+              {formatDistanceToNow(new Date(created_at), { addSuffix: true })}
+            </span>
+          </div>
+          <p className="text-sm text-gray-700">{content}</p>
+          <div className="flex items-center gap-4">
+            <button
               onClick={handleLike}
-              className={`flex items-center space-x-1 text-gray-500 hover:text-blue-500 transition-colors ${
+              className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
                 isLiked ? 'text-blue-500' : ''
               }`}
               disabled={isLiking || !user}
             >
-              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''} ${isLiked ? 'text-blue-500' : ''}`} />
+              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''}`} />
               <span>{localLikesCount}</span>
             </button>
-            <button 
+            <button
               onClick={() => setIsReplying(!isReplying)}
-              className="flex items-center space-x-1 text-gray-500 hover:text-gray-700"
-              disabled={!user}
+              className="text-sm text-gray-500 hover:text-blue-500"
             >
-              <MessageSquare className="h-4 w-4" />
-              <span>Reply</span>
+              Reply
             </button>
           </div>
-
-          {/* Reply form */}
           {isReplying && (
-            <div className="mt-2">
-              <Textarea
+            <div className="mt-4 space-y-2">
+              <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder="Write a reply..."
-                className="min-h-[80px] mb-2"
+                className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                rows={3}
               />
-              <div className="flex justify-end space-x-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setIsReplying(false);
-                    setReplyContent("");
-                  }}
-                  disabled={isSubmitting}
-                  size="sm"
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsReplying(false)}
+                  className="rounded-md px-3 py-1 text-sm text-gray-500 hover:bg-gray-100"
                 >
                   Cancel
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={handleSubmitReply}
-                  disabled={isSubmitting || !replyContent.trim()}
-                  size="sm"
+                  disabled={isSubmittingReply || !replyContent.trim()}
+                  className="rounded-md bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Posting...' : 'Post'}
-                </Button>
+                  {isSubmittingReply ? 'Posting...' : 'Reply'}
+                </button>
               </div>
             </div>
           )}
-
-          {/* Nested replies */}
-          {replies && replies.length > 0 && (
-            <div className="mt-4">
+        </div>
+      </div>
+      {replies.length > 0 && (
+        <div className="ml-12">
+          <button
+            onClick={() => setShowReplies(!showReplies)}
+            className="mb-2 text-sm text-gray-500 hover:text-blue-500"
+          >
+            {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          </button>
+          {showReplies && (
+            <div className="space-y-4">
               {replies.map((reply) => (
                 <Comment
                   key={reply.id}
                   {...reply}
-                  depth={depth + 1}
+                  threadId={threadId}
+                  onLike={onLike}
                   onReply={onReply}
                 />
               ))}
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 } 
