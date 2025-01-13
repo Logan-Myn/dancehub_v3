@@ -83,6 +83,7 @@ interface Comment {
 interface CommentProps extends Comment {
   threadId: string;
   onReply: (commentId: string, content: string) => Promise<void>;
+  onLikeUpdate: (commentId: string, newLikesCount: number, liked: boolean) => void;
   replies?: CommentProps[];
 }
 
@@ -344,6 +345,25 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     }
   };
 
+  const handleCommentLike = (commentId: string, newLikesCount: number, liked: boolean) => {
+    const updatedComments = thread.comments?.map(comment => {
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          likes_count: newLikesCount,
+          likes: liked 
+            ? [...(comment.likes || []), user?.id]
+            : (comment.likes || []).filter(id => id !== user?.id)
+        };
+      }
+      return comment;
+    });
+
+    onThreadUpdate?.(thread.id, {
+      comments: updatedComments
+    });
+  };
+
   // Organize comments into a hierarchical structure
   const organizeComments = (comments: Comment[] = []) => {
     const commentMap = new Map();
@@ -379,6 +399,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
     ...comment,
     threadId: thread.id,
     onReply: handleReply,
+    onLikeUpdate: handleCommentLike,
     replies: comment.replies?.map((reply: Comment) => mapCommentToProps(reply))
   });
 

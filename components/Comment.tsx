@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { ThumbsUp, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
@@ -25,6 +25,7 @@ interface CommentProps {
   likes?: string[];
   likes_count?: number;
   onReply: (commentId: string, content: string) => Promise<void>;
+  onLikeUpdate?: (commentId: string, newLikesCount: number, liked: boolean) => void;
   depth?: number;
 }
 
@@ -36,6 +37,7 @@ export default function Comment({
   created_at, 
   replies = [], 
   onReply,
+  onLikeUpdate,
   depth = 0,
   likes = [],
   likes_count = 0,
@@ -45,8 +47,16 @@ export default function Comment({
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localLikes, setLocalLikes] = useState(likes);
+  const [localLikesCount, setLocalLikesCount] = useState(likes_count);
   const isLiked = user ? likes.includes(user.id) : false;
   const supabase = createClient();
+
+  // Update local state when props change
+  useEffect(() => {
+    setLocalLikes(likes);
+    setLocalLikesCount(likes_count);
+  }, [likes, likes_count]);
 
   const formattedAuthorName = formatDisplayName(author.name);
 
@@ -59,6 +69,16 @@ export default function Comment({
     if (isLiking) return;
 
     setIsLiking(true);
+    // Optimistically update UI
+    const wasLiked = localLikes.includes(user.id);
+    const newLikes = wasLiked 
+      ? localLikes.filter(id => id !== user.id)
+      : [...localLikes, user.id];
+    const newLikesCount = wasLiked ? localLikesCount - 1 : localLikesCount + 1;
+    
+    setLocalLikes(newLikes);
+    setLocalLikesCount(newLikesCount);
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -76,14 +96,21 @@ export default function Comment({
 
       if (!response.ok) {
         const error = await response.text();
+        // Revert optimistic update on error
+        setLocalLikes(localLikes);
+        setLocalLikesCount(localLikesCount);
         throw new Error(error || 'Failed to like comment');
       }
 
       const data = await response.json();
-      // The parent component will handle updating the UI
+      onLikeUpdate?.(id, data.likes_count, data.liked);
     } catch (error) {
       console.error('Error liking comment:', error);
-      toast.error('Failed to like comment. Please try again.');
+      if (error instanceof Error && error.message.includes('session')) {
+        toast.error('Please sign in again to like comments');
+      } else {
+        toast.error('Failed to like comment. Please try again.');
+      }
     } finally {
       setIsLiking(false);
     }
@@ -148,8 +175,8 @@ export default function Comment({
               }`}
               disabled={isLiking || !user}
             >
-              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''}`} />
-              <span>{likes_count}</span>
+              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''} ${isLiked ? 'text-blue-500' : ''}`} />
+              <span>{localLikesCount}</span>
             </button>
             <button 
               onClick={() => setIsReplying(!isReplying)}
