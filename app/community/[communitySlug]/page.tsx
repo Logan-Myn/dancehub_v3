@@ -82,12 +82,10 @@ interface Community {
   name: string;
   slug: string;
   description: string;
-  image_url: string;
-  created_by: string;
-  created_at: string;
-  membersCount: number;
-  createdBy: string;
   imageUrl: string;
+  createdBy: string;
+  createdAt: string;
+  membersCount: number;
   customLinks?: CustomLink[];
   membershipEnabled?: boolean;
   membershipPrice?: number;
@@ -174,6 +172,7 @@ export default function CommunityPage() {
   const [totalMembers, setTotalMembers] = useState(0);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState('dashboard');
 
   useEffect(() => {
     async function fetchData() {
@@ -252,7 +251,7 @@ export default function CommunityPage() {
           membersCount: membersData.length,
           createdBy: communityData.created_by,
           imageUrl: communityData.image_url,
-          threadCategories: communityData.thread_categories || [],
+          threadCategories: communityData.threadCategories || [],
           customLinks: communityData.custom_links || [],
           membershipEnabled: communityData.membership_enabled || false,
           membershipPrice: communityData.membership_price || 0,
@@ -645,7 +644,7 @@ export default function CommunityPage() {
                               </Avatar>
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                 {member.profile?.full_name || "Anonymous"}
-                                {member.user_id === community.created_by ? " (Creator)" : ""}
+                                {member.user_id === community.createdBy ? " (Creator)" : ""}
                               </div>
                             </div>
                           </div>
@@ -795,32 +794,17 @@ export default function CommunityPage() {
       </AlertDialog>
 
       {/* Add the alert if user is the community creator */}
-      {community.created_by === currentUser?.id && (
+      {community.createdBy === currentUser?.id && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
           <StripeRequirementsAlert 
-            stripeAccountId={community.stripe_account_id}
+            stripeAccountId={typeof community.stripeAccountId === 'string' ? community.stripeAccountId : null}
             onSettingsClick={() => {
-              // Open settings modal and navigate to subscriptions tab
               setIsSettingsModalOpen(true);
               setActiveSettingsTab('subscriptions');
             }}
           />
         </div>
       )}
-
-      <CommunityHeader 
-        community={{
-          id: community.id,
-          name: community.name,
-          description: community.description,
-          image_url: community.image_url,
-          created_by: community.created_by,
-          stripeAccountId: community.stripe_account_id,
-          customLinks: community.custom_links || [],
-          threadCategories: community.thread_categories || [],
-        }}
-        currentUserId={currentUser?.id || null}
-      />
     </div>
   );
 }
