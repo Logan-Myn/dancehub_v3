@@ -163,18 +163,34 @@ export default function ClassroomPage() {
           </div>
 
           {isMember || isCreator ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {courses.map((course) => (
-                <Link
-                  key={course.id}
-                  href={`/community/${communitySlug}/classroom/${course.slug}`}
-                >
-                  <CourseCard
-                    course={course}
-                    onClick={() => {}} // Empty onClick to satisfy prop requirement
-                  />
-                </Link>
-              ))}
+            <div>
+              {courses.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {courses.map((course) => (
+                    <Link
+                      key={course.id}
+                      href={`/community/${communitySlug}/classroom/${course.slug}`}
+                    >
+                      <CourseCard
+                        course={course}
+                        onClick={() => {}} // Empty onClick to satisfy prop requirement
+                      />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  {isCreator ? (
+                    <p className="text-xl text-gray-600">
+                      You don't have a course yet, click on the Create Course button to create your first course
+                    </p>
+                  ) : (
+                    <p className="text-xl text-gray-600">
+                      This community doesn't have courses yet
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center">
