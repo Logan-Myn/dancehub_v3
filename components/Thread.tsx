@@ -110,8 +110,12 @@ export default function Thread({
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || 'Failed to create thread');
+        const errorData = await response.json();
+        if (response.status === 403) {
+          throw new Error(errorData.error || 'You do not have permission to post in this category');
+        } else {
+          throw new Error(errorData.error || 'Failed to create thread');
+        }
       }
 
       const newThread = await response.json();
@@ -122,8 +126,12 @@ export default function Thread({
       onSave(newThread);
     } catch (error) {
       console.error("Error creating thread:", error);
-      if (error instanceof Error && error.message.includes('session')) {
-        toast.error('Please sign in again to create a thread');
+      if (error instanceof Error) {
+        if (error.message.includes('session')) {
+          toast.error('Please sign in again to create a thread');
+        } else {
+          toast.error(error.message);
+        }
       } else {
         toast.error('Failed to create thread. Please try again.');
       }
@@ -156,7 +164,7 @@ export default function Thread({
             </SelectTrigger>
             <SelectContent>
               {community.thread_categories
-                ?.filter((category: { creator_only: boolean }) => !category.creator_only || isCreator)
+                ?.filter((category: { creatorOnly: boolean }) => !category.creatorOnly || isCreator)
                 .map((category: any) => {
                   const iconConfig = CATEGORY_ICONS.find(
                     (i) => i.label === category.iconType
@@ -171,6 +179,9 @@ export default function Thread({
                           style={{ color: iconConfig?.color }}
                         />
                         <span>{category.name}</span>
+                        {category.creatorOnly && (
+                          <span className="ml-2 text-xs text-gray-500">(Creator only)</span>
+                        )}
                       </div>
                     </SelectItem>
                   );

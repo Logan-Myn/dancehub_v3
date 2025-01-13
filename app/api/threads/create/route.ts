@@ -4,7 +4,33 @@ import { createAdminClient } from '@/lib/supabase';
 export async function POST(request: Request) {
   try {
     const supabase = createAdminClient();
-    const { title, content, communityId, userId, author } = await request.json();
+    const { title, content, communityId, userId, categoryId, categoryName, author } = await request.json();
+
+    // Get the community and check if user is creator
+    const { data: community, error: communityError } = await supabase
+      .from('communities')
+      .select('created_by, thread_categories')
+      .eq('id', communityId)
+      .single();
+
+    if (communityError) throw communityError;
+
+    // Check if the selected category exists and if user has permission
+    const category = community.thread_categories?.find((cat: any) => cat.id === categoryId);
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Category not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if category is creator-only and user is not the creator
+    if (category.creatorOnly && userId !== community.created_by) {
+      return NextResponse.json(
+        { error: 'Only the community creator can post in this category' },
+        { status: 403 }
+      );
+    }
 
     // Create the thread with author info included
     const { data: thread, error: threadError } = await supabase
@@ -19,6 +45,8 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
         author_name: author.name,
         author_image: author.avatar_url,
+        category_id: categoryId,
+        category_name: categoryName,
       })
       .select()
       .single();
