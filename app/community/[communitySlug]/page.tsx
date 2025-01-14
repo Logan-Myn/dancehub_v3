@@ -54,6 +54,7 @@ interface Thread {
   commentsCount: number;
   category?: string;
   categoryId?: string;
+  category_type?: string;
   author: {
     name: string;
     image: string;
@@ -174,6 +175,8 @@ export default function CommunityPage() {
   const [totalMembers, setTotalMembers] = useState(0);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [newThreadId, setNewThreadId] = useState<string | null>(null);
+  const [lastCreatedThread, setLastCreatedThread] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -378,34 +381,38 @@ export default function CommunityPage() {
   };
 
   const handleNewThread = async (newThread: any) => {
-    const userProfile = members.find(
-      (m) => m.user_id === currentUser?.id
-    )?.profile;
+    const selectedCategory = community?.threadCategories?.find(
+      (cat) => cat.id === newThread.categoryId
+    );
+
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name:
-          userProfile?.full_name ||
-          formatDisplayName(currentUser?.user_metadata?.full_name) ||
-          currentUser?.email?.split("@")[0] ||
-          "Anonymous",
-        image:
-          userProfile?.avatar_url ||
-          currentUser?.user_metadata?.avatar_url ||
-          "",
+        name: currentUser?.user_metadata?.full_name || 'Anonymous',
+        image: currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,
-      category: community?.threadCategories?.find(
-        (cat) => cat.id === newThread.categoryId
-      )?.name,
+      category: selectedCategory?.name || 'General',
+      category_type: selectedCategory?.iconType,
       createdAt: new Date().toISOString(),
       likesCount: 0,
       commentsCount: 0,
+      likes: [],
+      comments: []
     };
 
     setThreads((prevThreads) => [threadWithAuthor, ...prevThreads]);
+    setLastCreatedThread(threadWithAuthor.id);
     setIsWriting(false);
   };
+
+  useEffect(() => {
+    if (lastCreatedThread) {
+      // Force a re-render for the new thread
+      setThreads(threads => [...threads]);
+      setLastCreatedThread(null);
+    }
+  }, [lastCreatedThread]);
 
   const handleLikeUpdate = (
     threadId: string,
@@ -621,14 +628,18 @@ export default function CommunityPage() {
                     likes_count={thread.likesCount}
                     comments_count={thread.commentsCount}
                     category={
-                      community.threadCategories?.find(
-                        (cat) => cat.id === thread.categoryId
-                      )?.name || 'General'
+                      thread.id === newThreadId 
+                        ? thread.category 
+                        : community.threadCategories?.find(
+                            (cat) => cat.id === thread.categoryId
+                          )?.name || 'General'
                     }
                     category_type={
-                      community.threadCategories?.find(
-                        (cat) => cat.id === thread.categoryId
-                      )?.iconType
+                      thread.id === newThreadId
+                        ? thread.category_type
+                        : community.threadCategories?.find(
+                            (cat) => cat.id === thread.categoryId
+                          )?.iconType
                     }
                     likes={thread.likes}
                     onClick={() => setSelectedThread(thread)}
