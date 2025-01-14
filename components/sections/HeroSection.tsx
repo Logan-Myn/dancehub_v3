@@ -4,7 +4,7 @@ import { Section } from "@/types/page-builder";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import { UploadCloud, GripVertical, Trash, Settings } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from 'uuid';
 import { useSortable } from "@dnd-kit/sortable";
@@ -51,20 +51,53 @@ export default function HeroSection({
     transition,
   };
 
+  // Log when component mounts
+  useEffect(() => {
+    console.log('HeroSection mounted, isEditing:', isEditing);
+  }, [isEditing]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLabelClick = () => {
+    console.log('Label clicked');
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleImageUpload triggered');
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    console.log('File selected:', {
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
 
     try {
       setIsUploading(true);
+      console.log('Starting upload process...');
       const fileExt = file.name.split('.').pop();
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `community-pages/${fileName}`;
+
+      console.log('Upload details:', {
+        fileExt,
+        fileName,
+        filePath
+      });
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('images')
         .upload(filePath, file);
+
+      console.log('Upload response:', { uploadError });
 
       if (uploadError) {
         throw uploadError;
@@ -75,6 +108,8 @@ export default function HeroSection({
         .from('images')
         .getPublicUrl(filePath);
       
+      console.log('Public URL:', publicUrl);
+
       onUpdate({
         ...section.content,
         imageUrl: publicUrl,
@@ -164,12 +199,19 @@ export default function HeroSection({
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <Popover 
+            open={isSettingsOpen} 
+            onOpenChange={(open) => {
+              console.log('Settings popover state:', open);
+              setIsSettingsOpen(open);
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-white hover:bg-white/20"
+                onClick={() => console.log('Settings button clicked')}
               >
                 <Settings className="h-4 w-4" />
               </Button>
@@ -189,19 +231,88 @@ export default function HeroSection({
                         />
                       </div>
                     )}
-                    <label className="cursor-pointer">
-                      <div className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                        <UploadCloud className="h-4 w-4" />
-                        <span>{isUploading ? 'Uploading...' : 'Change Image'}</span>
+                    <div>
+                      <div className="h-[100px] border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+                        <div 
+                          className="cursor-pointer w-full h-full flex items-center justify-center"
+                          onClick={() => {
+                            console.log('Upload area clicked');
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = async (e) => {
+                              console.log('File input change event');
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (!file) {
+                                console.log('No file selected');
+                                return;
+                              }
+
+                              console.log('File selected:', {
+                                name: file.name,
+                                type: file.type,
+                                size: file.size
+                              });
+
+                              try {
+                                setIsUploading(true);
+                                console.log('Starting upload process...');
+                                const fileExt = file.name.split('.').pop();
+                                const fileName = `${uuidv4()}.${fileExt}`;
+                                const filePath = `community-pages/${fileName}`;
+
+                                console.log('Upload details:', {
+                                  fileExt,
+                                  fileName,
+                                  filePath
+                                });
+
+                                // Upload to Supabase Storage
+                                const { error: uploadError } = await supabase.storage
+                                  .from('images')
+                                  .upload(filePath, file);
+
+                                console.log('Upload response:', { uploadError });
+
+                                if (uploadError) {
+                                  throw uploadError;
+                                }
+
+                                // Get the public URL
+                                const { data: { publicUrl } } = supabase.storage
+                                  .from('images')
+                                  .getPublicUrl(filePath);
+                                
+                                console.log('Public URL:', publicUrl);
+
+                                onUpdate({
+                                  ...section.content,
+                                  imageUrl: publicUrl,
+                                });
+
+                                toast.success('Image uploaded successfully');
+                              } catch (error) {
+                                console.error('Error uploading image:', error);
+                                toast.error('Failed to upload image');
+                              } finally {
+                                setIsUploading(false);
+                              }
+                            };
+                            input.click();
+                          }}
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <UploadCloud className="h-8 w-8 text-gray-400" />
+                            <span className="text-sm text-gray-500">
+                              {isUploading ? 'Uploading...' : 'Upload Image'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                      />
-                    </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Max size: 5MB. Supported formats: JPG, PNG, GIF
+                      </p>
+                    </div>
                   </div>
                 </div>
 
