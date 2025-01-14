@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { toast } from "react-hot-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Pin } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { Switch } from "./ui/switch";
 import { CATEGORY_ICONS } from "@/lib/constants";
 import Editor from "./Editor";
 import { useEditor } from "@tiptap/react";
@@ -41,6 +42,7 @@ export default function Thread({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
   const { user } = useAuth();
   const [content, setContent] = useState("");
   const [profile, setProfile] = useState<any>(null);
@@ -119,6 +121,7 @@ export default function Thread({
           categoryName: community.thread_categories?.find(
             (cat: { id: string; name: string }) => cat.id === selectedCategory
           )?.name,
+          pinned: isCreator ? isPinned : false,
           author: {
             id: user.id,
             name: formatDisplayName(profile?.full_name) || formatDisplayName(user?.user_metadata?.full_name) || 'Anonymous',
@@ -227,6 +230,19 @@ export default function Thread({
 
       {/* Action buttons */}
       <div className="flex justify-end space-x-2 pt-4 border-t">
+        {isCreator && (
+          <div className="flex items-center space-x-2 mr-auto">
+            <Switch
+              checked={isPinned}
+              onCheckedChange={setIsPinned}
+              id="pin-thread"
+            />
+            <label htmlFor="pin-thread" className="text-sm flex items-center space-x-1 cursor-pointer">
+              <Pin className="h-4 w-4" />
+              <span>Pin this thread</span>
+            </label>
+          </div>
+        )}
         <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
           CANCEL
         </Button>

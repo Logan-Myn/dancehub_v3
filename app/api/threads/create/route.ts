@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase';
 export async function POST(request: Request) {
   try {
     const supabase = createAdminClient();
-    const { title, content, communityId, userId, categoryId, categoryName, author } = await request.json();
+    const { title, content, communityId, userId, categoryId, categoryName, author, pinned } = await request.json();
 
     // Get the community and check if user is creator
     const { data: community, error: communityError } = await supabase
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
         author_image: profile?.avatar_url || author.avatar_url,
         category_id: categoryId,
         category_name: categoryName,
+        pinned: pinned && userId === community.created_by ? pinned : false,
       })
       .select()
       .single();
