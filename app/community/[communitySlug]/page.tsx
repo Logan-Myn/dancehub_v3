@@ -32,8 +32,6 @@ import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
-import { StripeRequirementsAlert } from '@/components/StripeRequirementsAlert';
-import { CommunityHeader } from '@/components/CommunityHeader';
 
 interface CustomLink {
   title: string;
@@ -82,10 +80,12 @@ interface Community {
   name: string;
   slug: string;
   description: string;
-  imageUrl: string;
-  createdBy: string;
-  createdAt: string;
+  image_url: string;
+  created_by: string;
+  created_at: string;
   membersCount: number;
+  createdBy: string;
+  imageUrl: string;
   customLinks?: CustomLink[];
   membershipEnabled?: boolean;
   membershipPrice?: number;
@@ -154,7 +154,7 @@ export default function CommunityPage() {
   const communitySlug = params?.communitySlug as string;
   const { user: currentUser } = useAuth();
   const supabase = createClient();
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [community, setCommunity] = useState<Community | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -163,7 +163,9 @@ export default function CommunityPage() {
   const [isCreator, setIsCreator] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(
+    null
+  );
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [isWriting, setIsWriting] = useState(false);
@@ -172,7 +174,6 @@ export default function CommunityPage() {
   const [totalMembers, setTotalMembers] = useState(0);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState('dashboard');
 
   useEffect(() => {
     async function fetchData() {
@@ -208,13 +209,13 @@ export default function CommunityPage() {
         }
 
         // Format members data with profile information
-        const formattedMembers = membersData.map(member => ({
+        const formattedMembers = membersData.map((member) => ({
           ...member,
           profile: {
             id: member.user_id,
-            full_name: member.full_name || 'Anonymous',
-            avatar_url: member.avatar_url
-          }
+            full_name: member.full_name || "Anonymous",
+            avatar_url: member.avatar_url,
+          },
         }));
 
         // Get threads
@@ -227,7 +228,7 @@ export default function CommunityPage() {
         if (threadsError) throw threadsError;
 
         // Format threads data
-        const formattedThreads = threadsData.map(thread => ({
+        const formattedThreads = threadsData.map((thread) => ({
           id: thread.id,
           title: thread.title,
           content: thread.content,
@@ -251,7 +252,7 @@ export default function CommunityPage() {
           membersCount: membersData.length,
           createdBy: communityData.created_by,
           imageUrl: communityData.image_url,
-          threadCategories: communityData.threadCategories || [],
+          threadCategories: communityData.thread_categories || [],
           customLinks: communityData.custom_links || [],
           membershipEnabled: communityData.membership_enabled || false,
           membershipPrice: communityData.membership_price || 0,
@@ -261,12 +262,16 @@ export default function CommunityPage() {
         setCommunity(formattedCommunity);
         setMembers(formattedMembers);
         setThreads(formattedThreads);
-        setIsMember(currentUser ? membersData.some(member => member.user_id === currentUser.id) : false);
+        setIsMember(
+          currentUser
+            ? membersData.some((member) => member.user_id === currentUser.id)
+            : false
+        );
         setIsCreator(currentUser?.id === communityData.created_by);
         setTotalMembers(membersData.length);
       } catch (error) {
         console.error("Error:", error);
-        setError(error instanceof Error ? error : new Error('Unknown error'));
+        setError(error instanceof Error ? error : new Error("Unknown error"));
       } finally {
         setIsLoading(false);
       }
@@ -324,18 +329,20 @@ export default function CommunityPage() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error('Join community error:', errorData);
+          console.error("Join community error:", errorData);
           throw new Error(errorData.error || "Failed to join community");
         }
 
         const data = await response.json();
         setIsMember(true);
-        setTotalMembers(prev => prev + 1);
+        setTotalMembers((prev) => prev + 1);
         toast.success("Successfully joined the community!");
       }
     } catch (error) {
       console.error("Error joining community:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to join community");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to join community"
+      );
     }
   };
 
@@ -357,10 +364,12 @@ export default function CommunityPage() {
 
       // Update local state
       setIsMember(false);
-      setMembers((prev) => prev.filter((member) => member.id !== currentUser.id));
-      setTotalMembers(prev => prev - 1);
+      setMembers((prev) =>
+        prev.filter((member) => member.id !== currentUser.id)
+      );
+      setTotalMembers((prev) => prev - 1);
       setShowLeaveDialog(false);
-      
+
       toast.success("Successfully left the community");
     } catch (error) {
       console.error("Error leaving community:", error);
@@ -369,12 +378,21 @@ export default function CommunityPage() {
   };
 
   const handleNewThread = async (newThread: any) => {
-    const userProfile = members.find(m => m.user_id === currentUser?.id)?.profile;
+    const userProfile = members.find(
+      (m) => m.user_id === currentUser?.id
+    )?.profile;
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: userProfile?.full_name || formatDisplayName(currentUser?.user_metadata?.full_name) || currentUser?.email?.split('@')[0] || "Anonymous",
-        image: userProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || "",
+        name:
+          userProfile?.full_name ||
+          formatDisplayName(currentUser?.user_metadata?.full_name) ||
+          currentUser?.email?.split("@")[0] ||
+          "Anonymous",
+        image:
+          userProfile?.avatar_url ||
+          currentUser?.user_metadata?.avatar_url ||
+          "",
       },
       categoryId: newThread.categoryId,
       category: community?.threadCategories?.find(
@@ -389,7 +407,11 @@ export default function CommunityPage() {
     setIsWriting(false);
   };
 
-  const handleLikeUpdate = (threadId: string, newLikesCount: number, liked: boolean) => {
+  const handleLikeUpdate = (
+    threadId: string,
+    newLikesCount: number,
+    liked: boolean
+  ) => {
     setThreads((prevThreads) =>
       prevThreads.map((thread) =>
         thread.id === threadId
@@ -454,22 +476,26 @@ export default function CommunityPage() {
 
   const fetchThreads = async () => {
     if (!community) return;
-    
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       // Get threads with profile data
       const { data: threadsData, error } = await supabase
-        .from('threads')
-        .select(`
+        .from("threads")
+        .select(
+          `
           *,
           profiles:user_id (
             avatar_url,
             full_name
           )
-        `)
-        .eq('community_id', community.id)
-        .order('created_at', { ascending: false });
+        `
+        )
+        .eq("community_id", community.id)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -480,8 +506,8 @@ export default function CommunityPage() {
         createdAt: thread.created_at,
         userId: thread.user_id,
         author: {
-          name: thread.author_name || thread.profiles?.full_name || 'Anonymous',
-          image: thread.profiles?.avatar_url || thread.author_image || '',
+          name: thread.author_name || thread.profiles?.full_name || "Anonymous",
+          image: thread.profiles?.avatar_url || thread.author_image || "",
         },
         category: thread.category_name,
         categoryId: thread.category_id,
@@ -493,7 +519,7 @@ export default function CommunityPage() {
 
       setThreads(formattedThreads);
     } catch (error) {
-      console.error('Error fetching threads:', error);
+      console.error("Error fetching threads:", error);
       setError(error as Error);
     } finally {
       setIsLoading(false);
@@ -536,11 +562,26 @@ export default function CommunityPage() {
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={members.find(m => m.user_id === currentUser?.id)?.profile?.avatar_url || currentUser?.user_metadata?.avatar_url || ""}
-                        alt={members.find(m => m.user_id === currentUser?.id)?.profile?.full_name || currentUser?.user_metadata?.full_name || "User"}
+                        src={
+                          members.find((m) => m.user_id === currentUser?.id)
+                            ?.profile?.avatar_url ||
+                          currentUser?.user_metadata?.avatar_url ||
+                          ""
+                        }
+                        alt={
+                          members.find((m) => m.user_id === currentUser?.id)
+                            ?.profile?.full_name ||
+                          currentUser?.user_metadata?.full_name ||
+                          "User"
+                        }
                       />
                       <AvatarFallback>
-                        {(members.find(m => m.user_id === currentUser?.id)?.profile?.full_name?.[0] || currentUser?.user_metadata?.full_name?.[0] || "U").toUpperCase()}
+                        {(
+                          members.find((m) => m.user_id === currentUser?.id)
+                            ?.profile?.full_name?.[0] ||
+                          currentUser?.user_metadata?.full_name?.[0] ||
+                          "U"
+                        ).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div
@@ -558,13 +599,14 @@ export default function CommunityPage() {
               </div>
 
               {/* Categories filter */}
-              {community.threadCategories && community.threadCategories.length > 0 && (
-                <ThreadCategories
-                  categories={community.threadCategories}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={setSelectedCategory}
-                />
-              )}
+              {community.threadCategories &&
+                community.threadCategories.length > 0 && (
+                  <ThreadCategories
+                    categories={community.threadCategories}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={setSelectedCategory}
+                  />
+                )}
 
               {/* Threads list */}
               <div className="space-y-4">
@@ -578,8 +620,16 @@ export default function CommunityPage() {
                     created_at={thread.createdAt}
                     likes_count={thread.likesCount}
                     comments_count={thread.commentsCount}
-                    category={thread.category}
-                    category_type={thread.categoryId}
+                    category={
+                      community.threadCategories?.find(
+                        (cat) => cat.id === thread.categoryId
+                      )?.name || 'General'
+                    }
+                    category_type={
+                      community.threadCategories?.find(
+                        (cat) => cat.id === thread.categoryId
+                      )?.iconType
+                    }
                     likes={thread.likes}
                     onClick={() => setSelectedThread(thread)}
                     onLikeUpdate={handleLikeUpdate}
@@ -604,7 +654,9 @@ export default function CommunityPage() {
                   />
                 )}
                 <div className="p-4">
-                  <h2 className="text-xl font-semibold mb-2">{community.name}</h2>
+                  <h2 className="text-xl font-semibold mb-2">
+                    {community.name}
+                  </h2>
                   <p className="text-sm mb-2">{community.description}</p>
 
                   <div className="flex items-center text-sm text-gray-500 mb-4">
@@ -634,17 +686,25 @@ export default function CommunityPage() {
                           <div key={member.id}>
                             <div className="relative group/avatar">
                               <Avatar className="h-8 w-8">
-                                <AvatarImage 
-                                  src={member.profile?.avatar_url || "/placeholder-avatar.png"} 
+                                <AvatarImage
+                                  src={
+                                    member.profile?.avatar_url ||
+                                    "/placeholder-avatar.png"
+                                  }
                                   alt={member.profile?.full_name || "Member"}
                                 />
                                 <AvatarFallback>
-                                  {member.profile?.full_name?.[0]?.toUpperCase() || member.user_id.substring(0, 2).toUpperCase()}
+                                  {member.profile?.full_name?.[0]?.toUpperCase() ||
+                                    member.user_id
+                                      .substring(0, 2)
+                                      .toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                 {member.profile?.full_name || "Anonymous"}
-                                {member.user_id === community.createdBy ? " (Creator)" : ""}
+                                {member.user_id === community.created_by
+                                  ? " (Creator)"
+                                  : ""}
                               </div>
                             </div>
                           </div>
@@ -656,7 +716,9 @@ export default function CommunityPage() {
                         )}
                       </>
                     ) : (
-                      <div className="text-sm text-gray-500">No members yet</div>
+                      <div className="text-sm text-gray-500">
+                        No members yet
+                      </div>
                     )}
                   </div>
 
@@ -679,7 +741,9 @@ export default function CommunityPage() {
                       onClick={handleJoinCommunity}
                       className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
                     >
-                      {community?.membershipEnabled && community?.membershipPrice && community?.stripeAccountId
+                      {community?.membershipEnabled &&
+                      community?.membershipPrice &&
+                      community?.stripeAccountId
                         ? `Join for €${community.membershipPrice}/month`
                         : "Join for free"}
                     </Button>
@@ -721,9 +785,7 @@ export default function CommunityPage() {
           onThreadUpdate={(threadId, updates) => {
             setThreads((prevThreads) =>
               prevThreads.map((thread) =>
-                thread.id === threadId
-                  ? { ...thread, ...updates }
-                  : thread
+                thread.id === threadId ? { ...thread, ...updates } : thread
               )
             );
           }}
@@ -780,8 +842,8 @@ export default function CommunityPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Community</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave this community? You'll lose access to
-              all content and need to rejoin to access it again.
+              Are you sure you want to leave this community? You'll lose access
+              to all content and need to rejoin to access it again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -792,19 +854,6 @@ export default function CommunityPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Add the alert if user is the community creator */}
-      {community.createdBy === currentUser?.id && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-          <StripeRequirementsAlert 
-            stripeAccountId={typeof community.stripeAccountId === 'string' ? community.stripeAccountId : null}
-            onSettingsClick={() => {
-              setIsSettingsModalOpen(true);
-              setActiveSettingsTab('subscriptions');
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }

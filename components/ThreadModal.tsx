@@ -474,24 +474,22 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-medium">{formattedAuthorName}</span>
+                    <span className="text-gray-500">posted in</span>
+                    {thread.category && (
+                      <div className="flex items-center space-x-1">
+                        <IconComponent 
+                          className="h-4 w-4"
+                          style={{ color: iconConfig?.color }}
+                        />
+                        <span style={{ color: iconConfig?.color }}>
+                          {thread.category}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-gray-500">·</span>
                     <span className="text-gray-500">
                       {formatDistanceToNow(new Date(thread.created_at))} ago
                     </span>
-                    {thread.category && (
-                      <>
-                        <span className="text-gray-500">in</span>
-                        <div className="flex items-center space-x-1">
-                          <IconComponent 
-                            className="h-4 w-4"
-                            style={{ color: iconConfig?.color }}
-                          />
-                          <span style={{ color: iconConfig?.color }}>
-                            {thread.category}
-                          </span>
-                        </div>
-                      </>
-                    )}
                   </div>
                 </div>
               </div>

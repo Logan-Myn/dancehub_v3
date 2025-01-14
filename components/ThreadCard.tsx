@@ -108,22 +108,18 @@ export default function ThreadCard({
         <div className="flex-1">
           <div className="flex items-center space-x-2">
             <span className="font-medium">{formattedAuthorName}</span>
+            <span className="text-gray-500">posted in</span>
+            <div className="flex items-center space-x-1">
+              {iconConfig && <IconComponent 
+                className="h-4 w-4"
+                style={{ color: iconConfig.color }}
+              />}
+              <span style={{ color: iconConfig?.color }}>{category || 'General'}</span>
+            </div>
             <span className="text-gray-500">·</span>
             <span className="text-gray-500">
               {formatDistanceToNow(new Date(created_at))} ago
             </span>
-            {category && (
-              <>
-                <span className="text-gray-500">in</span>
-                <div className="flex items-center space-x-1">
-                  <IconComponent 
-                    className="h-4 w-4"
-                    style={{ color: iconConfig?.color }}
-                  />
-                  <span style={{ color: iconConfig?.color }}>{category}</span>
-                </div>
-              </>
-            )}
           </div>
         </div>
       </div>
