@@ -183,13 +183,6 @@ export default function CommunitySettingsModal({
   onCustomLinksUpdate,
   onThreadCategoriesUpdate,
 }: CommunitySettingsModalProps) {
-  console.log('CommunitySettingsModal mounted/updated with stripeAccountId:', stripeAccountId);
-  
-  // Log when stripeAccountId changes
-  useEffect(() => {
-    console.log('stripeAccountId changed:', stripeAccountId);
-  }, [stripeAccountId]);
-
   const [activeCategory, setActiveCategory] = useState("dashboard");
   const [name, setName] = useState(communityName);
   const [description, setDescription] = useState(communityDescription);
@@ -244,14 +237,9 @@ export default function CommunitySettingsModal({
   // Fetch Stripe account status when component mounts or stripeAccountId changes
   useEffect(() => {
     async function fetchStripeStatus() {
-      console.log('=== Stripe Status Fetch Start ===');
-      console.log('Current stripeAccountId:', stripeAccountId);
-      console.log('Modal isOpen:', isOpen);
-      
       setIsLoadingStripeStatus(true);
       
       if (!stripeAccountId) {
-        console.log('No Stripe account ID found, skipping API call');
         setStripeAccountStatus({
           isEnabled: false,
           needsSetup: true,
@@ -264,26 +252,30 @@ export default function CommunitySettingsModal({
 
       try {
         const url = `/api/stripe/account-status/${stripeAccountId}`;
-        console.log('Making API request to:', url);
-        
         const response = await fetch(url);
-        console.log('API Response status:', response.status);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch Stripe status: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('API Response data:', data);
-
         const newStatus = {
-          isEnabled: data.isEnabled,
-          needsSetup: data.needsSetup,
+          isEnabled: data.chargesEnabled && data.payoutsEnabled,
+          needsSetup: !data.detailsSubmitted,
           accountId: stripeAccountId,
-          details: data,
+          details: {
+            chargesEnabled: data.chargesEnabled,
+            payoutsEnabled: data.payoutsEnabled,
+            detailsSubmitted: data.detailsSubmitted,
+            requirements: data.requirements,
+            businessType: data.businessType,
+            capabilities: data.capabilities,
+            payoutSchedule: data.payoutSchedule,
+            defaultCurrency: data.defaultCurrency,
+            email: data.email
+          },
         };
         
-        console.log('Setting new Stripe status:', newStatus);
         setStripeAccountStatus(newStatus);
       } catch (error) {
         console.error('Error in fetchStripeStatus:', error);
@@ -295,15 +287,11 @@ export default function CommunitySettingsModal({
         });
       } finally {
         setIsLoadingStripeStatus(false);
-        console.log('=== Stripe Status Fetch End ===');
       }
     }
 
     if (isOpen) {
-      console.log('Modal is open, initiating Stripe status fetch');
       fetchStripeStatus();
-    } else {
-      console.log('Modal is closed, skipping Stripe status fetch');
     }
   }, [stripeAccountId, isOpen]);
 
@@ -313,7 +301,6 @@ export default function CommunitySettingsModal({
     const setup = urlParams.get('setup');
     
     if (setup === 'complete' && stripeAccountId) {
-      console.log('Stripe setup complete, refreshing status...');
       const fetchStatus = async () => {
         setIsLoadingStripeStatus(true);
         try {
@@ -323,7 +310,6 @@ export default function CommunitySettingsModal({
           if (!response.ok) throw new Error('Failed to fetch status');
           
           const data = await response.json();
-          console.log('Refreshed Stripe status:', data);
           
           setStripeAccountStatus({
             isEnabled: data.chargesEnabled && data.payoutsEnabled,
@@ -600,7 +586,6 @@ export default function CommunitySettingsModal({
 
   const handleCompleteVerification = async () => {
     try {
-      // Create an account link specifically for updates
       const response = await fetch("/api/stripe/create-update-link", {
         method: "POST",
         headers: {
@@ -608,7 +593,7 @@ export default function CommunitySettingsModal({
         },
         body: JSON.stringify({
           accountId: stripeAccountId,
-          returnUrl: window.location.href,
+          returnUrl: window.location.href
         }),
       });
 
@@ -754,108 +739,7 @@ export default function CommunitySettingsModal({
     }
   };
 
-  const RequirementsSection = ({
-    requirements,
-    onCompleteVerification,
-  }: {
-    requirements: StripeRequirements;
-    onCompleteVerification: () => void;
-  }) => {
-    console.log("Requirements data:", requirements);
-
-    if (!requirements) {
-      console.log("No requirements data");
-      return null;
-    }
-
-    const hasRequirements =
-      requirements.currentlyDue.length > 0 ||
-      requirements.pastDue.length > 0 ||
-      requirements.eventuallyDue.length > 0;
-
-    console.log("Has requirements:", hasRequirements);
-    console.log("Currently due:", requirements.currentlyDue);
-    console.log("Past due:", requirements.pastDue);
-    console.log("Eventually due:", requirements.eventuallyDue);
-
-    if (!hasRequirements) return null;
-
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <h4 className="text-sm font-medium text-amber-800 mb-2">
-          Action Required for Stripe Payouts
-        </h4>
-        <div className="space-y-3">
-          {requirements.pastDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-red-800">Past Due:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.pastDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-red-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.currentlyDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-amber-800">
-                Currently Due:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.currentlyDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-amber-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.eventuallyDue.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-800">
-                Required Soon:
-              </p>
-              <ul className="list-disc pl-5 space-y-1">
-                {requirements.eventuallyDue.map((req: StripeRequirement) => (
-                  <li key={req.code} className="text-sm text-blue-700">
-                    {req.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {requirements.currentDeadline && (
-            <p className="text-sm text-amber-700">
-              Deadline:{" "}
-              {new Date(
-                requirements.currentDeadline * 1000
-              ).toLocaleDateString()}
-            </p>
-          )}
-          <div className="mt-4">
-            <Button
-              onClick={onCompleteVerification}
-              variant="outline"
-              size="sm"
-              className="w-full bg-white hover:bg-amber-50"
-            >
-              Complete Verification
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderSubscriptions = () => {
-    console.log('Rendering subscriptions with status:', {
-      stripeAccountId,
-      stripeAccountStatus,
-      isLoadingStripeStatus
-    });
-
     if (isLoadingStripeStatus) {
       return (
         <div className="flex items-center justify-center p-8">
@@ -898,7 +782,9 @@ export default function CommunitySettingsModal({
     }
 
     // If Stripe account needs setup or verification
-    if (stripeAccountStatus.needsSetup || !stripeAccountStatus.isEnabled) {
+    if (stripeAccountStatus.needsSetup || 
+        !stripeAccountStatus.isEnabled || 
+        (stripeAccountStatus.details?.requirements?.eventuallyDue || []).length > 0) {
       return (
         <div className="space-y-6">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -913,21 +799,32 @@ export default function CommunitySettingsModal({
                 <div className="mt-2 text-sm text-yellow-700">
                   <p>
                     Your Stripe account needs additional setup before you can accept payments.
-                    {stripeAccountStatus.details?.requirements?.currentlyDue?.map((req) => (
-                      <div key={req.code}>
-                        <br />
-                        <strong>Required documents:</strong>
-                        <ul className="list-disc list-inside mt-1">
-                          <li>{req.message}</li>
-                        </ul>
-                      </div>
-                    ))}
                   </p>
-                </div>
-                <div className="mt-4">
-                  <Button onClick={handleCompleteVerification}>
-                    Complete Verification
-                  </Button>
+                  {(stripeAccountStatus.details?.requirements?.currentlyDue || []).length > 0 && (
+                    <div className="mt-4">
+                      <strong>Required documents:</strong>
+                      <ul className="list-disc list-inside mt-1">
+                        {(stripeAccountStatus.details?.requirements?.currentlyDue || []).map((req) => (
+                          <li key={req.code}>{req.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(stripeAccountStatus.details?.requirements?.eventuallyDue || []).length > 0 && (
+                    <div className="mt-4">
+                      <strong>Eventually required:</strong>
+                      <ul className="list-disc list-inside mt-1">
+                        {(stripeAccountStatus.details?.requirements?.eventuallyDue || []).map((req) => (
+                          <li key={req.code}>{req.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <Button onClick={handleCompleteVerification}>
+                      Complete Verification
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

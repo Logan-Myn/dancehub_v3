@@ -5,13 +5,13 @@ export async function POST(request: Request) {
   try {
     const { accountId, returnUrl } = await request.json();
 
-    // Create an account link specifically for collecting verification documents
+    // Create an account link for collecting verification documents
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: returnUrl,
       return_url: returnUrl,
       type: 'account_onboarding',
-      collect: 'eventually_due',
+      collect: 'eventually_due'
     });
 
     return NextResponse.json({ url: accountLink.url });
