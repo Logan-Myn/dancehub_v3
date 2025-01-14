@@ -196,13 +196,6 @@ export default function CommunityPage() {
           return;
         }
 
-        // Get creator's Stripe account ID
-        const { data: creatorData } = await supabase
-          .from("profiles")
-          .select("stripe_account_id")
-          .eq("id", communityData.created_by)
-          .single();
-
         // Get members with profiles
         const { data: membersData, error: membersError } = await supabase
           .from("community_members_with_profiles")
@@ -263,7 +256,7 @@ export default function CommunityPage() {
           customLinks: communityData.custom_links || [],
           membershipEnabled: communityData.membership_enabled || false,
           membershipPrice: communityData.membership_price || 0,
-          stripeAccountId: creatorData?.stripe_account_id || null,
+          stripeAccountId: communityData.stripe_account_id || null,
         };
 
         setCommunity(formattedCommunity);

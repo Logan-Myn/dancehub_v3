@@ -7,7 +7,15 @@ export async function GET(
 ) {
   try {
     const { accountId } = params;
+    console.log('Fetching Stripe account status for:', accountId);
+
     const account = await stripe.accounts.retrieve(accountId);
+    console.log('Stripe account response:', {
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      details_submitted: account.details_submitted,
+      requirements: account.requirements,
+    });
 
     // Map requirements to more user-friendly messages
     const requirementMessages = {
@@ -49,7 +57,20 @@ export async function GET(
       disabledReason: account.requirements?.disabled_reason,
     };
 
-    return NextResponse.json({
+    // Check if the account is fully set up
+    const isEnabled = account.charges_enabled && 
+      account.payouts_enabled && 
+      account.details_submitted && 
+      !(account.requirements?.currently_due || []).length && 
+      !(account.requirements?.past_due || []).length;
+
+    const needsSetup = !account.details_submitted || 
+      !account.charges_enabled || 
+      !account.payouts_enabled || 
+      (account.requirements?.currently_due || []).length > 0 || 
+      (account.requirements?.past_due || []).length > 0;
+
+    const response = {
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       detailsSubmitted: account.details_submitted,
@@ -59,9 +80,21 @@ export async function GET(
       payoutSchedule: account.settings?.payouts?.schedule,
       defaultCurrency: account.default_currency,
       email: account.email,
-    });
-  } catch (error) {
+      isEnabled,
+      needsSetup,
+    };
+
+    console.log('Sending response:', response);
+    return NextResponse.json(response);
+  } catch (error: any) {
     console.error('Error fetching Stripe account status:', error);
+    // Check if it's a Stripe error
+    if (error.type === 'StripeError') {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode || 500 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to fetch Stripe account status' },
       { status: 500 }
