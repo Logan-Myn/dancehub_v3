@@ -61,6 +61,7 @@ interface Thread {
   };
   likes?: string[];
   comments?: any[];
+  pinned?: boolean;
 }
 
 interface Member {
@@ -176,7 +177,9 @@ export default function CommunityPage() {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [newThreadId, setNewThreadId] = useState<string | null>(null);
-  const [lastCreatedThread, setLastCreatedThread] = useState<string | null>(null);
+  const [lastCreatedThread, setLastCreatedThread] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function fetchData() {
@@ -247,6 +250,7 @@ export default function CommunityPage() {
           },
           likes: thread.likes || [],
           comments: thread.comments || [],
+          pinned: thread.pinned || false,
         }));
 
         // Format community data
@@ -388,17 +392,17 @@ export default function CommunityPage() {
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: currentUser?.user_metadata?.full_name || 'Anonymous',
+        name: currentUser?.user_metadata?.full_name || "Anonymous",
         image: currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,
-      category: selectedCategory?.name || 'General',
+      category: selectedCategory?.name || "General",
       category_type: selectedCategory?.iconType,
       createdAt: new Date().toISOString(),
       likesCount: 0,
       commentsCount: 0,
       likes: [],
-      comments: []
+      comments: [],
     };
 
     setThreads((prevThreads) => [threadWithAuthor, ...prevThreads]);
@@ -409,7 +413,7 @@ export default function CommunityPage() {
   useEffect(() => {
     if (lastCreatedThread) {
       // Force a re-render for the new thread
-      setThreads(threads => [...threads]);
+      setThreads((threads) => [...threads]);
       setLastCreatedThread(null);
     }
   }, [lastCreatedThread]);
@@ -475,10 +479,20 @@ export default function CommunityPage() {
   };
 
   const filteredThreads = useMemo(() => {
-    if (!selectedCategory) {
-      return threads;
+    let filtered = [...threads];
+    
+    if (selectedCategory) {
+      filtered = filtered.filter((thread) => thread.categoryId === selectedCategory);
     }
-    return threads.filter((thread) => thread.categoryId === selectedCategory);
+    
+    // Sort pinned threads first, then by creation date
+    return filtered.sort((a, b) => {
+      // First sort by pinned status
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      // Then sort by creation date (newest first)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }, [threads, selectedCategory]);
 
   const fetchThreads = async () => {
@@ -519,16 +533,18 @@ export default function CommunityPage() {
           createdAt: thread.created_at,
           userId: thread.user_id,
           author: {
-            name: thread.author_name || thread.profiles?.full_name || "Anonymous",
+            name:
+              thread.author_name || thread.profiles?.full_name || "Anonymous",
             image: thread.profiles?.avatar_url || thread.author_image || "",
           },
-          category: category?.name || 'General',
+          category: category?.name || "General",
           category_type: category?.icon_type || null,
           categoryId: thread.category_id,
           likesCount: thread.likes?.length || 0,
           commentsCount: thread.comments?.length || 0,
           likes: thread.likes || [],
           comments: thread.comments || [],
+          pinned: thread.pinned || false,
         };
       });
 
@@ -636,11 +652,11 @@ export default function CommunityPage() {
                     likes_count={thread.likesCount}
                     comments_count={thread.commentsCount}
                     category={
-                      thread.id === newThreadId 
-                        ? thread.category 
+                      thread.id === newThreadId
+                        ? thread.category
                         : community.threadCategories?.find(
                             (cat) => cat.id === thread.categoryId
-                          )?.name || 'General'
+                          )?.name || "General"
                     }
                     category_type={
                       thread.id === newThreadId
@@ -650,6 +666,7 @@ export default function CommunityPage() {
                           )?.iconType
                     }
                     likes={thread.likes}
+                    pinned={thread.pinned}
                     onClick={() => setSelectedThread(thread)}
                     onLikeUpdate={handleLikeUpdate}
                   />
@@ -794,12 +811,13 @@ export default function CommunityPage() {
             comments_count: selectedThread.commentsCount,
             category: community.threadCategories?.find(
               (cat) => cat.id === selectedThread.categoryId
-            )?.name || 'General',
+            )?.name || "General",
             category_type: community.threadCategories?.find(
               (cat) => cat.id === selectedThread.categoryId
             )?.iconType,
             likes: selectedThread.likes,
             comments: selectedThread.comments,
+            pinned: selectedThread.pinned,
           }}
           isOpen={!!selectedThread}
           onClose={() => setSelectedThread(null)}
@@ -818,6 +836,7 @@ export default function CommunityPage() {
             );
             setSelectedThread(null);
           }}
+          isCreator={currentUser?.id === community.created_by}
         />
       )}
 
