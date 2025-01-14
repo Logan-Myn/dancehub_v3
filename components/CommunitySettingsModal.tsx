@@ -897,73 +897,192 @@ export default function CommunitySettingsModal({
       );
     }
 
-    // If Stripe account needs setup or has requirements
+    // If Stripe account needs setup or verification
     if (stripeAccountStatus.needsSetup || !stripeAccountStatus.isEnabled) {
       return (
-        <div className="space-y-4">
-          <div className="text-center">
-            <h3 className="text-lg font-medium">Complete Stripe Setup</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Your Stripe account needs additional setup before you can enable subscriptions
-            </p>
-          </div>
-          {stripeAccountStatus.details?.requirements && (
-            <RequirementsSection
-              requirements={stripeAccountStatus.details.requirements}
-              onCompleteVerification={handleCompleteVerification}
-            />
-          )}
-        </div>
-      );
-    }
-
-    // If Stripe is fully set up, show subscription settings
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <h3 className="text-lg font-medium">Membership Settings</h3>
-            <p className="text-sm text-gray-500">
-              Configure your community membership options
-            </p>
-          </div>
-          <Switch
-            checked={isMembershipEnabled}
-            onCheckedChange={setIsMembershipEnabled}
-          />
-        </div>
-
-        {isMembershipEnabled && (
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="price"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Monthly Membership Price (USD)
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">$</span>
+        <div className="space-y-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <Lock className="h-5 w-5 text-yellow-400" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Account Setup Required
+                </h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  <p>
+                    Your Stripe account needs additional setup before you can accept payments.
+                    {stripeAccountStatus.details?.requirements?.currentlyDue?.map((req) => (
+                      <div key={req.code}>
+                        <br />
+                        <strong>Required documents:</strong>
+                        <ul className="list-disc list-inside mt-1">
+                          <li>{req.message}</li>
+                        </ul>
+                      </div>
+                    ))}
+                  </p>
                 </div>
-                <Input
-                  type="number"
-                  name="price"
-                  id="price"
-                  className="pl-7 block w-full pr-12 sm:text-sm border-gray-300 rounded-md"
-                  placeholder="0.00"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                  min="0"
-                  step="0.01"
-                />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">USD</span>
+                <div className="mt-4">
+                  <Button onClick={handleCompleteVerification}>
+                    Complete Verification
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      );
+    }
+
+    // If Stripe account is fully set up
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Membership Settings</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Stripe Dashboard
+          </Button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium">Paid Membership</h4>
+              <p className="text-sm text-gray-500">
+                Enable paid membership for your community
+              </p>
+            </div>
+            <Switch
+              checked={isMembershipEnabled}
+              onCheckedChange={setIsMembershipEnabled}
+            />
+          </div>
+
+          {isMembershipEnabled && (
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Monthly Membership Price
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-500 sm:text-sm">€</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    className="pl-7"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Set the monthly price for your community membership
+                </p>
+              </div>
+
+              <Button onClick={handlePriceUpdate} className="w-full">
+                Update Membership Price
+              </Button>
+            </div>
+          )}
+
+          {!isMembershipEnabled && (
+            <div className="bg-gray-100 p-4 rounded-md">
+              <p className="text-sm text-gray-600">
+                Your community is currently free to join. Enable paid membership to
+                start monetizing your community.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-6 border-t">
+          <h3 className="text-lg font-medium mb-4">Payout Management</h3>
+          {payoutData ? (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <h4 className="text-sm font-medium text-gray-500 mb-4">
+                  Current Balance
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-2xl font-bold">
+                      €{payoutData.balance.available.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-500">Available</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">
+                      €{payoutData.balance.pending.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-500">Pending</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-gray-500 mb-4">
+                  Recent Payouts
+                </h4>
+                <div className="space-y-4">
+                  {payoutData.payouts.length > 0 ? (
+                    payoutData.payouts.map((payout) => (
+                      <div
+                        key={payout.id}
+                        className="bg-white p-4 rounded-lg border border-gray-200"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">
+                              €{payout.amount.toFixed(2)}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(payout.arrivalDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              payout.status === "paid"
+                                ? "bg-green-100 text-green-800"
+                                : payout.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {payout.status}
+                          </span>
+                        </div>
+                        {payout.bankAccount && (
+                          <p className="text-sm text-gray-500 mt-2">
+                            To: •••• {payout.bankAccount.last4}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      No recent payouts
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">
+              Failed to load payout information
+            </p>
+          )}
+        </div>
       </div>
     );
   };
