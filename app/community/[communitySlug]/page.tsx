@@ -489,7 +489,7 @@ export default function CommunityPage() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      // Get threads with profile data
+      // Get threads with profile data and category information
       const { data: threadsData, error } = await supabase
         .from("threads")
         .select(
@@ -498,6 +498,10 @@ export default function CommunityPage() {
           profiles:user_id (
             avatar_url,
             full_name
+          ),
+          thread_categories:category_id (
+            name,
+            icon_type
           )
         `
         )
@@ -506,23 +510,27 @@ export default function CommunityPage() {
 
       if (error) throw error;
 
-      const formattedThreads = threadsData.map((thread: any) => ({
-        id: thread.id,
-        title: thread.title,
-        content: thread.content,
-        createdAt: thread.created_at,
-        userId: thread.user_id,
-        author: {
-          name: thread.author_name || thread.profiles?.full_name || "Anonymous",
-          image: thread.profiles?.avatar_url || thread.author_image || "",
-        },
-        category: thread.category_name,
-        categoryId: thread.category_id,
-        likesCount: thread.likes?.length || 0,
-        commentsCount: thread.comments?.length || 0,
-        likes: thread.likes || [],
-        comments: thread.comments || [],
-      }));
+      const formattedThreads = threadsData.map((thread: any) => {
+        const category = thread.thread_categories;
+        return {
+          id: thread.id,
+          title: thread.title,
+          content: thread.content,
+          createdAt: thread.created_at,
+          userId: thread.user_id,
+          author: {
+            name: thread.author_name || thread.profiles?.full_name || "Anonymous",
+            image: thread.profiles?.avatar_url || thread.author_image || "",
+          },
+          category: category?.name || 'General',
+          category_type: category?.icon_type || null,
+          categoryId: thread.category_id,
+          likesCount: thread.likes?.length || 0,
+          commentsCount: thread.comments?.length || 0,
+          likes: thread.likes || [],
+          comments: thread.comments || [],
+        };
+      });
 
       setThreads(formattedThreads);
     } catch (error) {
@@ -784,8 +792,12 @@ export default function CommunityPage() {
             created_at: selectedThread.createdAt,
             likes_count: selectedThread.likesCount,
             comments_count: selectedThread.commentsCount,
-            category: selectedThread.category,
-            category_type: selectedThread.categoryId,
+            category: community.threadCategories?.find(
+              (cat) => cat.id === selectedThread.categoryId
+            )?.name || 'General',
+            category_type: community.threadCategories?.find(
+              (cat) => cat.id === selectedThread.categoryId
+            )?.iconType,
             likes: selectedThread.likes,
             comments: selectedThread.comments,
           }}

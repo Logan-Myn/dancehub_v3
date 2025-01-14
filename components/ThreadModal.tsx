@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { ThumbsUp, MessageSquare, MoreVertical, Edit2, Trash } from "lucide-react";
+import { ThumbsUp, MessageSquare, MoreVertical, Edit2, Trash, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName } from "@/lib/utils";
 import { CATEGORY_ICONS } from "@/lib/constants";
@@ -108,7 +108,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
 
   const formattedAuthorName = formatDisplayName(thread.author.name);
   const iconConfig = CATEGORY_ICONS.find(i => i.label === thread.category_type);
-  const IconComponent = iconConfig?.icon || MessageSquare;
+  const IconComponent = iconConfig?.icon || MessageCircle;
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -468,24 +468,27 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={thread.author.image} alt={formattedAuthorName} />
+                  <AvatarImage
+                    src={thread.author.image}
+                    alt={formattedAuthorName}
+                  />
                   <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-medium">{formattedAuthorName}</span>
                     <span className="text-gray-500">posted in</span>
-                    {thread.category && (
-                      <div className="flex items-center space-x-1">
-                        <IconComponent 
+                    <div className="flex items-center space-x-1">
+                      {iconConfig && (
+                        <IconComponent
                           className="h-4 w-4"
-                          style={{ color: iconConfig?.color }}
+                          style={{ color: iconConfig.color }}
                         />
-                        <span style={{ color: iconConfig?.color }}>
-                          {thread.category}
-                        </span>
-                      </div>
-                    )}
+                      )}
+                      <span style={{ color: iconConfig?.color }}>
+                        {thread.category || "General"}
+                      </span>
+                    </div>
                     <span className="text-gray-500">·</span>
                     <span className="text-gray-500">
                       {formatDistanceToNow(new Date(thread.created_at))} ago
@@ -505,7 +508,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                       <Edit2 className="h-4 w-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => setShowDeleteDialog(true)}
                       className="text-red-600 focus:text-red-600"
                     >
@@ -532,13 +535,10 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   editable={true}
                 />
                 <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleCancelEdit}
-                  >
+                  <Button variant="outline" onClick={handleCancelEdit}>
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleSaveEdit}
                     disabled={!editedTitle.trim() || !editedContent.trim()}
                   >
@@ -559,14 +559,16 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
 
             {/* Interaction buttons */}
             <div className="flex items-center space-x-4 text-gray-500 border-t pt-4">
-              <button 
+              <button
                 onClick={handleLike}
                 className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
-                  isLiked ? 'text-blue-500' : ''
+                  isLiked ? "text-blue-500" : ""
                 }`}
                 disabled={isLiking || !user}
               >
-                <ThumbsUp className={`h-5 w-5 ${isLiking ? 'animate-pulse' : ''}`} />
+                <ThumbsUp
+                  className={`h-5 w-5 ${isLiking ? "animate-pulse" : ""}`}
+                />
                 <span>{thread.likes_count}</span>
               </button>
               <button className="flex items-center space-x-1 hover:text-gray-700">
@@ -592,7 +594,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                     className="w-full min-h-[40px] resize-none py-2"
                     rows={1}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey && comment.trim()) {
+                      if (e.key === "Enter" && !e.shiftKey && comment.trim()) {
                         e.preventDefault();
                         handleSubmitComment(e);
                       }
@@ -605,7 +607,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
                   size="sm"
                   className="flex-shrink-0"
                 >
-                  {isSubmitting ? 'Posting...' : 'Post'}
+                  {isSubmitting ? "Posting..." : "Post"}
                 </Button>
               </div>
             </div>
@@ -615,10 +617,7 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
               {organizedComments.map((comment) => (
-                <Comment
-                  key={comment.id}
-                  {...mapCommentToProps(comment)}
-                />
+                <Comment key={comment.id} {...mapCommentToProps(comment)} />
               ))}
             </div>
           </div>
@@ -630,12 +629,16 @@ export default function ThreadModal({ isOpen, onClose, thread, onLikeUpdate, onC
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your thread and all its comments.
+              This action cannot be undone. This will permanently delete your
+              thread and all its comments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
