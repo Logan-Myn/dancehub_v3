@@ -175,15 +175,15 @@ export default function HeroSection({
           >
             {section.content.subtitle || 'Add subtitle'}
           </p>
-          {section.content.ctaText && (
-            <Button
-              size="lg"
-              className="bg-white text-black hover:bg-gray-100"
-              asChild
-            >
-              <a href={section.content.ctaLink}>{section.content.ctaText}</a>
-            </Button>
-          )}
+          <Button
+            size="lg"
+            className="bg-white text-black hover:bg-gray-100"
+            asChild
+          >
+            <a href={section.content.ctaLink || '#'}>
+              {section.content.ctaText || 'Get Started'}
+            </a>
+          </Button>
         </div>
       </div>
 
