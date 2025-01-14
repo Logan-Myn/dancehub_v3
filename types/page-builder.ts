@@ -8,7 +8,7 @@ export type SectionType =
 
 export interface Section {
   id: string;
-  type: SectionType;
+  type: string;
   content: {
     title?: string;
     subtitle?: string;
@@ -16,27 +16,13 @@ export interface Section {
     imageUrl?: string;
     backgroundColor?: string;
     textColor?: string;
-    alignment?: 'left' | 'center' | 'right';
-    features?: {
-      title: string;
-      description: string;
-      icon?: string;
-    }[];
-    testimonials?: {
-      content: string;
-      author: string;
-      role?: string;
-      avatar?: string;
-    }[];
     ctaText?: string;
     ctaLink?: string;
-    background?: 'white' | 'light' | 'dark';
-    width?: 'narrow' | 'medium' | 'full';
-    layout?: 'full' | 'contained' | 'float-left' | 'float-right';
+    buttonType?: 'link' | 'join';
+    layout?: string;
     altText?: string;
     caption?: string;
   };
-  order: number;
 }
 
 export interface PageData {
