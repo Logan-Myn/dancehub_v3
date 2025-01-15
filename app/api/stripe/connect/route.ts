@@ -8,14 +8,21 @@ export async function POST(request: Request) {
   try {
     const { communityId } = await request.json();
 
-    // Create a Stripe Connect account
+    // Create a Stripe Connect account with worldwide support
     const account = await stripe.accounts.create({
       type: 'express',
-      country: 'FR',
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
       },
+      settings: {
+        payouts: {
+          schedule: {
+            interval: 'manual'
+          }
+        }
+      },
+      business_type: 'individual'
     });
 
     // Update the community with the Stripe account ID

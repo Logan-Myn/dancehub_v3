@@ -470,22 +470,21 @@ export default function CommunitySettingsModal({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ iban: ibanInput }),
+          }
         }
       );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to update bank account");
+        throw new Error(error.error || "Failed to access Stripe dashboard");
       }
 
-      const data = await response.json();
-      setBankAccount(data);
-      toast.success("Bank account updated successfully");
+      const { url } = await response.json();
+      // Redirect to Stripe dashboard
+      window.location.href = url;
     } catch (error: any) {
-      console.error("Error updating bank account:", error);
-      toast.error(error.message || "Failed to update bank account");
+      console.error("Error accessing Stripe dashboard:", error);
+      toast.error(error.message || "Failed to access Stripe dashboard");
     } finally {
       setIsUpdatingIban(false);
     }
@@ -1062,49 +1061,30 @@ export default function CommunitySettingsModal({
               </div>
             ) : (
               <div className="space-y-4">
-                {bankAccount && (
-                  <div className="text-sm text-gray-500 mb-4">
-                    {bankAccount.bank_name && (
-                      <p>Current Bank: {bankAccount.bank_name}</p>
-                    )}
-                    {bankAccount.last4 && (
-                      <p>Account ending in: •••• {bankAccount.last4}</p>
-                    )}
-                  </div>
-                )}
-
                 <div className="space-y-2">
                   <label
                     htmlFor="iban"
                     className="block text-sm font-medium text-gray-700"
                   >
-                    IBAN
+                    Bank Account Management
                   </label>
-                  <Input
-                    id="iban"
-                    type="text"
-                    value={ibanInput}
-                    onChange={(e) => setIbanInput(e.target.value.toUpperCase())}
-                    placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
-                    className="font-mono"
-                  />
                   <p className="text-sm text-gray-500">
-                    Update your IBAN if you want to change your payout bank account
+                    To update your bank account details, you'll be redirected to your Stripe Express dashboard
                   </p>
                 </div>
 
                 <Button
                   onClick={handleUpdateIban}
-                  disabled={isUpdatingIban || !ibanInput}
+                  disabled={isUpdatingIban}
                   className="w-full"
                 >
                   {isUpdatingIban ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Updating...
+                      Redirecting...
                     </>
                   ) : (
-                    "Update Bank Account"
+                    "Manage Bank Account"
                   )}
                 </Button>
               </div>
