@@ -4,7 +4,8 @@ export type SectionType =
   | 'image'
   | 'features'
   | 'testimonials'
-  | 'cta';
+  | 'cta'
+  | 'video';
 
 export interface Section {
   id: string;
@@ -23,6 +24,8 @@ export interface Section {
     layout?: string;
     altText?: string;
     caption?: string;
+    videoId?: string;
+    description?: string;
   };
 }
 

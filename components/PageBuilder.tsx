@@ -18,6 +18,7 @@ import HeroSection from "./sections/HeroSection";
 import TextSection from "./sections/TextSection";
 import ImageSection from "./sections/ImageSection";
 import CTASection from "./sections/CTASection";
+import VideoSection from "./sections/VideoSection";
 
 const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "hero", label: "Hero Section" },
@@ -26,6 +27,7 @@ const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "features", label: "Features Grid" },
   { type: "testimonials", label: "Testimonials" },
   { type: "cta", label: "Call to Action" },
+  { type: "video", label: "Video Section" },
 ];
 
 interface PageBuilderProps {
@@ -191,7 +193,15 @@ export default function PageBuilder({
                     communityData={communityData}
                   />
                 )}
-                {!["hero", "text", "image", "cta"].includes(section.type) && (
+                {section.type === "video" && (
+                  <VideoSection
+                    section={section}
+                    onUpdate={(content) => handleUpdateSection(section.id, content)}
+                    onDelete={() => handleDeleteSection(section.id)}
+                    isEditing={isEditing}
+                  />
+                )}
+                {!["hero", "text", "image", "cta", "video"].includes(section.type) && (
                   <div className="p-4 border rounded-lg">
                     {section.type} section (component coming soon)
                   </div>
