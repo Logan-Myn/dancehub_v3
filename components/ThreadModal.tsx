@@ -660,6 +660,8 @@ export default function ThreadModal({
                   content={editedContent}
                   onChange={(html) => setEditedContent(html)}
                   editable={true}
+                  showHeadings={false}
+                  showParagraphStyle={false}
                 />
                 <div className="flex justify-end space-x-2">
                   <Button variant="outline" onClick={handleCancelEdit}>
