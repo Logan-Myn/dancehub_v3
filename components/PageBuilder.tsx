@@ -24,8 +24,6 @@ const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "hero", label: "Hero Section" },
   { type: "text", label: "Text Content" },
   { type: "image", label: "Image Section" },
-  { type: "features", label: "Features Grid" },
-  { type: "testimonials", label: "Testimonials" },
   { type: "cta", label: "Call to Action" },
   { type: "video", label: "Video Section" },
 ];

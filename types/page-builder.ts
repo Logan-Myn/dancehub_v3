@@ -2,8 +2,6 @@ export type SectionType =
   | 'hero'
   | 'text'
   | 'image'
-  | 'features'
-  | 'testimonials'
   | 'cta'
   | 'video';
 
