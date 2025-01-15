@@ -78,13 +78,21 @@ export default function ImageSection({
       }
 
       // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data } = supabase.storage
         .from('images')
         .getPublicUrl(filePath);
-      
+
+      // Ensure we're using the full URL
+      const imageUrl = data?.publicUrl;
+      console.log('Image URL:', imageUrl); // Debug log
+
+      if (!imageUrl) {
+        throw new Error('Failed to get image URL');
+      }
+
       onUpdate({
         ...section.content,
-        imageUrl: publicUrl,
+        imageUrl,
       });
 
       toast.success('Image uploaded successfully');
@@ -95,6 +103,9 @@ export default function ImageSection({
       setIsUploading(false);
     }
   };
+
+  // Debug log for current image URL
+  console.log('Current section image URL:', section.content.imageUrl);
 
   return (
     <div
@@ -221,25 +232,36 @@ export default function ImageSection({
       <div className="py-12">
         <div 
           className={cn(
-            "mx-auto px-4",
+            "mx-auto px-4 w-full",
             section.content.layout === 'contained' && "max-w-4xl",
             section.content.layout === 'float-left' && "float-left mr-8 max-w-md",
             section.content.layout === 'float-right' && "float-right ml-8 max-w-md"
           )}
         >
           {section.content.imageUrl ? (
-            <figure className="relative">
+            <figure className="relative w-full min-h-[300px]">
               <div className={cn(
-                "relative",
-                section.content.layout === 'full' && "h-[500px]",
-                section.content.layout === 'contained' && "h-[400px]",
+                "relative w-full h-full min-h-[300px]",
+                section.content.layout === 'full' && "h-[calc(100vw*9/21)]",
+                section.content.layout === 'contained' && "h-[calc(100vw*9/16)]",
                 (section.content.layout === 'float-left' || section.content.layout === 'float-right') && "h-[300px]"
               )}>
                 <Image
                   src={section.content.imageUrl}
                   alt={section.content.altText || ''}
                   fill
+                  priority
+                  loading="eager"
                   className="object-cover rounded-lg"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  onError={(e) => {
+                    console.error('Image failed to load:', section.content.imageUrl);
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                  onLoad={() => {
+                    console.log('Image loaded successfully:', section.content.imageUrl);
+                  }}
                 />
               </div>
               {section.content.caption && (
