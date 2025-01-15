@@ -227,6 +227,7 @@ export default function Thread({
         onChange={(html) => setContent(html)}
         editable={true}
         showHeadings={false}
+        showParagraphStyle={false}
       />
 
       {/* Action buttons */}

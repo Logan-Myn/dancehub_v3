@@ -54,6 +54,7 @@ interface EditorProps {
   onChange: (html: string) => void;
   editable?: boolean;
   showHeadings?: boolean;
+  showParagraphStyle?: boolean;
 }
 
 export default function Editor({
@@ -61,6 +62,7 @@ export default function Editor({
   onChange,
   editable = true,
   showHeadings = true,
+  showParagraphStyle = true,
 }: EditorProps) {
   const editor = useEditor({
     extensions: [
@@ -166,14 +168,16 @@ export default function Editor({
           </div>
 
           <div className="flex items-center space-x-2 pr-4 border-r">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setParagraph().run()}
-              className={editor.isActive("paragraph") ? "bg-gray-200" : ""}
-            >
-              <Type className="h-4 w-4" />
-            </Button>
+            {showParagraphStyle && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => editor.chain().focus().setParagraph().run()}
+                className={editor.isActive("paragraph") ? "bg-gray-200" : ""}
+              >
+                <Type className="h-4 w-4" />
+              </Button>
+            )}
             {showHeadings && (
               <>
                 <Button
