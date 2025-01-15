@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import HeroSection from "./sections/HeroSection";
 import TextSection from "./sections/TextSection";
 import ImageSection from "./sections/ImageSection";
+import CTASection from "./sections/CTASection";
 
 const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "hero", label: "Hero Section" },
@@ -181,7 +182,16 @@ export default function PageBuilder({
                     isEditing={isEditing}
                   />
                 )}
-                {!["hero", "text", "image"].includes(section.type) && (
+                {section.type === "cta" && (
+                  <CTASection
+                    section={section}
+                    onUpdate={(content) => handleUpdateSection(section.id, content)}
+                    onDelete={() => handleDeleteSection(section.id)}
+                    isEditing={isEditing}
+                    communityData={communityData}
+                  />
+                )}
+                {!["hero", "text", "image", "cta"].includes(section.type) && (
                   <div className="p-4 border rounded-lg">
                     {section.type} section (component coming soon)
                   </div>
