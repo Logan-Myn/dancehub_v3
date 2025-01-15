@@ -1,7 +1,7 @@
 "use client";
 
 import { Section } from "@/types/page-builder";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { GripVertical, Trash, Settings, UploadCloud } from "lucide-react";
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -12,7 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
 import Image from "next/image";
 import {
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "../ui/input";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "../ui/textarea";
 import toast from "react-hot-toast";
 
@@ -41,6 +41,7 @@ export default function ImageSection({
 }: ImageSectionProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLayoutOpen, setIsLayoutOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const supabase = createClient();
 
@@ -84,7 +85,6 @@ export default function ImageSection({
 
       // Ensure we're using the full URL
       const imageUrl = data?.publicUrl;
-      console.log('Image URL:', imageUrl); // Debug log
 
       if (!imageUrl) {
         throw new Error('Failed to get image URL');
@@ -104,22 +104,27 @@ export default function ImageSection({
     }
   };
 
-  // Debug log for current image URL
-  console.log('Current section image URL:', section.content.imageUrl);
-
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "relative group",
+        "relative group image-section",
         isDragging ? "opacity-50" : "opacity-100"
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        if (!isSettingsOpen) {
+          setIsHovered(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!isSettingsOpen) {
+          setIsHovered(false);
+        }
+      }}
     >
       {/* Editor Toolbar */}
-      {isEditing && isHovered && (
+      {isEditing && (isHovered || isSettingsOpen) && (
         <div className="absolute top-0 right-0 p-2 flex items-center gap-2 bg-black/75 rounded-bl z-20">
           <Button
             variant="ghost"
@@ -130,7 +135,15 @@ export default function ImageSection({
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <Popover 
+            open={isSettingsOpen} 
+            onOpenChange={(open) => {
+              setIsSettingsOpen(open);
+              if (open) {
+                setIsHovered(false);
+              }
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -140,7 +153,20 @@ export default function ImageSection({
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80">
+            <PopoverContent 
+              className="w-80"
+              onInteractOutside={(e) => {
+                // Allow closing when clicking outside the section
+                const target = e.target as HTMLElement;
+                if (!target.closest('.image-section')) {
+                  setIsSettingsOpen(false);
+                }
+                // Prevent closing when interacting with select
+                if (target.closest('[role="listbox"]')) {
+                  e.preventDefault();
+                }
+              }}
+            >
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Image</label>
@@ -187,14 +213,14 @@ export default function ImageSection({
                   <label className="text-sm font-medium">Layout</label>
                   <Select
                     value={section.content.layout || 'full'}
-                    onValueChange={(value: "full" | "contained" | "float-left" | "float-right") => 
-                      onUpdate({ ...section.content, layout: value })
-                    }
+                    onValueChange={(value: "full" | "contained" | "float-left" | "float-right") => {
+                      onUpdate({ ...section.content, layout: value });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select layout" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper">
                       <SelectItem value="full">Full Width</SelectItem>
                       <SelectItem value="contained">Contained</SelectItem>
                       <SelectItem value="float-left">Float Left</SelectItem>
@@ -258,9 +284,6 @@ export default function ImageSection({
                     console.error('Image failed to load:', section.content.imageUrl);
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
-                  }}
-                  onLoad={() => {
-                    console.log('Image loaded successfully:', section.content.imageUrl);
                   }}
                 />
               </div>
