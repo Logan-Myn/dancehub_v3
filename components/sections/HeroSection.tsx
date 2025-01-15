@@ -290,7 +290,7 @@ export default function HeroSection({
                 </a>
               ) : (
                 <span>
-                  {communityData?.isMember 
+                  {communityData?.isMember && !isEditing
                     ? "You're already a member"
                     : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
                       ? `Join for €${communityData.membershipPrice}/month`
