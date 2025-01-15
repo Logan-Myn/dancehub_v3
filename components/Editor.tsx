@@ -53,19 +53,21 @@ interface EditorProps {
   content: string;
   onChange: (html: string) => void;
   editable?: boolean;
+  showHeadings?: boolean;
 }
 
 export default function Editor({
   content,
   onChange,
   editable = true,
+  showHeadings = true,
 }: EditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: {
+        heading: showHeadings ? {
           levels: [1, 2, 3],
-        },
+        } : false,
         bulletList: {
           HTMLAttributes: {
             class: "list-disc list-inside",
@@ -172,60 +174,64 @@ export default function Editor({
             >
               <Type className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const isInList = editor.isActive("listItem");
-                if (isInList) {
-                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "2.25rem" });
-                  setTextSize(hasCustomSize ? null : "2.25rem"); // Toggle between large and default size
-                } else {
-                  editor.chain().focus().toggleHeading({ level: 1 }).run();
-                }
-              }}
-              className={
-                editor.isActive("heading", { level: 1 }) ? "bg-gray-200" : ""
-              }
-            >
-              <Heading1 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const isInList = editor.isActive("listItem");
-                if (isInList) {
-                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.875rem" });
-                  setTextSize(hasCustomSize ? null : "1.875rem"); // Toggle between medium and default size
-                } else {
-                  editor.chain().focus().toggleHeading({ level: 2 }).run();
-                }
-              }}
-              className={
-                editor.isActive("heading", { level: 2 }) ? "bg-gray-200" : ""
-              }
-            >
-              <Heading2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const isInList = editor.isActive("listItem");
-                if (isInList) {
-                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.5rem" });
-                  setTextSize(hasCustomSize ? null : "1.5rem"); // Toggle between small and default size
-                } else {
-                  editor.chain().focus().toggleHeading({ level: 3 }).run();
-                }
-              }}
-              className={
-                editor.isActive("heading", { level: 3 }) ? "bg-gray-200" : ""
-              }
-            >
-              <Heading3 className="h-4 w-4" />
-            </Button>
+            {showHeadings && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const isInList = editor.isActive("listItem");
+                    if (isInList) {
+                      const hasCustomSize = editor.isActive("textStyle", { fontSize: "2.25rem" });
+                      setTextSize(hasCustomSize ? null : "2.25rem"); // Toggle between large and default size
+                    } else {
+                      editor.chain().focus().toggleHeading({ level: 1 }).run();
+                    }
+                  }}
+                  className={
+                    editor.isActive("heading", { level: 1 }) ? "bg-gray-200" : ""
+                  }
+                >
+                  <Heading1 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const isInList = editor.isActive("listItem");
+                    if (isInList) {
+                      const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.875rem" });
+                      setTextSize(hasCustomSize ? null : "1.875rem"); // Toggle between medium and default size
+                    } else {
+                      editor.chain().focus().toggleHeading({ level: 2 }).run();
+                    }
+                  }}
+                  className={
+                    editor.isActive("heading", { level: 2 }) ? "bg-gray-200" : ""
+                  }
+                >
+                  <Heading2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const isInList = editor.isActive("listItem");
+                    if (isInList) {
+                      const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.5rem" });
+                      setTextSize(hasCustomSize ? null : "1.5rem"); // Toggle between small and default size
+                    } else {
+                      editor.chain().focus().toggleHeading({ level: 3 }).run();
+                    }
+                  }}
+                  className={
+                    editor.isActive("heading", { level: 3 }) ? "bg-gray-200" : ""
+                  }
+                >
+                  <Heading3 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
 
           <div className="flex items-center space-x-2 pr-4 border-r">
