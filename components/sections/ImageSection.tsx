@@ -313,6 +313,10 @@ export default function ImageSection({
             )
           )}
         </div>
+        {/* Add clearfix for floated layouts */}
+        {(section.content.layout === 'float-left' || section.content.layout === 'float-right') && (
+          <div className="clear-both" />
+        )}
       </div>
     </div>
   );
