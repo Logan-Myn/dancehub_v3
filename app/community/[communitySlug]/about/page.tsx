@@ -101,9 +101,7 @@ export default function AboutPage() {
         },
         (payload) => {
           const updatedCommunity = payload.new as Community;
-          if (updatedCommunity.about_page?.meta.last_updated !== community.about_page?.meta.last_updated) {
-            setCommunity(updatedCommunity);
-          }
+          setCommunity(updatedCommunity);
         }
       )
       .subscribe();
@@ -138,10 +136,17 @@ export default function AboutPage() {
         throw new Error('No active session');
       }
 
+      // Ensure we're saving the complete about_page object
       const { error } = await supabase
         .from('communities')
         .update({
-          about_page: community.about_page,
+          about_page: {
+            sections: community.about_page?.sections || [],
+            meta: {
+              last_updated: new Date().toISOString(),
+              published_version: community.about_page?.meta.published_version,
+            },
+          },
           updated_at: new Date().toISOString(),
         })
         .eq('id', community.id)
@@ -151,6 +156,19 @@ export default function AboutPage() {
         throw error;
       }
 
+      // Fetch the latest data to ensure we have the most up-to-date version
+      const { data: updatedCommunity, error: fetchError } = await supabase
+        .from('communities')
+        .select('*')
+        .eq('id', community.id)
+        .single();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Update local state with the latest data
+      setCommunity(updatedCommunity);
       toast.success("Changes saved successfully");
     } catch (error) {
       console.error("Error saving about page:", error);
