@@ -276,7 +276,7 @@ export default function HeroSection({
           >
             {section.content.subtitle || 'Add subtitle'}
           </p>
-          {(section.content.buttonType === 'join' || section.content.ctaText) && (
+          {(section.content.buttonType === 'join' || section.content.buttonType === 'link') && (
             <Button
               size="lg"
               className="bg-white text-black hover:bg-gray-100"
@@ -286,11 +286,11 @@ export default function HeroSection({
             >
               {section.content.buttonType === 'link' ? (
                 <a 
-                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink}`} 
+                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink || '#'}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
-                  {section.content.ctaText || 'Get Started'}
+                  {section.content.ctaText || 'Click here'}
                 </a>
               ) : (
                 <span>
@@ -458,7 +458,9 @@ export default function HeroSection({
                       onValueChange={(value: 'link' | 'join') => {
                         onUpdate({ 
                           ...section.content, 
-                          buttonType: value 
+                          buttonType: value,
+                          // Set default text when switching to link type
+                          ctaText: value === 'link' ? (section.content.ctaText || 'Click here') : section.content.ctaText
                         });
                       }}
                     >
