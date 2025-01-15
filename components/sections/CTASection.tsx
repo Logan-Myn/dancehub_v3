@@ -3,7 +3,7 @@
 import { Section } from "@/types/page-builder";
 import { Button } from "@/components/ui/button";
 import { GripVertical, Trash, Settings } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -84,6 +84,18 @@ export default function CTASection({
     }
   };
 
+  // Initialize buttonType and default values if not set
+  useEffect(() => {
+    if (!section.content.buttonType) {
+      onUpdate({
+        ...section.content,
+        buttonType: 'link',
+        ctaText: 'Click here',
+        ctaLink: ''
+      });
+    }
+  }, []);
+
   return (
     <div
       ref={setNodeRef}
@@ -156,7 +168,8 @@ export default function CTASection({
                       onUpdate({ 
                         ...section.content, 
                         buttonType: value,
-                        ctaText: value === 'link' ? (section.content.ctaText || 'Click here') : section.content.ctaText
+                        ...(value === 'link' && !section.content.ctaText && { ctaText: 'Click here' }),
+                        ...(value === 'link' && !section.content.ctaLink && { ctaLink: '' })
                       });
                     }}
                   >
