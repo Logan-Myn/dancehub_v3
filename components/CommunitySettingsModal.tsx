@@ -222,7 +222,13 @@ export default function CommunitySettingsModal({
         if (!response.ok) throw new Error("Failed to fetch community data");
 
         const data = await response.json();
-        setIsMembershipEnabled(data.membership_enabled || false);
+        console.log('Community Data:', data);
+        // If there's a price set, enable the membership toggle
+        const hasPrice = data.membership_price && data.membership_price > 0;
+        console.log('Has Price:', hasPrice, 'Price:', data.membership_price);
+        console.log('Membership Enabled:', data.membership_enabled);
+        
+        setIsMembershipEnabled(hasPrice || data.membership_enabled || false);
         setPrice(data.membership_price || 0);
       } catch (error) {
         console.error("Error fetching membership state:", error);
