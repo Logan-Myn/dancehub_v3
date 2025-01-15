@@ -100,7 +100,7 @@ export async function POST(
         .from("communities")
         .update({
           membership_enabled: enabled,
-          membership_price: enabled ? price : null,
+          membership_price: price,
           updated_at: new Date().toISOString(),
         })
         .eq("id", community.id);

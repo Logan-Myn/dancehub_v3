@@ -14,9 +14,7 @@ export async function GET(
       .from('communities')
       .select(`
         *,
-        community_members:community_members(count),
-        membership_enabled,
-        membership_price
+        community_members:community_members(count)
       `)
       .eq('slug', communitySlug)
       .single();
