@@ -14,6 +14,10 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  Heading1,
+  Heading2,
+  Heading3,
+  Type,
 } from "lucide-react";
 
 interface EditorProps {
@@ -68,6 +72,41 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               className={editor.isActive('italic') ? 'bg-gray-200' : ''}
             >
               <Italic className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex items-center space-x-2 pr-4 border-r">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().setParagraph().run()}
+              className={editor.isActive('paragraph') ? 'bg-gray-200' : ''}
+            >
+              <Type className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              className={editor.isActive('heading', { level: 1 }) ? 'bg-gray-200' : ''}
+            >
+              <Heading1 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={editor.isActive('heading', { level: 2 }) ? 'bg-gray-200' : ''}
+            >
+              <Heading2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              className={editor.isActive('heading', { level: 3 }) ? 'bg-gray-200' : ''}
+            >
+              <Heading3 className="h-4 w-4" />
             </Button>
           </div>
 
