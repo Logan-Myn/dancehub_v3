@@ -284,6 +284,25 @@ export default function VideoSection({
                     placeholder="Enter video description"
                   />
                 </div>
+                {section.content.videoId && (
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        onUpdate({
+                          ...section.content,
+                          videoId: undefined
+                        });
+                        setIsSettingsOpen(false);
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Replace Video
+                    </Button>
+                  </div>
+                )}
               </div>
             </PopoverContent>
           </Popover>
