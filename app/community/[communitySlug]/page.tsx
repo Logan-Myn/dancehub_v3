@@ -675,13 +675,11 @@ export default function CommunityPage() {
             {/* Right Sidebar */}
             <div className="w-1/4">
               <div className="bg-white shadow rounded-lg overflow-hidden">
-                {community.imageUrl && (
-                  <img
-                    src={community.imageUrl}
-                    alt={community.name}
-                    className="w-full h-40 object-cover"
-                  />
-                )}
+                <img
+                  src={community.imageUrl || "/placeholder.svg"}
+                  alt={community.name}
+                  className="w-full h-40 object-cover"
+                />
                 <div className="p-4">
                   <h2 className="text-xl font-semibold mb-2">
                     {community.name}
