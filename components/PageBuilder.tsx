@@ -33,6 +33,13 @@ interface PageBuilderProps {
   onSave: () => Promise<void>;
   isEditing: boolean;
   isSaving?: boolean;
+  communityData?: {
+    id: string;
+    slug: string;
+    membershipEnabled?: boolean;
+    membershipPrice?: number;
+    stripeAccountId?: string | null;
+  };
 }
 
 export default function PageBuilder({ 
@@ -40,7 +47,8 @@ export default function PageBuilder({
   onChange,
   onSave,
   isEditing = true,
-  isSaving = false
+  isSaving = false,
+  communityData
 }: PageBuilderProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionType, setSelectedSectionType] = useState<SectionType | ''>('');
@@ -153,6 +161,7 @@ export default function PageBuilder({
                     onUpdate={(content) => handleUpdateSection(section.id, content)}
                     onDelete={() => handleDeleteSection(section.id)}
                     isEditing={isEditing}
+                    communityData={communityData}
                   />
                 )}
                 {section.type === "text" && (

@@ -9,6 +9,7 @@ export type SectionType =
 export interface Section {
   id: string;
   type: string;
+  order?: number;
   content: {
     title?: string;
     subtitle?: string;

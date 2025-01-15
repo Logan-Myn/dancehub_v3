@@ -209,6 +209,8 @@ export default function HeroSection({
           throw new Error(errorData.error || "Failed to join community");
         }
 
+        // Refresh the page to update all UI states
+        window.location.reload();
         toast.success("Successfully joined the community!");
       }
     } catch (error) {
@@ -512,6 +514,8 @@ export default function HeroSection({
           price={communityData.membershipPrice || 0}
           onSuccess={() => {
             setShowPaymentModal(false);
+            // Refresh the page to update all UI states
+            window.location.reload();
             toast.success("Successfully joined the community!");
           }}
           communitySlug={communityData.slug}

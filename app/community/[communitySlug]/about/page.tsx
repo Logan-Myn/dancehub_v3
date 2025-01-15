@@ -16,6 +16,9 @@ interface Community {
   slug: string;
   description: string;
   created_by: string;
+  membership_enabled?: boolean;
+  membership_price?: number;
+  stripe_account_id?: string | null;
   about_page?: {
     sections: Section[];
     meta: {
@@ -170,6 +173,13 @@ export default function AboutPage() {
             onSave={handleSave}
             isEditing={isCreator}
             isSaving={isSaving}
+            communityData={{
+              id: community.id,
+              slug: communitySlug,
+              membershipEnabled: community.membership_enabled,
+              membershipPrice: community.membership_price,
+              stripeAccountId: community.stripe_account_id
+            }}
           />
         </div>
       </main>
