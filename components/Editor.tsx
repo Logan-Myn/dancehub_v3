@@ -1,10 +1,10 @@
 "use client";
 
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
-import TextStyle from '@tiptap/extension-text-style';
-import { Extension } from '@tiptap/core';
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import TextAlign from "@tiptap/extension-text-align";
+import TextStyle from "@tiptap/extension-text-style";
+import { Extension } from "@tiptap/core";
 import { Button } from "./ui/button";
 import {
   Bold,
@@ -24,17 +24,17 @@ import {
 
 // Custom extension to handle text sizes
 const CustomTextStyle = Extension.create({
-  name: 'customTextStyle',
+  name: "customTextStyle",
 
   addGlobalAttributes() {
     return [
       {
-        types: ['textStyle'],
+        types: ["textStyle"],
         attributes: {
           fontSize: {
             default: null,
-            parseHTML: element => element.style.fontSize,
-            renderHTML: attributes => {
+            parseHTML: (element) => element.style.fontSize,
+            renderHTML: (attributes) => {
               if (!attributes.fontSize) {
                 return {};
               }
@@ -55,32 +55,36 @@ interface EditorProps {
   editable?: boolean;
 }
 
-export default function Editor({ content, onChange, editable = true }: EditorProps) {
+export default function Editor({
+  content,
+  onChange,
+  editable = true,
+}: EditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [1, 2, 3]
+          levels: [1, 2, 3],
         },
         bulletList: {
           HTMLAttributes: {
-            class: 'list-disc list-inside'
-          }
+            class: "list-disc list-inside",
+          },
         },
         orderedList: {
           HTMLAttributes: {
-            class: 'list-decimal list-inside'
-          }
+            class: "list-decimal list-inside",
+          },
         },
         listItem: {
           HTMLAttributes: {
-            class: 'marker:text-current'
-          }
-        }
+            class: "marker:text-current",
+          },
+        },
       }),
       TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right', 'justify'],
+        types: ["heading", "paragraph"],
+        alignments: ["left", "center", "right", "justify"],
       }),
       TextStyle,
       CustomTextStyle,
@@ -89,7 +93,8 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
     editable,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm focus:outline-none max-w-full min-h-[150px] [&>ul>li>*]:inline [&>ol>li>*]:inline',
+        class:
+          "prose prose-sm focus:outline-none max-w-full min-h-[150px] [&>ul>li>*]:inline [&>ol>li>*]:inline",
       },
     },
     onUpdate: ({ editor }) => {
@@ -101,11 +106,8 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
     return null;
   }
 
-  const setTextSize = (size: string) => {
-    editor.chain()
-      .focus()
-      .setMark('textStyle', { fontSize: size })
-      .run();
+  const setTextSize = (size: string | null) => {
+    editor.chain().focus().setMark("textStyle", { fontSize: size }).run();
   };
 
   return (
@@ -117,7 +119,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().toggleBold().run()}
-              className={editor.isActive('bold') ? 'bg-gray-200' : ''}
+              className={editor.isActive("bold") ? "bg-gray-200" : ""}
             >
               <Bold className="h-4 w-4" />
             </Button>
@@ -125,7 +127,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={editor.isActive('italic') ? 'bg-gray-200' : ''}
+              className={editor.isActive("italic") ? "bg-gray-200" : ""}
             >
               <Italic className="h-4 w-4" />
             </Button>
@@ -136,7 +138,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().setParagraph().run()}
-              className={editor.isActive('paragraph') ? 'bg-gray-200' : ''}
+              className={editor.isActive("paragraph") ? "bg-gray-200" : ""}
             >
               <Type className="h-4 w-4" />
             </Button>
@@ -144,17 +146,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => {
-                const isInList = editor.isActive('listItem');
+                const isInList = editor.isActive("listItem");
                 if (isInList) {
-                  setTextSize('2.25rem'); // equivalent to text-4xl
+                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "2.25rem" });
+                  setTextSize(hasCustomSize ? null : "2.25rem"); // Toggle between large and default size
                 } else {
-                  editor.chain()
-                    .focus()
-                    .toggleHeading({ level: 1 })
-                    .run();
+                  editor.chain().focus().toggleHeading({ level: 1 }).run();
                 }
               }}
-              className={editor.isActive('heading', { level: 1 }) ? 'bg-gray-200' : ''}
+              className={
+                editor.isActive("heading", { level: 1 }) ? "bg-gray-200" : ""
+              }
             >
               <Heading1 className="h-4 w-4" />
             </Button>
@@ -162,17 +164,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => {
-                const isInList = editor.isActive('listItem');
+                const isInList = editor.isActive("listItem");
                 if (isInList) {
-                  setTextSize('1.875rem'); // equivalent to text-3xl
+                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.875rem" });
+                  setTextSize(hasCustomSize ? null : "1.875rem"); // Toggle between medium and default size
                 } else {
-                  editor.chain()
-                    .focus()
-                    .toggleHeading({ level: 2 })
-                    .run();
+                  editor.chain().focus().toggleHeading({ level: 2 }).run();
                 }
               }}
-              className={editor.isActive('heading', { level: 2 }) ? 'bg-gray-200' : ''}
+              className={
+                editor.isActive("heading", { level: 2 }) ? "bg-gray-200" : ""
+              }
             >
               <Heading2 className="h-4 w-4" />
             </Button>
@@ -180,17 +182,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => {
-                const isInList = editor.isActive('listItem');
+                const isInList = editor.isActive("listItem");
                 if (isInList) {
-                  setTextSize('1.5rem'); // equivalent to text-2xl
+                  const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.5rem" });
+                  setTextSize(hasCustomSize ? null : "1.5rem"); // Toggle between small and default size
                 } else {
-                  editor.chain()
-                    .focus()
-                    .toggleHeading({ level: 3 })
-                    .run();
+                  editor.chain().focus().toggleHeading({ level: 3 }).run();
                 }
               }}
-              className={editor.isActive('heading', { level: 3 }) ? 'bg-gray-200' : ''}
+              className={
+                editor.isActive("heading", { level: 3 }) ? "bg-gray-200" : ""
+              }
             >
               <Heading3 className="h-4 w-4" />
             </Button>
@@ -201,7 +203,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className={editor.isActive('bulletList') ? 'bg-gray-200' : ''}
+              className={editor.isActive("bulletList") ? "bg-gray-200" : ""}
             >
               <List className="h-4 w-4" />
             </Button>
@@ -209,7 +211,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className={editor.isActive('orderedList') ? 'bg-gray-200' : ''}
+              className={editor.isActive("orderedList") ? "bg-gray-200" : ""}
             >
               <ListOrdered className="h-4 w-4" />
             </Button>
@@ -217,7 +219,7 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
               variant="ghost"
               size="sm"
               onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              className={editor.isActive('blockquote') ? 'bg-gray-200' : ''}
+              className={editor.isActive("blockquote") ? "bg-gray-200" : ""}
             >
               <Quote className="h-4 w-4" />
             </Button>
@@ -227,32 +229,44 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().setTextAlign('left').run()}
-              className={editor.isActive({ textAlign: 'left' }) ? 'bg-gray-200' : ''}
+              onClick={() => editor.chain().focus().setTextAlign("left").run()}
+              className={
+                editor.isActive({ textAlign: "left" }) ? "bg-gray-200" : ""
+              }
             >
               <AlignLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().setTextAlign('center').run()}
-              className={editor.isActive({ textAlign: 'center' }) ? 'bg-gray-200' : ''}
+              onClick={() =>
+                editor.chain().focus().setTextAlign("center").run()
+              }
+              className={
+                editor.isActive({ textAlign: "center" }) ? "bg-gray-200" : ""
+              }
             >
               <AlignCenter className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().setTextAlign('right').run()}
-              className={editor.isActive({ textAlign: 'right' }) ? 'bg-gray-200' : ''}
+              onClick={() => editor.chain().focus().setTextAlign("right").run()}
+              className={
+                editor.isActive({ textAlign: "right" }) ? "bg-gray-200" : ""
+              }
             >
               <AlignRight className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-              className={editor.isActive({ textAlign: 'justify' }) ? 'bg-gray-200' : ''}
+              onClick={() =>
+                editor.chain().focus().setTextAlign("justify").run()
+              }
+              className={
+                editor.isActive({ textAlign: "justify" }) ? "bg-gray-200" : ""
+              }
             >
               <AlignJustify className="h-4 w-4" />
             </Button>
@@ -260,9 +274,13 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
         </div>
       )}
 
-      <div className={`min-h-[200px] w-full rounded-lg border border-input bg-background p-3 ${!editable && 'border-none p-0'}`}>
+      <div
+        className={`min-h-[200px] w-full rounded-lg border border-input bg-background p-3 ${
+          !editable && "border-none p-0"
+        }`}
+      >
         <EditorContent editor={editor} />
       </div>
     </div>
   );
-} 
+}
