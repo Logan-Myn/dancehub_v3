@@ -285,7 +285,11 @@ export default function HeroSection({
               disabled={section.content.buttonType === 'join' && communityData?.isMember}
             >
               {section.content.buttonType === 'link' ? (
-                <a href={section.content.ctaLink || '#'}>
+                <a 
+                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
                   {section.content.ctaText || 'Get Started'}
                 </a>
               ) : (
