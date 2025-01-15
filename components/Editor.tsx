@@ -3,6 +3,8 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import TextStyle from '@tiptap/extension-text-style';
+import { Extension } from '@tiptap/core';
 import { Button } from "./ui/button";
 import {
   Bold,
@@ -20,6 +22,33 @@ import {
   Type,
 } from "lucide-react";
 
+// Custom extension to handle text sizes
+const CustomTextStyle = Extension.create({
+  name: 'customTextStyle',
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['textStyle'],
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize,
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+});
+
 interface EditorProps {
   content: string;
   onChange: (html: string) => void;
@@ -29,18 +58,38 @@ interface EditorProps {
 export default function Editor({ content, onChange, editable = true }: EditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3]
+        },
+        bulletList: {
+          HTMLAttributes: {
+            class: 'list-disc list-inside'
+          }
+        },
+        orderedList: {
+          HTMLAttributes: {
+            class: 'list-decimal list-inside'
+          }
+        },
+        listItem: {
+          HTMLAttributes: {
+            class: 'marker:text-current'
+          }
+        }
+      }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
         alignments: ['left', 'center', 'right', 'justify'],
       }),
+      TextStyle,
+      CustomTextStyle,
     ],
     content,
     editable,
-    immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm focus:outline-none max-w-full min-h-[150px]',
+        class: 'prose prose-sm focus:outline-none max-w-full min-h-[150px] [&>ul>li>*]:inline [&>ol>li>*]:inline',
       },
     },
     onUpdate: ({ editor }) => {
@@ -51,6 +100,13 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
   if (!editor) {
     return null;
   }
+
+  const setTextSize = (size: string) => {
+    editor.chain()
+      .focus()
+      .setMark('textStyle', { fontSize: size })
+      .run();
+  };
 
   return (
     <div className="space-y-4">
@@ -87,7 +143,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              onClick={() => {
+                const isInList = editor.isActive('listItem');
+                if (isInList) {
+                  setTextSize('2.25rem'); // equivalent to text-4xl
+                } else {
+                  editor.chain()
+                    .focus()
+                    .toggleHeading({ level: 1 })
+                    .run();
+                }
+              }}
               className={editor.isActive('heading', { level: 1 }) ? 'bg-gray-200' : ''}
             >
               <Heading1 className="h-4 w-4" />
@@ -95,7 +161,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              onClick={() => {
+                const isInList = editor.isActive('listItem');
+                if (isInList) {
+                  setTextSize('1.875rem'); // equivalent to text-3xl
+                } else {
+                  editor.chain()
+                    .focus()
+                    .toggleHeading({ level: 2 })
+                    .run();
+                }
+              }}
               className={editor.isActive('heading', { level: 2 }) ? 'bg-gray-200' : ''}
             >
               <Heading2 className="h-4 w-4" />
@@ -103,7 +179,17 @@ export default function Editor({ content, onChange, editable = true }: EditorPro
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              onClick={() => {
+                const isInList = editor.isActive('listItem');
+                if (isInList) {
+                  setTextSize('1.5rem'); // equivalent to text-2xl
+                } else {
+                  editor.chain()
+                    .focus()
+                    .toggleHeading({ level: 3 })
+                    .run();
+                }
+              }}
               className={editor.isActive('heading', { level: 3 }) ? 'bg-gray-200' : ''}
             >
               <Heading3 className="h-4 w-4" />
