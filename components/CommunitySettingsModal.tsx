@@ -211,6 +211,14 @@ export default function CommunitySettingsModal({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [payoutData, setPayoutData] = useState<PayoutData | null>(null);
   const [isLoadingPayouts, setIsLoadingPayouts] = useState(false);
+  const [bankAccount, setBankAccount] = useState<{
+    iban?: string;
+    last4?: string;
+    bank_name?: string;
+  } | null>(null);
+  const [isLoadingBank, setIsLoadingBank] = useState(false);
+  const [ibanInput, setIbanInput] = useState("");
+  const [isUpdatingIban, setIsUpdatingIban] = useState(false);
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -423,6 +431,65 @@ export default function CommunitySettingsModal({
 
     fetchPayoutData();
   }, [activeCategory, communitySlug, stripeAccountId]);
+
+  // Add effect to fetch bank account details
+  useEffect(() => {
+    async function fetchBankAccount() {
+      if (activeCategory === "subscriptions" && stripeAccountId) {
+        setIsLoadingBank(true);
+        try {
+          const response = await fetch(
+            `/api/stripe/bank-account/${stripeAccountId}`
+          );
+          if (!response.ok) throw new Error("Failed to fetch bank account");
+          const data = await response.json();
+          setBankAccount(data);
+          if (data.iban) {
+            setIbanInput(data.iban);
+          }
+        } catch (error) {
+          console.error("Error fetching bank account:", error);
+          toast.error("Failed to fetch bank account details");
+        } finally {
+          setIsLoadingBank(false);
+        }
+      }
+    }
+
+    fetchBankAccount();
+  }, [activeCategory, stripeAccountId]);
+
+  const handleUpdateIban = async () => {
+    if (!stripeAccountId) return;
+    
+    setIsUpdatingIban(true);
+    try {
+      const response = await fetch(
+        `/api/stripe/bank-account/${stripeAccountId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ iban: ibanInput }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update bank account");
+      }
+
+      const data = await response.json();
+      setBankAccount(data);
+      toast.success("Bank account updated successfully");
+    } catch (error: any) {
+      console.error("Error updating bank account:", error);
+      toast.error(error.message || "Failed to update bank account");
+    } finally {
+      setIsUpdatingIban(false);
+    }
+  };
 
   const handleAddLink = () => {
     setLinks([...links, { title: "", url: "" }]);
@@ -985,6 +1052,64 @@ export default function CommunitySettingsModal({
               Failed to load payout information
             </p>
           )}
+
+          {/* Add Bank Account Management Section */}
+          <div className="mt-6 pt-6 border-t">
+            <h4 className="text-lg font-medium mb-4">Bank Account Details</h4>
+            {isLoadingBank ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {bankAccount && (
+                  <div className="text-sm text-gray-500 mb-4">
+                    {bankAccount.bank_name && (
+                      <p>Current Bank: {bankAccount.bank_name}</p>
+                    )}
+                    {bankAccount.last4 && (
+                      <p>Account ending in: •••• {bankAccount.last4}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="iban"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    IBAN
+                  </label>
+                  <Input
+                    id="iban"
+                    type="text"
+                    value={ibanInput}
+                    onChange={(e) => setIbanInput(e.target.value.toUpperCase())}
+                    placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
+                    className="font-mono"
+                  />
+                  <p className="text-sm text-gray-500">
+                    Update your IBAN if you want to change your payout bank account
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleUpdateIban}
+                  disabled={isUpdatingIban || !ibanInput}
+                  className="w-full"
+                >
+                  {isUpdatingIban ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Bank Account"
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
