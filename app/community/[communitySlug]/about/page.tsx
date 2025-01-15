@@ -38,6 +38,7 @@ export default function AboutPage() {
   const [error, setError] = useState<Error | null>(null);
   const [community, setCommunity] = useState<Community | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isMember, setIsMember] = useState(false);
 
   // Initial data fetch
   useEffect(() => {
@@ -59,6 +60,18 @@ export default function AboutPage() {
         }
 
         setCommunity(communityData);
+
+        // Check if user is a member
+        if (user) {
+          const { data: memberData } = await supabase
+            .from("community_members")
+            .select("*")
+            .eq("community_id", communityData.id)
+            .eq("user_id", user.id)
+            .single();
+
+          setIsMember(!!memberData);
+        }
       } catch (error) {
         console.error("Error fetching community:", error);
         setError(error instanceof Error ? error : new Error('Unknown error'));
@@ -70,7 +83,7 @@ export default function AboutPage() {
     if (communitySlug) {
       fetchData();
     }
-  }, [communitySlug]);
+  }, [communitySlug, user]);
 
   // Subscribe to realtime updates
   useEffect(() => {
@@ -178,7 +191,8 @@ export default function AboutPage() {
               slug: communitySlug,
               membershipEnabled: community.membership_enabled,
               membershipPrice: community.membership_price,
-              stripeAccountId: community.stripe_account_id
+              stripeAccountId: community.stripe_account_id,
+              isMember: isMember
             }}
           />
         </div>

@@ -39,6 +39,7 @@ interface PageBuilderProps {
     membershipEnabled?: boolean;
     membershipPrice?: number;
     stripeAccountId?: string | null;
+    isMember?: boolean;
   };
 }
 

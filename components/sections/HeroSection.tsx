@@ -39,6 +39,7 @@ interface HeroSectionProps {
     membershipEnabled?: boolean;
     membershipPrice?: number;
     stripeAccountId?: string | null;
+    isMember?: boolean;
   };
 }
 
@@ -281,6 +282,7 @@ export default function HeroSection({
               className="bg-white text-black hover:bg-gray-100"
               onClick={section.content.buttonType === 'join' ? handleButtonClick : undefined}
               asChild={section.content.buttonType === 'link'}
+              disabled={section.content.buttonType === 'join' && communityData?.isMember}
             >
               {section.content.buttonType === 'link' ? (
                 <a href={section.content.ctaLink || '#'}>
@@ -288,9 +290,12 @@ export default function HeroSection({
                 </a>
               ) : (
                 <span>
-                  {communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
-                    ? `Join for €${communityData.membershipPrice}/month`
-                    : 'Join for free'}
+                  {communityData?.isMember 
+                    ? "You're already a member"
+                    : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
+                      ? `Join for €${communityData.membershipPrice}/month`
+                      : 'Join for free'
+                  }
                 </span>
               )}
             </Button>
