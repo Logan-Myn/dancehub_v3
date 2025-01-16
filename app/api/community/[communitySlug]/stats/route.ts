@@ -15,6 +15,12 @@ export async function GET(
       .eq("slug", params.communitySlug)
       .single();
 
+    console.log('Stats API - Found community:', {
+      slug: params.communitySlug,
+      community,
+      error: communityError
+    });
+
     if (communityError || !community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
@@ -26,16 +32,30 @@ export async function GET(
       .eq("community_id", community.id)
       .eq("status", "active");
 
+    console.log('Stats API - Members count:', {
+      totalMembers,
+      error: membersError
+    });
+
     if (membersError) {
       console.error("Error fetching members count:", membersError);
       return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });
     }
 
     // Get total threads count
-    const { count: totalThreads, error: threadsError } = await supabase
+    const { data: threadsData, error: threadsError } = await supabase
       .from("threads")
-      .select("*", { count: 'exact', head: true })
+      .select("id, title, community_id")
       .eq("community_id", community.id);
+
+    console.log('Stats API - Thread query debug:', {
+      communityId: community.id,
+      threadsFound: threadsData?.length || 0,
+      threads: threadsData,
+      error: threadsError
+    });
+
+    const totalThreads = threadsData?.length || 0;
 
     if (threadsError) {
       console.error("Error fetching threads count:", threadsError);
@@ -78,13 +98,17 @@ export async function GET(
       .eq("status", "active")
       .in("user_id", activeUserIds);
 
-    return NextResponse.json({
+    const response = {
       totalMembers: totalMembers || 0,
       monthlyRevenue,
       totalThreads: totalThreads || 0,
       activeMembers: activeMembers || 0,
       membershipGrowth: newMembers || 0
-    });
+    };
+
+    console.log('Stats API - Final response:', response);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching community stats:", error);
     return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });

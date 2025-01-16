@@ -352,9 +352,21 @@ export default function CommunitySettingsModal({
     async function fetchCommunityStats() {
       if (activeCategory === "dashboard") {
         try {
+          console.log('Fetching community stats for:', communitySlug);
           const response = await fetch(`/api/community/${communitySlug}/stats`);
-          if (!response.ok) throw new Error("Failed to fetch community stats");
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Error response from stats API:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorData
+            });
+            throw new Error("Failed to fetch community stats");
+          }
+          
           const data = await response.json();
+          console.log('Received community stats:', data);
           setLocalCommunityStats(data);
         } catch (error) {
           console.error("Error fetching community stats:", error);
