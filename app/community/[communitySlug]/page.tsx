@@ -180,6 +180,8 @@ export default function CommunityPage() {
   const [lastCreatedThread, setLastCreatedThread] = useState<string | null>(
     null
   );
+  const [accessEndDate, setAccessEndDate] = useState<string | null>(null);
+  const [memberStatus, setMemberStatus] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -216,6 +218,17 @@ export default function CommunityPage() {
             avatar_url: member.avatar_url,
           },
         }));
+
+        // Check current user's membership status
+        if (currentUser) {
+          const currentMember = membersData.find(m => m.user_id === currentUser.id);
+          if (currentMember) {
+            setMemberStatus(currentMember.status);
+            if (currentMember.current_period_end) {
+              setAccessEndDate(currentMember.current_period_end);
+            }
+          }
+        }
 
         // Get threads
         const { data: threadsData, error: threadsError } = await supabase
@@ -362,18 +375,51 @@ export default function CommunityPage() {
         throw new Error("Failed to leave community");
       }
 
-      // Update local state
-      setIsMember(false);
-      setMembers((prev) =>
-        prev.filter((member) => member.id !== currentUser.id)
-      );
-      setTotalMembers((prev) => prev - 1);
-      setShowLeaveDialog(false);
+      const data = await response.json();
 
-      toast.success("Successfully left the community");
+      // Update local state
+      if (data.gracePeriod && data.accessEndDate) {
+        setAccessEndDate(data.accessEndDate);
+        const endDate = new Date(data.accessEndDate).toLocaleDateString();
+        toast.success(`Your membership will end on ${endDate}. You'll maintain access until then.`);
+      } else {
+        setIsMember(false);
+        setMembers((prev) => prev.filter((member) => member.user_id !== currentUser.id));
+        toast.success("Successfully left the community");
+      }
+      
+      setShowLeaveDialog(false);
     } catch (error) {
       console.error("Error leaving community:", error);
       toast.error("Failed to leave community");
+    }
+  };
+
+  const handleReactivateMembership = async () => {
+    if (!currentUser) return;
+
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/reactivate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to reactivate membership");
+      }
+
+      const data = await response.json();
+      
+      // Update local state
+      setMemberStatus('active');
+      setAccessEndDate(null);
+      toast.success("Your membership has been reactivated!");
+    } catch (error) {
+      console.error("Error reactivating membership:", error);
+      toast.error("Failed to reactivate membership");
     }
   };
 
@@ -759,12 +805,30 @@ export default function CommunityPage() {
                       Manage Community
                     </Button>
                   ) : isMember ? (
-                    <Button
-                      onClick={() => setShowLeaveDialog(true)}
-                      className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
-                    >
-                      Leave Community
-                    </Button>
+                    <>
+                      {memberStatus === 'inactive' ? (
+                        <>
+                          <Button
+                            onClick={handleReactivateMembership}
+                            className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white"
+                          >
+                            Join Again
+                          </Button>
+                          {accessEndDate && (
+                            <p className="mt-2 text-sm text-center text-yellow-600">
+                              Your membership will end on {new Date(accessEndDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <Button
+                          onClick={() => setShowLeaveDialog(true)}
+                          className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
+                        >
+                          Leave Community
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <Button
                       onClick={handleJoinCommunity}
@@ -878,14 +942,27 @@ export default function CommunityPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Community</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave this community? You'll lose access
-              to all content and need to rejoin to access it again.
+              {community?.membershipEnabled && community?.membershipPrice && community?.membershipPrice > 0 ? (
+                <>
+                  Your subscription will be canceled, but you'll maintain access until the end of your current billing period.
+                  {accessEndDate && (
+                    <p className="mt-2 text-sm font-medium text-yellow-600">
+                      You will have access until {new Date(accessEndDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </>
+              ) : (
+                "Are you sure you want to leave this community? You'll lose access to all content and need to rejoin to access it again."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleLeaveCommunity}>
-              Leave
+            <AlertDialogAction
+              onClick={handleLeaveCommunity}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Leave Community
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

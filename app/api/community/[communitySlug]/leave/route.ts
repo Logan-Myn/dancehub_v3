@@ -28,7 +28,7 @@ export async function POST(
     // Check if user is a member and get their subscription info
     const { data: member } = await supabase
       .from('community_members')
-      .select('*, stripe_subscription_id')
+      .select('*, stripe_subscription_id, current_period_end')
       .eq('community_id', community.id)
       .eq('user_id', userId)
       .single();
@@ -40,22 +40,48 @@ export async function POST(
       );
     }
 
-    // If there's a Stripe subscription, cancel it
+    let accessEndDate = null;
+
+    // If there's a Stripe subscription, cancel it at period end
     if (member.stripe_subscription_id && community.stripe_account_id) {
       try {
-        await stripe.subscriptions.cancel(
+        const subscription = await stripe.subscriptions.update(
           member.stripe_subscription_id,
+          {
+            cancel_at_period_end: true,
+          },
           {
             stripeAccount: community.stripe_account_id,
           }
         );
+
+        accessEndDate = new Date(subscription.current_period_end * 1000);
+
+        // Update member status to indicate pending cancellation
+        const { error: updateError } = await supabase
+          .from('community_members')
+          .update({
+            status: 'inactive',
+            subscription_status: 'canceled'
+          })
+          .eq('community_id', community.id)
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error('Error updating member status:', updateError);
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          accessEndDate: accessEndDate.toISOString(),
+          gracePeriod: true
+        });
       } catch (stripeError) {
-        console.error('Error canceling subscription:', stripeError);
-        // Continue with member removal even if subscription cancellation fails
+        console.error('Error updating subscription:', stripeError);
       }
     }
 
-    // Remove member from community_members table
+    // For free members or if there's no subscription, remove immediately
     const { error: deleteError } = await supabase
       .from('community_members')
       .delete()
@@ -89,7 +115,8 @@ export async function POST(
           joined_at: member.joined_at,
           subscription_status: member.subscription_status,
           payment_intent_id: member.payment_intent_id,
-          stripe_subscription_id: member.stripe_subscription_id
+          stripe_subscription_id: member.stripe_subscription_id,
+          current_period_end: member.current_period_end
         });
 
       return NextResponse.json(
@@ -98,7 +125,10 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      gracePeriod: false
+    });
   } catch (error) {
     console.error('Error leaving community:', error);
     return NextResponse.json(
