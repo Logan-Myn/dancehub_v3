@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET!;
 const supabase = createAdminClient();
 
 export async function POST(request: Request) {
@@ -17,40 +18,81 @@ export async function POST(request: Request) {
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err) {
-      console.error('Webhook signature verification failed');
+      console.error('Webhook signature verification failed:', err);
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
+
+    // For Connect account events, create a new Stripe instance with the account
+    const connectedStripe = event.account ? 
+      new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2024-10-28.acacia',
+        stripeAccount: event.account
+      }) : 
+      stripe;
 
     const { stripe_account_id } = (event.data.object as any).metadata || {};
 
     switch (event.type) {
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        
+
         // Validate metadata exists
         if (!paymentIntent.metadata?.user_id || !paymentIntent.metadata?.community_id) {
-          console.error('Missing metadata in payment intent:', paymentIntent.id);
+          console.error('Missing metadata in payment intent:', {
+            id: paymentIntent.id,
+            metadata: paymentIntent.metadata,
+            accountId: event.account
+          });
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
         const { user_id, community_id } = paymentIntent.metadata;
 
-        // Add user to community_members table
-        const { error: memberError } = await supabase
+        // First check if member already exists
+        const { data: existingMember } = await supabase
           .from('community_members')
-          .insert({
-            community_id,
-            user_id,
-            status: 'active',
-            joined_at: new Date().toISOString(),
-          });
+          .select('id, status')
+          .eq('community_id', community_id)
+          .eq('user_id', user_id)
+          .single();
 
-        if (memberError) {
-          console.error('Error adding member:', memberError);
-          return NextResponse.json(
-            { error: 'Failed to add member' },
-            { status: 500 }
-          );
+        if (existingMember) {
+          // Update existing member
+          const { error: updateError } = await supabase
+            .from('community_members')
+            .update({
+              status: 'active',
+              payment_intent_id: paymentIntent.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingMember.id);
+
+          if (updateError) {
+            console.error('Error updating member status:', updateError);
+            return NextResponse.json(
+              { error: 'Failed to update member status' },
+              { status: 500 }
+            );
+          }
+        } else {
+          // Add new member
+          const { error: memberError } = await supabase
+            .from('community_members')
+            .insert({
+              community_id,
+              user_id,
+              status: 'active',
+              joined_at: new Date().toISOString(),
+              payment_intent_id: paymentIntent.id
+            });
+
+          if (memberError) {
+            console.error('Error adding member:', memberError);
+            return NextResponse.json(
+              { error: 'Failed to add member' },
+              { status: 500 }
+            );
+          }
         }
 
         // Create membership record

@@ -473,11 +473,13 @@ export default function CommunityPage() {
 
   const filteredThreads = useMemo(() => {
     let filtered = [...threads];
-    
+
     if (selectedCategory) {
-      filtered = filtered.filter((thread) => thread.categoryId === selectedCategory);
+      filtered = filtered.filter(
+        (thread) => thread.categoryId === selectedCategory
+      );
     }
-    
+
     // Sort pinned threads first, then by creation date
     return filtered.sort((a, b) => {
       // First sort by pinned status
@@ -800,9 +802,10 @@ export default function CommunityPage() {
             created_at: selectedThread.createdAt,
             likes_count: selectedThread.likesCount,
             comments_count: selectedThread.commentsCount,
-            category: community.threadCategories?.find(
-              (cat) => cat.id === selectedThread.categoryId
-            )?.name || "General",
+            category:
+              community.threadCategories?.find(
+                (cat) => cat.id === selectedThread.categoryId
+              )?.name || "General",
             category_type: community.threadCategories?.find(
               (cat) => cat.id === selectedThread.categoryId
             )?.iconType,

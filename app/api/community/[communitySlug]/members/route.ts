@@ -44,7 +44,8 @@ export async function GET(
       imageUrl: member.avatar_url || '',
       joinedAt: member.joined_at,
       status: member.status || 'active',
-      lastActive: member.last_active
+      lastActive: member.last_active,
+      user_id: member.user_id
     }));
 
     return NextResponse.json({ members: formattedMembers });

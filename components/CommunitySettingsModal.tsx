@@ -219,6 +219,7 @@ export default function CommunitySettingsModal({
   const [isLoadingBank, setIsLoadingBank] = useState(false);
   const [ibanInput, setIbanInput] = useState("");
   const [isUpdatingIban, setIsUpdatingIban] = useState(false);
+  const [refreshMembersTrigger, setRefreshMembersTrigger] = useState(0);
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -404,16 +405,50 @@ export default function CommunitySettingsModal({
   }, [communitySlug, activeCategory, isOpen]);
 
   useEffect(() => {
+    if (isOpen) {
+      setRefreshMembersTrigger(prev => prev + 1);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     async function fetchMembers() {
       if (activeCategory === "members") {
         setIsLoadingMembers(true);
         try {
-          const response = await fetch(
-            `/api/community/${communitySlug}/members`
-          );
-          if (!response.ok) throw new Error("Failed to fetch members");
-          const data = await response.json();
-          setMembers(data.members);
+          // Get community ID first
+          const { data: communityData, error: communityError } = await supabase
+            .from("communities")
+            .select("id")
+            .eq("slug", communitySlug)
+            .single();
+
+          if (communityError || !communityData) {
+            throw new Error("Community not found");
+          }
+
+          // Get members with profiles
+          const { data: membersData, error: membersError } = await supabase
+            .from("community_members_with_profiles")
+            .select("*")
+            .eq("community_id", communityData.id);
+
+          if (membersError) {
+            throw membersError;
+          }
+
+          // Format members data
+          const formattedMembers = membersData.map(member => ({
+            id: member.id,
+            displayName: member.full_name || 'Anonymous',
+            email: member.email || '',
+            imageUrl: member.avatar_url || '',
+            joinedAt: member.joined_at,
+            status: member.status || 'active',
+            lastActive: member.last_active,
+            user_id: member.user_id
+          }));
+
+          setMembers(formattedMembers);
         } catch (error) {
           console.error("Error fetching members:", error);
           toast.error("Failed to fetch members");
@@ -424,7 +459,7 @@ export default function CommunitySettingsModal({
     }
 
     fetchMembers();
-  }, [communitySlug, activeCategory]);
+  }, [communitySlug, activeCategory, refreshMembersTrigger]);
 
   useEffect(() => {
     async function fetchPayoutData() {
@@ -811,16 +846,14 @@ export default function CommunitySettingsModal({
     if (!confirm("Are you sure you want to remove this member?")) return;
 
     try {
-      const response = await fetch(
-        `/api/community/${communitySlug}/members/${memberId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const { error } = await supabase
+        .from("community_members")
+        .delete()
+        .eq("id", memberId);
 
-      if (!response.ok) throw new Error("Failed to remove member");
+      if (error) throw error;
 
-      setMembers(members.filter((member) => member.id !== memberId));
+      setRefreshMembersTrigger(prev => prev + 1);
       toast.success("Member removed successfully");
     } catch (error) {
       console.error("Error removing member:", error);
