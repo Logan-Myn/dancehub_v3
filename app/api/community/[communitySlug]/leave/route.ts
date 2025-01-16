@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase';
+import { stripe } from "@/lib/stripe";
 
 export async function POST(
   request: Request,
@@ -10,10 +11,10 @@ export async function POST(
   try {
     const { userId } = await request.json();
 
-    // Get community
+    // Get community with stripe account id
     const { data: community, error: communityError } = await supabase
       .from('communities')
-      .select('id')
+      .select('id, stripe_account_id')
       .eq('slug', params.communitySlug)
       .single();
 
@@ -24,10 +25,10 @@ export async function POST(
       );
     }
 
-    // Check if user is a member
+    // Check if user is a member and get their subscription info
     const { data: member } = await supabase
       .from('community_members')
-      .select()
+      .select('*, stripe_subscription_id')
       .eq('community_id', community.id)
       .eq('user_id', userId)
       .single();
@@ -37,6 +38,21 @@ export async function POST(
         { error: 'User is not a member of this community' },
         { status: 400 }
       );
+    }
+
+    // If there's a Stripe subscription, cancel it
+    if (member.stripe_subscription_id && community.stripe_account_id) {
+      try {
+        await stripe.subscriptions.cancel(
+          member.stripe_subscription_id,
+          {
+            stripeAccount: community.stripe_account_id,
+          }
+        );
+      } catch (stripeError) {
+        console.error('Error canceling subscription:', stripeError);
+        // Continue with member removal even if subscription cancellation fails
+      }
     }
 
     // Remove member from community_members table
@@ -72,7 +88,8 @@ export async function POST(
           status: member.status,
           joined_at: member.joined_at,
           subscription_status: member.subscription_status,
-          payment_intent_id: member.payment_intent_id
+          payment_intent_id: member.payment_intent_id,
+          stripe_subscription_id: member.stripe_subscription_id
         });
 
       return NextResponse.json(
