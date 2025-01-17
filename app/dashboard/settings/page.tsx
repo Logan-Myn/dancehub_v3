@@ -29,8 +29,13 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const { user } = useAuth();
   const supabase = createClient();
+
+  const isGoogleUser = user?.app_metadata?.provider === 'google';
 
   useEffect(() => {
     async function fetchProfile() {
@@ -160,6 +165,51 @@ export default function SettingsPage() {
     );
   };
 
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newEmail) return;
+
+    setIsChangingEmail(true);
+    try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+
+      if (error) throw error;
+
+      toast.success('Verification email sent. Please check your new email to confirm the change.');
+      setNewEmail('');
+    } catch (error: any) {
+      console.error('Error updating email:', error);
+      toast.error(error.message || 'Failed to update email');
+    } finally {
+      setIsChangingEmail(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user?.email) return;
+
+    setIsResettingPassword(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        user.email,
+        {
+          redirectTo: `${window.location.origin}/auth/reset-password`
+        }
+      );
+
+      if (error) throw error;
+
+      toast.success('Password reset email sent. Please check your email to reset your password.');
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast.error(error.message || 'Failed to send reset email');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -262,22 +312,78 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            {/* Email */}
+            {/* Email Change Form */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="current-email">Current Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="email"
-                  value={profile?.email || ''}
+                  id="current-email"
+                  value={user?.email || ''}
                   disabled
                   className="pl-10 bg-gray-50"
                 />
               </div>
-              <p className="text-sm text-gray-500">
-                Email cannot be changed
-              </p>
+              
+              {isGoogleUser ? (
+                <p className="text-sm text-gray-500 mt-2">
+                  Your email is managed by Google.
+                </p>
+              ) : (
+                <>
+                  <form onSubmit={handleEmailChange} className="space-y-4 mt-4">
+                    <div>
+                      <Label htmlFor="new-email">New Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="new-email"
+                          type="email"
+                          value={newEmail}
+                          onChange={(e) => setNewEmail(e.target.value)}
+                          className="pl-10"
+                          placeholder="Enter new email address"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={isChangingEmail || !newEmail}
+                      className="bg-black hover:bg-gray-800 text-white"
+                    >
+                      {isChangingEmail ? 'Sending Verification...' : 'Change Email'}
+                    </Button>
+                  </form>
+                  <p className="text-sm text-gray-500 mt-2">
+                    You'll need to verify your new email address before the change takes effect
+                  </p>
+                </>
+              )}
             </div>
+
+            {/* Password Reset Section */}
+            {!isGoogleUser && (
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Card className="border border-gray-200">
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <p className="text-sm text-gray-500">
+                        Need to change your password? Click below to receive a password reset email.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handlePasswordReset}
+                        disabled={isResettingPassword}
+                        className="bg-black hover:bg-gray-800 text-white w-full"
+                      >
+                        {isResettingPassword ? 'Sending Reset Email...' : 'Reset Password'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             <div className="flex justify-end">
               <Button
