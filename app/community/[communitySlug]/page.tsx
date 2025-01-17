@@ -40,8 +40,9 @@ interface CustomLink {
 
 interface Profile {
   id: string;
-  full_name: string;
-  avatar_url: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  display_name: string | null;
 }
 
 interface Thread {
@@ -74,6 +75,7 @@ interface Member {
     id: string;
     full_name: string | null;
     avatar_url: string | null;
+    display_name: string | null;
   };
 }
 
@@ -455,11 +457,18 @@ export default function CommunityPage() {
       (cat) => cat.id === newThread.categoryId
     );
 
+    // Get the current user's profile to get the display name
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('display_name, full_name, avatar_url')
+      .eq('id', currentUser?.id)
+      .single();
+
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: currentUser?.user_metadata?.full_name || "Anonymous",
-        image: currentUser?.user_metadata?.avatar_url || "",
+        name: profileData?.display_name || profileData?.full_name || "Anonymous",
+        image: profileData?.avatar_url || currentUser?.user_metadata?.avatar_url || "",
       },
       categoryId: newThread.categoryId,
       category: selectedCategory?.name || "General",
@@ -671,16 +680,18 @@ export default function CommunityPage() {
                         }
                         alt={
                           members.find((m) => m.user_id === currentUser?.id)
+                            ?.profile?.display_name ||
+                          members.find((m) => m.user_id === currentUser?.id)
                             ?.profile?.full_name ||
-                          currentUser?.user_metadata?.full_name ||
                           "User"
                         }
                       />
                       <AvatarFallback>
                         {(
                           members.find((m) => m.user_id === currentUser?.id)
+                            ?.profile?.display_name?.[0] ||
+                          members.find((m) => m.user_id === currentUser?.id)
                             ?.profile?.full_name?.[0] ||
-                          currentUser?.user_metadata?.full_name?.[0] ||
                           "U"
                         ).toUpperCase()}
                       </AvatarFallback>

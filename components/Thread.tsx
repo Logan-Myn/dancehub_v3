@@ -124,7 +124,7 @@ export default function Thread({
           pinned: isCreator ? isPinned : false,
           author: {
             id: user.id,
-            name: formatDisplayName(profile?.full_name) || formatDisplayName(user?.user_metadata?.full_name) || 'Anonymous',
+            name: profile?.display_name || profile?.full_name || 'Anonymous',
             avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url,
           },
         }),
@@ -161,7 +161,7 @@ export default function Thread({
     }
   };
 
-  const userDisplayName = formatDisplayName(profile?.full_name) || formatDisplayName(user?.user_metadata?.full_name) || user?.email?.split('@')[0] || 'Anonymous';
+  const userDisplayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Anonymous';
   const userAvatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
