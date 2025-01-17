@@ -4,8 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/auth";
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -19,6 +21,37 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
   const stripe = useStripe();
   const elements = useElements();
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { user } = useAuth();
+
+  // Check payment status periodically
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (isProcessing && user) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/community/${communitySlug}/check-subscription`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id }),
+          });
+          const data = await response.json();
+
+          if (data.hasSubscription) {
+            setIsProcessing(false);
+            onSuccess();
+          }
+        } catch (error) {
+          console.error("Error checking subscription:", error);
+        }
+      }, 2000); // Check every 2 seconds
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isProcessing, communitySlug, onSuccess, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,16 +70,29 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
 
       if (error) {
         toast.error(error.message || 'Payment failed');
+        setIsProcessing(false);
       } else {
-        onSuccess();
+        setIsProcessing(true);
+        toast.success("Payment successful! Processing your membership...");
       }
     } catch (error) {
       console.error('Payment error:', error);
       toast.error('Payment failed');
+      setIsProcessing(false);
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isProcessing) {
+    return (
+      <div className="flex flex-col items-center justify-center space-y-4 py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-gray-500">Processing your membership...</p>
+        <p className="text-xs text-gray-400">This may take a few moments</p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -56,7 +102,14 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
         disabled={!stripe || isLoading} 
         className="w-full"
       >
-        {isLoading ? 'Processing...' : `Pay €${price}/month`}
+        {isLoading ? (
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Processing payment...</span>
+          </div>
+        ) : (
+          `Pay €${price}/month`
+        )}
       </Button>
     </form>
   );

@@ -10,17 +10,27 @@ const supabase = createAdminClient();
 
 export async function POST(request: Request) {
   try {
+    console.log('🎯 Webhook endpoint hit');
     const body = await request.text();
     const signature = headers().get('stripe-signature')!;
+    console.log('📝 Got signature:', signature ? 'Yes' : 'No');
 
     let event: Stripe.Event;
 
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      // Check if it's a Connect webhook event
+      const isConnectEvent = body.includes('"account":');
+      const secret = isConnectEvent ? connectWebhookSecret : webhookSecret;
+      console.log('Using webhook secret for:', isConnectEvent ? 'Connect' : 'Platform');
+      
+      event = stripe.webhooks.constructEvent(body, signature, secret);
+      console.log('✅ Webhook verified, event type:', event.type);
     } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+      console.error('❌ Webhook signature verification failed:', err);
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
+
+    console.log('Received webhook event:', event.type);
 
     // For Connect account events, create a new Stripe instance with the account
     const connectedStripe = event.account ? 
@@ -34,107 +44,72 @@ export async function POST(request: Request) {
 
     switch (event.type) {
       case 'payment_intent.succeeded':
+        console.log('💳 Payment intent succeeded');
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log('💳 Full payment intent:', JSON.stringify(paymentIntent, null, 2));
+        console.log('💳 Metadata:', paymentIntent.metadata);
+        console.log('💳 Is Connect event:', !!event.account);
 
-        // Validate metadata exists
-        if (!paymentIntent.metadata?.user_id || !paymentIntent.metadata?.community_id) {
+        // For Connect events, metadata is on the subscription
+        if (event.account && paymentIntent.invoice) {
+          console.log('🔍 Getting subscription details for invoice:', paymentIntent.invoice);
+          const invoice = await connectedStripe.invoices.retrieve(paymentIntent.invoice as string);
+          const subscription = await connectedStripe.subscriptions.retrieve(invoice.subscription as string);
+          
+          if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
+            console.error('Missing metadata in subscription:', subscription.id);
+            return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+          }
+
+          const { user_id, community_id } = subscription.metadata;
+          console.log('🔍 Found metadata from subscription:', { user_id, community_id });
+
+          try {
+            // Update member status to active
+            const { error: statusUpdateError } = await supabase
+              .from('community_members')
+              .update({ status: 'active' })
+              .eq('community_id', community_id)
+              .eq('user_id', user_id);
+
+            if (statusUpdateError) {
+              console.error('❌ Error updating member status:', statusUpdateError);
+              throw statusUpdateError;
+            }
+
+            console.log('✅ Successfully updated member status to active');
+            return NextResponse.json({ received: true });
+          } catch (error) {
+            console.error('❌ Error in payment_intent.succeeded handler:', error);
+            return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+          }
+        }
+
+        // For direct payments, metadata is on the payment intent
+        if (!event.account && (!paymentIntent.metadata?.user_id || !paymentIntent.metadata?.community_id)) {
           console.error('Missing metadata in payment intent:', {
             id: paymentIntent.id,
-            metadata: paymentIntent.metadata,
-            accountId: event.account
+            metadata: paymentIntent.metadata
           });
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
-        const { user_id, community_id } = paymentIntent.metadata;
-
-        // First check if member already exists
-        const { data: existingMember } = await supabase
-          .from('community_members')
-          .select('id, status')
-          .eq('community_id', community_id)
-          .eq('user_id', user_id)
-          .single();
-
-        if (existingMember) {
-          // Update existing member
-          const { error: updateError } = await supabase
-            .from('community_members')
-            .update({
-              status: 'active',
-              payment_intent_id: paymentIntent.id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingMember.id);
-
-          if (updateError) {
-            console.error('Error updating member status:', updateError);
-            return NextResponse.json(
-              { error: 'Failed to update member status' },
-              { status: 500 }
-            );
-          }
-        } else {
-          // Add new member
-          const { error: memberError } = await supabase
-            .from('community_members')
-            .insert({
-              community_id,
-              user_id,
-              status: 'active',
-              joined_at: new Date().toISOString(),
-              payment_intent_id: paymentIntent.id
-            });
-
-          if (memberError) {
-            console.error('Error adding member:', memberError);
-            return NextResponse.json(
-              { error: 'Failed to add member' },
-              { status: 500 }
-            );
-          }
-        }
-
-        // Create membership record
-        const { error: membershipError } = await supabase
-          .from('memberships')
-          .insert({
-            id: `${community_id}_${user_id}`,
-            user_id,
-            community_id,
-            status: 'active',
-            start_date: new Date().toISOString(),
-            payment_intent_id: paymentIntent.id,
-            subscription_id: paymentIntent.metadata.subscription_id,
-            amount: paymentIntent.amount,
-            currency: paymentIntent.currency,
-          });
-
-        if (membershipError) {
-          console.error('Error creating membership:', membershipError);
-          // Rollback member addition
-          await supabase
-            .from('community_members')
-            .delete()
-            .eq('community_id', community_id)
-            .eq('user_id', user_id);
-
-          return NextResponse.json(
-            { error: 'Failed to create membership' },
-            { status: 500 }
-          );
-        }
         break;
 
       case 'invoice.payment_succeeded':
+        console.log('📄 Invoice payment succeeded');
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.subscription) {
+        console.log('📄 Full invoice:', JSON.stringify(invoice, null, 2));
+
+        if (!invoice.subscription) {
+          console.log('⚠️ No subscription associated with invoice');
+          return NextResponse.json({ received: true });
+        }
+
+        try {
           // Get subscription from the connected account
-          const subscription = await stripe.subscriptions.retrieve(
-            invoice.subscription as string,
-            {
-              stripeAccount: stripe_account_id,
-            }
+          const subscription = await connectedStripe.subscriptions.retrieve(
+            invoice.subscription as string
           );
 
           if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
@@ -142,85 +117,30 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
-          // Get current platform fee percentage for this member
-          const { data: memberFeeData } = await supabase
-            .from('community_members')
-            .select('platform_fee_percentage')
-            .eq('community_id', subscription.metadata.community_id)
-            .eq('user_id', subscription.metadata.user_id)
-            .single();
+          const { user_id, community_id } = subscription.metadata;
+          console.log('🔍 Processing invoice payment for:', { user_id, community_id });
 
-          // Update subscription with current platform fee if it exists
-          if (memberFeeData?.platform_fee_percentage) {
-            await stripe.subscriptions.update(
-              subscription.id,
-              {
-                application_fee_percent: memberFeeData.platform_fee_percentage,
-              },
-              {
-                stripeAccount: stripe_account_id,
-              }
-            );
-          }
-
-          // Update member status and subscription details
-          const { error: memberUpdateError } = await supabase
+          // Update member status and subscription status
+          const { error: updateError } = await supabase
             .from('community_members')
-            .update({
+            .update({ 
               status: 'active',
               subscription_status: subscription.status,
-              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-              last_payment_date: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
-            .eq('community_id', subscription.metadata.community_id)
-            .eq('user_id', subscription.metadata.user_id);
+            .eq('community_id', community_id)
+            .eq('user_id', user_id);
 
-          if (memberUpdateError) {
-            console.error('Error updating member status:', memberUpdateError);
-            return NextResponse.json(
-              { error: 'Failed to update member status' },
-              { status: 500 }
-            );
+          if (updateError) {
+            console.error('❌ Error updating member status:', updateError);
+            throw updateError;
           }
 
-          // Get existing member data for members count update
-          const { data: existingMemberData } = await supabase
-            .from('community_members')
-            .select('status, role, joined_at, subscription_status, payment_intent_id, stripe_subscription_id, current_period_end')
-            .eq('community_id', subscription.metadata.community_id)
-            .eq('user_id', subscription.metadata.user_id)
-            .single();
-
-          // Update members_count in communities table if this is the first payment
-          if (existingMemberData && existingMemberData.status === 'pending') {
-            const { error: countError } = await supabase.rpc(
-              'increment_members_count',
-              { community_id: subscription.metadata.community_id }
-            );
-
-            if (countError) {
-              console.error('Error incrementing members count:', countError);
-              // Try to rollback the member update
-              await supabase
-                .from('community_members')
-                .update({
-                  status: existingMemberData.status,
-                  role: existingMemberData.role,
-                  joined_at: existingMemberData.joined_at,
-                  subscription_status: existingMemberData.subscription_status,
-                  payment_intent_id: existingMemberData.payment_intent_id,
-                  stripe_subscription_id: existingMemberData.stripe_subscription_id,
-                  current_period_end: existingMemberData.current_period_end
-                })
-                .eq('community_id', subscription.metadata.community_id)
-                .eq('user_id', subscription.metadata.user_id);
-
-              return NextResponse.json(
-                { error: 'Failed to update members count' },
-                { status: 500 }
-              );
-            }
-          }
+          console.log('✅ Successfully updated member status');
+          return NextResponse.json({ received: true });
+        } catch (error) {
+          console.error('❌ Error in invoice.payment_succeeded handler:', error);
+          return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
         }
         break;
 
@@ -318,6 +238,43 @@ export async function POST(request: Request) {
               { status: 500 }
             );
           }
+        }
+        break;
+
+      case 'customer.subscription.updated':
+        console.log('📝 Subscription updated');
+        const updatedSubscription = event.data.object as Stripe.Subscription;
+        console.log('📝 Full subscription:', JSON.stringify(updatedSubscription, null, 2));
+
+        if (!updatedSubscription.metadata?.user_id || !updatedSubscription.metadata?.community_id) {
+          console.error('Missing metadata in subscription:', updatedSubscription.id);
+          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        }
+
+        try {
+          const { user_id, community_id } = updatedSubscription.metadata;
+          console.log('🔍 Processing subscription update for:', { user_id, community_id });
+
+          // Update subscription status in community_members
+          const { error: updateError } = await supabase
+            .from('community_members')
+            .update({ 
+              subscription_status: updatedSubscription.status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('community_id', community_id)
+            .eq('user_id', user_id);
+
+          if (updateError) {
+            console.error('❌ Error updating subscription status:', updateError);
+            throw updateError;
+          }
+
+          console.log('✅ Successfully updated subscription status');
+          return NextResponse.json({ received: true });
+        } catch (error) {
+          console.error('❌ Error in subscription.updated handler:', error);
+          return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
         }
         break;
     }

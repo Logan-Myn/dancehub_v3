@@ -25,58 +25,37 @@ export async function POST(
       );
     }
 
-    // Check membership record
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .select('*')
+    // Check member status
+    const { data: member, error: memberError } = await supabase
+      .from('community_members')
+      .select('status, subscription_status')
       .eq('community_id', community.id)
       .eq('user_id', userId)
       .single();
 
-    if (membershipError || !membership) {
+    if (memberError) {
+      console.error('Error checking member status:', memberError);
       return NextResponse.json({ 
         hasSubscription: false,
-        message: 'No subscription found' 
+        message: 'Error checking member status' 
       });
     }
 
-    // If subscription is active, add user to community if not already a member
-    if (membership.status === 'active') {
-      // Check if user is already a member
-      const { data: existingMember } = await supabase
-        .from('community_members')
-        .select('id')
-        .eq('community_id', community.id)
-        .eq('user_id', userId)
-        .single();
-
-      // If not a member, add them
-      if (!existingMember) {
-        const { error: memberError } = await supabase
-          .from('community_members')
-          .insert({
-            community_id: community.id,
-            user_id: userId,
-            role: 'member',
-            joined_at: new Date().toISOString(),
-          });
-
-        if (memberError) throw memberError;
-      }
-
-      return NextResponse.json({
-        hasSubscription: true,
-        status: 'active',
-        message: 'Subscription is active and user added to community',
-        startDate: membership.start_date,
-        currentPeriodEnd: membership.current_period_end,
+    if (!member) {
+      return NextResponse.json({ 
+        hasSubscription: false,
+        message: 'Not a member of this community' 
       });
     }
 
+    // Check if member is active
+    const isActive = member.status === 'active';
+    
     return NextResponse.json({
-      hasSubscription: false,
-      status: membership.status,
-      message: 'Subscription is not active',
+      hasSubscription: isActive,
+      status: member.status,
+      subscriptionStatus: member.subscription_status,
+      message: isActive ? 'Member is active' : 'Member is not active'
     });
   } catch (error) {
     console.error('Error checking subscription:', error);
