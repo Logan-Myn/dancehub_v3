@@ -18,7 +18,7 @@ export async function POST(
     // Get community with its membership price and stripe account
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, membership_price, stripe_account_id, stripe_price_id")
+      .select("id, membership_price, stripe_account_id, stripe_price_id, active_member_count")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -35,6 +35,12 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // Calculate platform fee percentage based on active member count
+    const { data: feePercentage } = await supabase
+      .rpc('calculate_platform_fee_percentage', {
+        member_count: community.active_member_count
+      });
 
     // Check if user is already a member
     const { data: existingMember } = await supabase
@@ -65,7 +71,7 @@ export async function POST(
       }
     );
 
-    // Create a subscription
+    // Create a subscription with the calculated platform fee
     const subscription = await stripe.subscriptions.create(
       {
         customer: customer.id,
@@ -78,7 +84,9 @@ export async function POST(
         metadata: {
           user_id: userId,
           community_id: community.id,
+          platform_fee_percentage: feePercentage
         },
+        application_fee_percent: feePercentage,
         expand: ['latest_invoice.payment_intent'],
       },
       {
@@ -89,7 +97,7 @@ export async function POST(
     // Get the client secret from the subscription's invoice
     const clientSecret = (subscription.latest_invoice as any).payment_intent.client_secret;
 
-    // Add member to community_members table
+    // Add member to community_members table with the platform fee percentage
     const { error: memberError } = await supabase
       .from("community_members")
       .insert({
@@ -100,7 +108,8 @@ export async function POST(
         status: "pending", // Will be updated to active when payment succeeds
         subscription_status: "incomplete",
         stripe_customer_id: customer.id,
-        stripe_subscription_id: subscription.id
+        stripe_subscription_id: subscription.id,
+        platform_fee_percentage: feePercentage
       });
 
     if (memberError) {

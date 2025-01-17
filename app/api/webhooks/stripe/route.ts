@@ -142,6 +142,27 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
+          // Get current platform fee percentage for this member
+          const { data: memberFeeData } = await supabase
+            .from('community_members')
+            .select('platform_fee_percentage')
+            .eq('community_id', subscription.metadata.community_id)
+            .eq('user_id', subscription.metadata.user_id)
+            .single();
+
+          // Update subscription with current platform fee if it exists
+          if (memberFeeData?.platform_fee_percentage) {
+            await stripe.subscriptions.update(
+              subscription.id,
+              {
+                application_fee_percent: memberFeeData.platform_fee_percentage,
+              },
+              {
+                stripeAccount: stripe_account_id,
+              }
+            );
+          }
+
           // Update member status and subscription details
           const { error: memberUpdateError } = await supabase
             .from('community_members')
@@ -162,22 +183,38 @@ export async function POST(request: Request) {
             );
           }
 
-          // Update members_count in communities table if this is the first payment
-          const { data: member } = await supabase
+          // Get existing member data for members count update
+          const { data: existingMemberData } = await supabase
             .from('community_members')
-            .select('status')
+            .select('status, role, joined_at, subscription_status, payment_intent_id, stripe_subscription_id, current_period_end')
             .eq('community_id', subscription.metadata.community_id)
             .eq('user_id', subscription.metadata.user_id)
             .single();
 
-          if (member && member.status === 'pending') {
+          // Update members_count in communities table if this is the first payment
+          if (existingMemberData && existingMemberData.status === 'pending') {
             const { error: countError } = await supabase.rpc(
               'increment_members_count',
               { community_id: subscription.metadata.community_id }
             );
 
             if (countError) {
-              console.error('Error updating members count:', countError);
+              console.error('Error incrementing members count:', countError);
+              // Try to rollback the member update
+              await supabase
+                .from('community_members')
+                .update({
+                  status: existingMemberData.status,
+                  role: existingMemberData.role,
+                  joined_at: existingMemberData.joined_at,
+                  subscription_status: existingMemberData.subscription_status,
+                  payment_intent_id: existingMemberData.payment_intent_id,
+                  stripe_subscription_id: existingMemberData.stripe_subscription_id,
+                  current_period_end: existingMemberData.current_period_end
+                })
+                .eq('community_id', subscription.metadata.community_id)
+                .eq('user_id', subscription.metadata.user_id);
+
               return NextResponse.json(
                 { error: 'Failed to update members count' },
                 { status: 500 }
