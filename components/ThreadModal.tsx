@@ -146,7 +146,6 @@ export default function ThreadModal({
     setLocalComments(thread.comments || []);
   }, [thread.comments]);
 
-  const formattedAuthorName = formatDisplayName(thread.author.name);
   const iconConfig = CATEGORY_ICONS.find(
     (i) => i.label === thread.category_type
   );
@@ -527,33 +526,37 @@ export default function ThreadModal({
 
   const handleTogglePin = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
-        throw new Error('No active session');
+        throw new Error("No active session");
       }
 
       const response = await fetch(`/api/threads/${thread.id}/pin`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(error || 'Failed to toggle pin status');
+        throw new Error(error || "Failed to toggle pin status");
       }
 
       const { pinned } = await response.json();
       onThreadUpdate?.(thread.id, { pinned });
-      toast.success(pinned ? 'Thread pinned successfully' : 'Thread unpinned successfully');
+      toast.success(
+        pinned ? "Thread pinned successfully" : "Thread unpinned successfully"
+      );
     } catch (error) {
-      console.error('Error toggling pin status:', error);
-      if (error instanceof Error && error.message.includes('session')) {
-        toast.error('Please sign in again to pin/unpin threads');
+      console.error("Error toggling pin status:", error);
+      if (error instanceof Error && error.message.includes("session")) {
+        toast.error("Please sign in again to pin/unpin threads");
       } else {
-        toast.error('Failed to toggle pin status. Please try again.');
+        toast.error("Failed to toggle pin status. Please try again.");
       }
     }
   };
@@ -569,13 +572,13 @@ export default function ThreadModal({
                 <Avatar className="h-10 w-10">
                   <AvatarImage
                     src={thread.author.image}
-                    alt={formattedAuthorName}
+                    alt={thread.author.name}
                   />
-                  <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
+                  <AvatarFallback>{thread.author.name[0]}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium">{formattedAuthorName}</span>
+                    <span className="font-medium">{thread.author.name}</span>
                     <span className="text-gray-500">posted in</span>
                     <div className="flex items-center space-x-1">
                       {iconConfig && (
@@ -606,7 +609,7 @@ export default function ThreadModal({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={handleTogglePin}>
                         <Pin className="h-4 w-4 mr-2" />
-                        {thread.pinned ? 'Unpin' : 'Pin'}
+                        {thread.pinned ? "Unpin" : "Pin"}
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setIsEditing(true)}>
                         <Edit2 className="h-4 w-4 mr-2" />

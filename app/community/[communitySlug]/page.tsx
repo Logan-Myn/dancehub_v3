@@ -221,7 +221,9 @@ export default function CommunityPage() {
 
         // Check current user's membership status
         if (currentUser) {
-          const currentMember = membersData.find(m => m.user_id === currentUser.id);
+          const currentMember = membersData.find(
+            (m) => m.user_id === currentUser.id
+          );
           if (currentMember) {
             setMemberStatus(currentMember.status);
             if (currentMember.current_period_end) {
@@ -230,34 +232,52 @@ export default function CommunityPage() {
           }
         }
 
-        // Get threads
-        const { data: threadsData, error: threadsError } = await supabase
+        // Get threads with profile data
+        const { data: threadsData, error } = await supabase
           .from("threads")
           .select("*")
           .eq("community_id", communityData.id)
           .order("created_at", { ascending: false });
 
-        if (threadsError) throw threadsError;
+        if (error) throw error;
 
-        // Format threads data
-        const formattedThreads = threadsData.map((thread) => ({
-          id: thread.id,
-          title: thread.title,
-          content: thread.content,
-          createdAt: thread.created_at,
-          userId: thread.user_id,
-          likesCount: (thread.likes || []).length,
-          commentsCount: (thread.comments || []).length,
-          category: thread.category,
-          categoryId: thread.category_id,
-          author: {
-            name: thread.author_name || "Anonymous",
-            image: thread.author_image || "",
-          },
-          likes: thread.likes || [],
-          comments: thread.comments || [],
-          pinned: thread.pinned || false,
-        }));
+        // Get all unique user IDs from threads
+        const userIds = Array.from(new Set(threadsData.map((thread: any) => thread.user_id)));
+
+        // Fetch profiles for these users
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, display_name")
+          .in("id", userIds);
+
+        // Create a map of profiles for easy lookup
+        const profilesMap = (profilesData || []).reduce((acc: any, profile: any) => {
+          acc[profile.id] = profile;
+          return acc;
+        }, {});
+
+        const formattedThreads = threadsData.map((thread: any) => {
+          const profile = profilesMap[thread.user_id];
+          return {
+            id: thread.id,
+            title: thread.title,
+            content: thread.content,
+            createdAt: thread.created_at,
+            userId: thread.user_id,
+            author: {
+              name: profile?.display_name || profile?.full_name || "Anonymous",
+              image: profile?.avatar_url || thread.author_image || "",
+            },
+            category: thread.category || "General",
+            category_type: thread.category_type || null,
+            categoryId: thread.category_id,
+            likesCount: thread.likes?.length || 0,
+            commentsCount: thread.comments?.length || 0,
+            likes: thread.likes || [],
+            comments: thread.comments || [],
+            pinned: thread.pinned || false,
+          };
+        });
 
         // Format community data
         const formattedCommunity: Community = {
@@ -381,13 +401,17 @@ export default function CommunityPage() {
       if (data.gracePeriod && data.accessEndDate) {
         setAccessEndDate(data.accessEndDate);
         const endDate = new Date(data.accessEndDate).toLocaleDateString();
-        toast.success(`Your membership will end on ${endDate}. You'll maintain access until then.`);
+        toast.success(
+          `Your membership will end on ${endDate}. You'll maintain access until then.`
+        );
       } else {
         setIsMember(false);
-        setMembers((prev) => prev.filter((member) => member.user_id !== currentUser.id));
+        setMembers((prev) =>
+          prev.filter((member) => member.user_id !== currentUser.id)
+        );
         toast.success("Successfully left the community");
       }
-      
+
       setShowLeaveDialog(false);
     } catch (error) {
       console.error("Error leaving community:", error);
@@ -399,22 +423,25 @@ export default function CommunityPage() {
     if (!currentUser) return;
 
     try {
-      const response = await fetch(`/api/community/${communitySlug}/reactivate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId: currentUser.id }),
-      });
+      const response = await fetch(
+        `/api/community/${communitySlug}/reactivate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: currentUser.id }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to reactivate membership");
       }
 
       const data = await response.json();
-      
+
       // Update local state
-      setMemberStatus('active');
+      setMemberStatus("active");
       setAccessEndDate(null);
       toast.success("Your membership has been reactivated!");
     } catch (error) {
@@ -544,29 +571,32 @@ export default function CommunityPage() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      // Get threads with profile data and category information
+      // Get threads with profile data
       const { data: threadsData, error } = await supabase
         .from("threads")
-        .select(
-          `
-          *,
-          profiles:user_id (
-            avatar_url,
-            full_name
-          ),
-          thread_categories:category_id (
-            name,
-            icon_type
-          )
-        `
-        )
+        .select("*")
         .eq("community_id", community.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
+      // Get all unique user IDs from threads
+      const userIds = Array.from(new Set(threadsData.map((thread: any) => thread.user_id)));
+
+      // Fetch profiles for these users
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, display_name")
+        .in("id", userIds);
+
+      // Create a map of profiles for easy lookup
+      const profilesMap = (profilesData || []).reduce((acc: any, profile: any) => {
+        acc[profile.id] = profile;
+        return acc;
+      }, {});
+
       const formattedThreads = threadsData.map((thread: any) => {
-        const category = thread.thread_categories;
+        const profile = profilesMap[thread.user_id];
         return {
           id: thread.id,
           title: thread.title,
@@ -574,12 +604,11 @@ export default function CommunityPage() {
           createdAt: thread.created_at,
           userId: thread.user_id,
           author: {
-            name:
-              thread.author_name || thread.profiles?.full_name || "Anonymous",
-            image: thread.profiles?.avatar_url || thread.author_image || "",
+            name: profile?.display_name || profile?.full_name || "Anonymous",
+            image: profile?.avatar_url || thread.author_image || "",
           },
-          category: category?.name || "General",
-          category_type: category?.icon_type || null,
+          category: thread.category || "General",
+          category_type: thread.category_type || null,
           categoryId: thread.category_id,
           likesCount: thread.likes?.length || 0,
           commentsCount: thread.comments?.length || 0,
@@ -806,7 +835,7 @@ export default function CommunityPage() {
                     </Button>
                   ) : isMember ? (
                     <>
-                      {memberStatus === 'inactive' ? (
+                      {memberStatus === "inactive" ? (
                         <>
                           <Button
                             onClick={handleReactivateMembership}
@@ -816,7 +845,8 @@ export default function CommunityPage() {
                           </Button>
                           {accessEndDate && (
                             <p className="mt-2 text-sm text-center text-yellow-600">
-                              Your membership will end on {new Date(accessEndDate).toLocaleDateString()}
+                              Your membership will end on{" "}
+                              {new Date(accessEndDate).toLocaleDateString()}
                             </p>
                           )}
                         </>
@@ -942,12 +972,16 @@ export default function CommunityPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Community</AlertDialogTitle>
             <AlertDialogDescription>
-              {community?.membershipEnabled && community?.membershipPrice && community?.membershipPrice > 0 ? (
+              {community?.membershipEnabled &&
+              community?.membershipPrice &&
+              community?.membershipPrice > 0 ? (
                 <>
-                  Your subscription will be canceled, but you'll maintain access until the end of your current billing period.
+                  Your subscription will be canceled, but you'll maintain access
+                  until the end of your current billing period.
                   {accessEndDate && (
                     <p className="mt-2 text-sm font-medium text-yellow-600">
-                      You will have access until {new Date(accessEndDate).toLocaleDateString()}
+                      You will have access until{" "}
+                      {new Date(accessEndDate).toLocaleDateString()}
                     </p>
                   )}
                 </>

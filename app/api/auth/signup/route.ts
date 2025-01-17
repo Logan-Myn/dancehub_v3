@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { formatDisplayName } from "@/lib/utils";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,9 @@ export async function POST(request: Request) {
     // Generate a consistent avatar URL based on the user's ID
     const avatarUrl = `https://api.multiavatar.com/${id}.svg`;
 
+    // Format the display name using the utility function
+    const formattedDisplayName = formatDisplayName(full_name || email?.split('@')[0] || 'User');
+
     // Update the user's profile in Supabase
     const { error } = await supabase
       .from('profiles')
@@ -16,6 +20,7 @@ export async function POST(request: Request) {
         id,
         avatar_url: avatarUrl,
         full_name: full_name || email?.split('@')[0] || 'User',
+        display_name: formattedDisplayName,
         updated_at: new Date().toISOString(),
       });
 

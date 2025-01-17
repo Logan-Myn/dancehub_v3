@@ -53,7 +53,6 @@ export default function ThreadCard({
 
   const iconConfig = CATEGORY_ICONS.find((i) => i.label === category_type);
   const IconComponent = iconConfig?.icon || MessageCircle;
-  const formattedAuthorName = formatDisplayName(author.name);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening thread modal when clicking like
@@ -105,7 +104,7 @@ export default function ThreadCard({
   return (
     <div
       className={`bg-white rounded-lg shadow p-4 mb-4 cursor-pointer hover:shadow-md transition-shadow relative ${
-        pinned ? 'border-l-4 border-blue-500' : ''
+        pinned ? "border-l-4 border-blue-500" : ""
       }`}
       onClick={onClick}
     >
@@ -114,16 +113,16 @@ export default function ThreadCard({
           Pinned
         </div>
       )}
-      
+
       {/* Author info and metadata */}
       <div className="flex items-center space-x-2 mb-3">
         <Avatar className="h-10 w-10">
-          <AvatarImage src={author.image} alt={formattedAuthorName} />
-          <AvatarFallback>{formattedAuthorName[0]}</AvatarFallback>
+          <AvatarImage src={author.image} alt={author.name} />
+          <AvatarFallback>{author.name[0]}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
           <div className="flex items-center space-x-2">
-            <span className="font-medium">{formattedAuthorName}</span>
+            <span className="font-medium">{author.name}</span>
             <span className="text-gray-500">posted in</span>
             <div className="flex items-center space-x-1">
               {iconConfig && (

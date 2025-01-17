@@ -8,13 +8,21 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/auth";
 import { toast } from "react-hot-toast";
-import { User2, Mail, Camera } from "lucide-react";
+import { User2, Mail, Camera, AtSign, RefreshCw } from "lucide-react";
 
 interface Profile {
   id: string;
   full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   email: string | null;
+}
+
+function formatDisplayName(fullName: string | null): string | null {
+  if (!fullName) return null;
+  const parts = fullName.split(' ');
+  if (parts.length < 2) return fullName;
+  return `${parts[0]} ${parts[1][0]}.`;
 }
 
 export default function SettingsPage() {
@@ -53,12 +61,36 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     try {
+      const updates: {
+        full_name: string | null;
+        display_name?: string | null;
+        updated_at: string;
+      } = {
+        full_name: profile.full_name,
+        display_name: profile.display_name,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only check for uniqueness if display_name is set and different from current
+      if (profile.display_name) {
+        const { count, error: checkError } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('display_name', profile.display_name)
+          .neq('id', user.id);
+
+        if (checkError) throw checkError;
+        
+        if (count && count > 0) {
+          toast.error('This display name is already taken');
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: profile.full_name,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', user.id);
 
       if (error) throw error;
@@ -105,6 +137,27 @@ export default function SettingsPage() {
       console.error('Error uploading avatar:', error);
       toast.error('Failed to upload avatar');
     }
+  };
+
+  const resetDisplayName = () => {
+    if (!profile?.full_name) return;
+    setProfile(prev => 
+      prev ? { ...prev, display_name: null } : null
+    );
+  };
+
+  const getDisplayedName = () => {
+    if (!profile) return '';
+    // If there's a custom display name, show it
+    if (profile.display_name) return profile.display_name;
+    // Otherwise show the formatted name
+    return formatDisplayName(profile.full_name) || '';
+  };
+
+  const handleDisplayNameChange = (value: string) => {
+    setProfile(prev =>
+      prev ? { ...prev, display_name: value || null } : null
+    );
   };
 
   if (isLoading) {
@@ -166,15 +219,47 @@ export default function SettingsPage() {
                 <Input
                   id="full-name"
                   value={profile?.full_name || ''}
-                  onChange={(e) =>
-                    setProfile(prev =>
-                      prev ? { ...prev, full_name: e.target.value } : null
-                    )
-                  }
+                  onChange={(e) => {
+                    const newFullName = e.target.value;
+                    setProfile(prev => 
+                      prev ? { ...prev, full_name: newFullName } : null
+                    );
+                  }}
                   className="pl-10"
                   placeholder="Enter your full name"
                 />
               </div>
+              <p className="text-sm text-gray-500">
+                Your full name is only visible to you
+              </p>
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-2">
+              <Label htmlFor="display-name">Display Name</Label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="display-name"
+                  value={profile?.display_name || ''}
+                  onChange={(e) => handleDisplayNameChange(e.target.value)}
+                  className="pl-10 pr-24"
+                  placeholder={formatDisplayName(profile?.full_name ?? '') ?? "Enter your display name"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetDisplayName}
+                  className="absolute right-2 top-2 h-8 px-2 text-gray-500 hover:text-gray-700"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Reset
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500">
+                This is how you'll appear across the platform. Leave empty to use "{formatDisplayName(profile?.full_name ?? '')}"
+              </p>
             </div>
 
             {/* Email */}
