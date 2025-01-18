@@ -13,6 +13,23 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Ban, CheckCircle, MoreVertical } from "lucide-react";
 
+type Community = {
+  name: string;
+};
+
+type UserWithCommunities = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_admin: boolean;
+  banned_until: string | null;
+  created_at: string;
+  created_communities: Community[];
+  joined_communities: Community[];
+};
+
 async function getUsers() {
   const supabase = createServerComponentClient({ cookies });
   
@@ -27,29 +44,29 @@ async function getUsers() {
     return [];
   }
 
-  // Fetch counts separately
-  const usersWithCounts = await Promise.all(
+  // Fetch communities data separately
+  const usersWithCommunities = await Promise.all(
     (profiles || []).map(async (user) => {
-      const [{ count: createdCount }, { count: joinedCount }] = await Promise.all([
+      const [{ data: createdCommunities }, { data: joinedCommunities }] = await Promise.all([
         supabase
           .from('communities')
-          .select('*', { count: 'exact', head: true })
+          .select('name')
           .eq('created_by', user.id),
         supabase
           .from('community_members')
-          .select('*', { count: 'exact', head: true })
+          .select('communities(name)')
           .eq('user_id', user.id)
       ]);
 
       return {
         ...user,
-        created_communities: { count: createdCount || 0 },
-        joined_communities: { count: joinedCount || 0 }
+        created_communities: createdCommunities || [],
+        joined_communities: joinedCommunities?.map(item => item.communities) || []
       };
     })
   );
 
-  return usersWithCounts;
+  return usersWithCommunities;
 }
 
 export default async function UsersPage() {
@@ -75,8 +92,8 @@ export default async function UsersPage() {
               <TableHead>User</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Communities</TableHead>
-              <TableHead className="text-right">Memberships</TableHead>
+              <TableHead>Created Communities</TableHead>
+              <TableHead>Member Of</TableHead>
               <TableHead className="text-right">Joined</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
@@ -118,11 +135,23 @@ export default async function UsersPage() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
-                  {user.created_communities.count || 0}
+                <TableCell>
+                  <div className="max-w-[200px] space-y-1">
+                    {user.created_communities.map((community: Community, index: number) => (
+                      <div key={index} className="text-sm truncate">
+                        {community.name}
+                      </div>
+                    ))}
+                  </div>
                 </TableCell>
-                <TableCell className="text-right">
-                  {user.joined_communities.count || 0}
+                <TableCell>
+                  <div className="max-w-[200px] space-y-1">
+                    {user.joined_communities.map((community: Community, index: number) => (
+                      <div key={index} className="text-sm truncate">
+                        {community.name}
+                      </div>
+                    ))}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   {new Date(user.created_at).toLocaleDateString()}
