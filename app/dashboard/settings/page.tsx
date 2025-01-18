@@ -165,14 +165,15 @@ export default function SettingsPage() {
     );
   };
 
-  const handleEmailChange = async (e: React.FormEvent) => {
+  const handleEmailChange = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!user || !newEmail) return;
 
     setIsChangingEmail(true);
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      const { data, error } = await supabase.auth.updateUser({
+        email: newEmail
+      });
 
       if (error) throw error;
 
@@ -331,7 +332,7 @@ export default function SettingsPage() {
                 </p>
               ) : (
                 <>
-                  <form onSubmit={handleEmailChange} className="space-y-4 mt-4">
+                  <div className="space-y-4 mt-4">
                     <div>
                       <Label htmlFor="new-email">New Email</Label>
                       <div className="relative">
@@ -347,13 +348,14 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <Button
-                      type="submit"
+                      type="button"
+                      onClick={handleEmailChange}
                       disabled={isChangingEmail || !newEmail}
                       className="bg-black hover:bg-gray-800 text-white"
                     >
                       {isChangingEmail ? 'Sending Verification...' : 'Change Email'}
                     </Button>
-                  </form>
+                  </div>
                   <p className="text-sm text-gray-500 mt-2">
                     You'll need to verify your new email address before the change takes effect
                   </p>
