@@ -15,6 +15,7 @@ import { Ban, CheckCircle, MoreVertical } from "lucide-react";
 
 type Community = {
   name: string;
+  slug: string;
 };
 
 type UserWithCommunities = {
@@ -50,11 +51,11 @@ async function getUsers() {
       const [{ data: createdCommunities }, { data: joinedCommunities }] = await Promise.all([
         supabase
           .from('communities')
-          .select('name')
+          .select('name, slug')
           .eq('created_by', user.id),
         supabase
           .from('community_members')
-          .select('communities(name)')
+          .select('communities(name, slug)')
           .eq('user_id', user.id)
       ]);
 
@@ -138,18 +139,30 @@ export default async function UsersPage() {
                 <TableCell>
                   <div className="max-w-[200px] space-y-1">
                     {user.created_communities.map((community: Community, index: number) => (
-                      <div key={index} className="text-sm truncate">
+                      <a
+                        key={index}
+                        href={`/community/${community.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm truncate hover:text-primary hover:underline"
+                      >
                         {community.name}
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="max-w-[200px] space-y-1">
                     {user.joined_communities.map((community: Community, index: number) => (
-                      <div key={index} className="text-sm truncate">
+                      <a
+                        key={index}
+                        href={`/community/${community.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm truncate hover:text-primary hover:underline"
+                      >
                         {community.name}
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </TableCell>
