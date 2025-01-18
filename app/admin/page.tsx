@@ -1,16 +1,22 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { Users, MessageSquare, CreditCard } from 'lucide-react';
+import { Users, MessageSquare, CreditCard, DollarSign, Percent } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { headers } from 'next/headers';
 
 async function getAdminStats() {
   const supabase = createServerComponentClient({ cookies });
+  const headersList = headers();
+  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
+  const host = headersList.get('host') || '';
+  const baseUrl = `${protocol}://${host}`;
 
   const [
     { count: usersCount },
     { count: communitiesCount },
     { count: threadsCount },
-    { data: recentActivity }
+    { data: recentActivity },
+    subscriptionStats
   ] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }),
     supabase.from('communities').select('*', { count: 'exact', head: true }),
@@ -18,39 +24,58 @@ async function getAdminStats() {
     supabase.from('admin_access_log')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5),
+    fetch(`${baseUrl}/api/admin/subscriptions`).then(res => res.json())
   ]);
 
   return {
     usersCount,
     communitiesCount,
     threadsCount,
-    recentActivity
+    recentActivity,
+    subscriptionStats
   };
 }
 
 export default async function AdminDashboard() {
   const stats = await getAdminStats();
 
-  const StatCard = ({ title, value, icon: Icon }: { title: string; value: number; icon: any }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
+  const StatCard = ({ title, value, icon: Icon, subtitle }: { 
+    title: string; 
+    value: number | string; 
+    icon: any;
+    subtitle?: string;
+  }) => (
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-4 pt-4">
+        <CardTitle className="text-xs font-medium">
           {title}
         </CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="px-4 pb-4">
+        <div className="text-xl font-bold">{value}</div>
+        {subtitle && (
+          <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+            {subtitle}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
 
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Admin Dashboard</h2>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-5">
         <StatCard
           title="Total Users"
           value={stats.usersCount || 0}
@@ -62,14 +87,21 @@ export default async function AdminDashboard() {
           icon={MessageSquare}
         />
         <StatCard
-          title="Total Threads"
-          value={stats.threadsCount || 0}
-          icon={MessageSquare}
+          title="Active Subscriptions"
+          value={stats.subscriptionStats?.total_active_subscriptions || 0}
+          icon={CreditCard}
         />
         <StatCard
-          title="Active Subscriptions"
-          value={0}
-          icon={CreditCard}
+          title="Communities Revenue"
+          value={formatCurrency(stats.subscriptionStats?.total_recurring_revenue || 0)}
+          icon={DollarSign}
+          subtitle="Total monthly revenue across all communities"
+        />
+        <StatCard
+          title="Platform Revenue"
+          value={formatCurrency(stats.subscriptionStats?.platform_revenue || 0)}
+          icon={Percent}
+          subtitle="Monthly revenue from platform fees"
         />
       </div>
 
