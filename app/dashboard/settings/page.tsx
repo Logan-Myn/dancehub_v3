@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [newEmail, setNewEmail] = useState('');
   const [isChangingEmail, setIsChangingEmail] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { user } = useAuth();
   const supabase = createClient();
 
@@ -112,14 +113,31 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
     try {
       // Upload image to storage
-      const fileExt = file.name.split('.').pop();
-      const filePath = `avatars/${user.id}.${fileExt}`;
+      const fileExt = file.type.split('/')[1];
+      const fileName = `${user.id}-${Date.now()}`;
+      const filePath = `avatars/${fileName}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, { 
+          upsert: true,
+          contentType: file.type
+        });
 
       if (uploadError) throw uploadError;
 
@@ -138,9 +156,14 @@ export default function SettingsPage() {
 
       setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
       toast.success('Avatar updated successfully');
-    } catch (error) {
+      
+      // Clear the input
+      e.target.value = '';
+    } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      toast.error('Failed to upload avatar');
+      toast.error(error.message || 'Failed to upload avatar');
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -242,22 +265,31 @@ export default function SettingsPage() {
                 />
                 <Label
                   htmlFor="avatar-upload"
-                  className="absolute bottom-0 right-0 p-1 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-100"
+                  className={`absolute bottom-0 right-0 p-1 bg-white rounded-full shadow-lg cursor-pointer hover:bg-gray-100 ${
+                    isUploadingAvatar ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <Camera className="h-4 w-4" />
+                  {isUploadingAvatar ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-900 border-t-transparent" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
                   <Input
                     id="avatar-upload"
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={handleAvatarUpload}
+                    disabled={isUploadingAvatar}
                   />
                 </Label>
               </div>
               <div>
                 <h3 className="font-medium">Profile Picture</h3>
                 <p className="text-sm text-gray-500">
-                  Click the camera icon to upload a new photo
+                  {isUploadingAvatar 
+                    ? 'Uploading...' 
+                    : 'Click the camera icon to upload a new photo'}
                 </p>
               </div>
             </div>
