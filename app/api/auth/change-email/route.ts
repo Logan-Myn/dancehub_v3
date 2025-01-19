@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         template_id: MAILERSEND_TEMPLATE_ID,
         from: {
-          email: 'noreply@dancehub.com',
+          email: 'account@dance-hub.io',
           name: 'DanceHub'
         },
         to: [{
