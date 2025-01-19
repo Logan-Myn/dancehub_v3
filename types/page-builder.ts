@@ -24,6 +24,8 @@ export interface Section {
     caption?: string;
     videoId?: string;
     description?: string;
+    width?: 'narrow' | 'medium' | 'full';
+    background?: 'white' | 'light' | 'dark';
   };
 }
 

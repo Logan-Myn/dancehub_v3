@@ -42,17 +42,10 @@ export async function GET(
       );
     }
 
-    // Get current fee statistics using raw SQL for grouping
+    // Get current fee statistics
     const { data: currentStats, error: statsError } = await supabase
-      .from('community_members')
-      .select('platform_fee_percentage, count')
-      .eq("community_id", community.id)
-      .eq("status", "active")
-      .select(`
-        platform_fee_percentage,
-        count(*) as count
-      `)
-      .throwOnError();
+      .rpc('get_fee_statistics', { community_id: community.id })
+      .throwOnError() as { data: FeeStats[], error: null };
 
     if (statsError) {
       console.error("Error fetching fee statistics:", statsError);
@@ -64,7 +57,7 @@ export async function GET(
 
     return NextResponse.json({
       feeHistory,
-      currentStats: (currentStats as FeeStats[])?.map(stat => ({
+      currentStats: currentStats?.map((stat: FeeStats) => ({
         feePercentage: stat.platform_fee_percentage,
         memberCount: stat.count
       }))
