@@ -194,17 +194,29 @@ export default function SettingsPage() {
 
     setIsChangingEmail(true);
     try {
-      const { data, error } = await supabase.auth.updateUser({
-        email: newEmail
+      const response = await fetch('/api/auth/change-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          currentEmail: user.email,
+          newEmail: newEmail
+        })
       });
 
-      if (error) throw error;
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification email');
+      }
 
       toast.success('Verification email sent. Please check your new email to confirm the change.');
       setNewEmail('');
     } catch (error: any) {
       console.error('Error updating email:', error);
-      toast.error(error.message || 'Failed to update email');
+      toast.error(error.message || 'Failed to send verification email');
     } finally {
       setIsChangingEmail(false);
     }
