@@ -76,6 +76,7 @@ export async function POST(request: Request) {
           email: 'account@dance-hub.io',
           name: 'DanceHub'
         },
+        subject: 'Verify your email change request',
         to: [{
           email: newEmail,
           name: userName
