@@ -30,7 +30,7 @@ export async function signUp(email: string, password: string, full_name: string)
     email,
     password,
     options: {
-      emailRedirectTo: undefined,  // Disable Supabase's email verification
+      emailRedirectTo: undefined,
       data: {
         full_name,
       },
@@ -49,7 +49,7 @@ export async function signUp(email: string, password: string, full_name: string)
         },
         body: JSON.stringify({
           email: email,
-          token: data.user.id,
+          userId: data.user.id,
         }),
       });
 
