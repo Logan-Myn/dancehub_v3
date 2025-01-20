@@ -79,8 +79,10 @@ export async function POST(request: Request) {
       .delete()
       .eq('token', token);
 
+    // Return the redirect path along with the success message
     return NextResponse.json({
-      message: "Email verified successfully"
+      message: "Email verified successfully",
+      redirectTo: verificationRequest.redirect_to
     });
 
   } catch (error) {

@@ -33,20 +33,25 @@ function VerifySignupContent() {
         });
 
         const data = await response.json();
+        console.log('Verification response:', data); // Debug log
 
         if (response.ok) {
           setStatus('success');
           setMessage('Email verified successfully!');
-          setRedirectPath(data.redirectTo || '/');
+          const redirectTo = data.redirectTo || '/';
+          console.log('Will redirect to:', redirectTo); // Debug log
+          setRedirectPath(redirectTo);
           // Redirect to the original page after 3 seconds
           setTimeout(() => {
-            router.push(data.redirectTo || '/');
+            console.log('Redirecting to:', redirectTo); // Debug log
+            router.push(redirectTo);
           }, 3000);
         } else {
           setStatus('error');
           setMessage(data.error || 'Failed to verify email.');
         }
       } catch (error) {
+        console.error('Error during verification:', error); // Debug log
         setStatus('error');
         setMessage('An error occurred while verifying your email.');
       }

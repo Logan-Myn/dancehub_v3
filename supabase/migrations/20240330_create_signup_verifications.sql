@@ -13,6 +13,9 @@ create table if not exists public.signup_verifications (
 -- Enable RLS
 alter table public.signup_verifications enable row level security;
 
+-- Drop existing policy if it exists
+drop policy if exists "Only service role can access signup verifications" on signup_verifications;
+
 -- Create policies
 create policy "Only service role can access signup verifications"
   on signup_verifications for all
