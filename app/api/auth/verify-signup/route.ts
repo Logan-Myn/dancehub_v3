@@ -14,7 +14,7 @@ function generateToken(userId: string, email: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { email, userId } = await request.json();
+    const { email, userId, redirectTo } = await request.json();
 
     if (!email || !userId) {
       return NextResponse.json(
@@ -33,6 +33,7 @@ export async function POST(request: Request) {
         user_id: userId,
         email: email,
         token: token,
+        redirect_to: redirectTo || '/',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
       });
 

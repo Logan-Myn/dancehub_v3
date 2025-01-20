@@ -5,7 +5,7 @@ const supabase = createAdminClient();
 
 export async function POST(request: Request) {
   try {
-    const { email, password, full_name } = await request.json();
+    const { email, password, full_name, redirectTo } = await request.json();
 
     // Create user with email confirmation disabled
     const { data: user, error: createError } = await supabase.auth.admin.createUser({
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           email: email,
           userId: user.user.id,
+          redirectTo: redirectTo || '/',
         }),
       });
 

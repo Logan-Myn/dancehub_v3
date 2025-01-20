@@ -25,6 +25,10 @@ export async function signInWithGoogle() {
 }
 
 export async function signUp(email: string, password: string, full_name: string) {
+  // Get the current URL path (excluding the /auth/signup part)
+  const currentPath = window.location.pathname;
+  const redirectPath = currentPath.startsWith('/auth/') ? '/' : currentPath;
+
   // Call our server endpoint to create the user and send verification email
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
@@ -35,6 +39,7 @@ export async function signUp(email: string, password: string, full_name: string)
       email,
       password,
       full_name,
+      redirectTo: redirectPath,
     }),
   });
 

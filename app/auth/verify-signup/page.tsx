@@ -10,6 +10,7 @@ import { Loader2, CheckCircle } from 'lucide-react';
 function VerifySignupContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verifying your email...');
+  const [redirectPath, setRedirectPath] = useState('/');
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -36,9 +37,10 @@ function VerifySignupContent() {
         if (response.ok) {
           setStatus('success');
           setMessage('Email verified successfully!');
-          // Redirect to homepage after 3 seconds
+          setRedirectPath(data.redirectTo || '/');
+          // Redirect to the original page after 3 seconds
           setTimeout(() => {
-            router.push('/');
+            router.push(data.redirectTo || '/');
           }, 3000);
         } else {
           setStatus('error');
@@ -76,7 +78,7 @@ function VerifySignupContent() {
               {message}
               {status === 'success' && (
                 <p className="mt-2 text-sm text-gray-500">
-                  You will be redirected to the homepage in a few seconds...
+                  You will be redirected back to {redirectPath === '/' ? 'the homepage' : 'where you came from'} in a few seconds...
                 </p>
               )}
             </AlertDescription>
