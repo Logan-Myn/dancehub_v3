@@ -1,73 +1,152 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
-import { toast } from "react-hot-toast";
-import { Lock } from "lucide-react";
+import { Suspense } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, CheckCircle, Lock } from 'lucide-react';
+import toast from "react-hot-toast";
 
-// Create a separate client component for the form
-const ResetPasswordForm = () => {
-  const [newPassword, setNewPassword] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
+function ResetPasswordContent() {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'submitting' | 'success' | 'error'>('loading');
+  const [message, setMessage] = useState('Verifying reset link...');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const router = useRouter();
-  const supabase = createClient();
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!token) {
+      setStatus('error');
+      setMessage('Invalid reset link.');
+      return;
+    }
+    setStatus('ready');
+  }, [token]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword) return;
 
-    setIsUpdating(true);
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+
+    setStatus('submitting');
+
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const response = await fetch('/api/auth/verify-reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
 
-      toast.success('Password updated successfully');
-      router.push('/dashboard/settings');
-    } catch (error: any) {
-      console.error('Error updating password:', error);
-      toast.error(error.message || 'Failed to update password');
-    } finally {
-      setIsUpdating(false);
+      if (response.ok) {
+        setStatus('success');
+        setMessage('Password updated successfully!');
+        // Redirect to login page after 3 seconds
+        setTimeout(() => {
+          router.push('/auth/login');
+        }, 3000);
+      } else {
+        setStatus('error');
+        setMessage(data.error || 'Failed to reset password.');
+      }
+    } catch (error) {
+      setStatus('error');
+      setMessage('An error occurred while resetting your password.');
     }
   };
 
+  if (status === 'loading' || status === 'error') {
+    return (
+      <Alert variant={status === 'loading' ? 'default' : 'destructive'}>
+        {status === 'loading' ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Loader2 className="h-4 w-4" />
+        )}
+        <AlertTitle>
+          {status === 'loading' ? 'Verifying...' : 'Error'}
+        </AlertTitle>
+        <AlertDescription>{message}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (status === 'success') {
+    return (
+      <Alert>
+        <CheckCircle className="h-4 w-4 text-green-500" />
+        <AlertTitle>Success!</AlertTitle>
+        <AlertDescription>
+          {message}
+          <p className="mt-2 text-sm text-gray-500">
+            You will be redirected to the login page in a few seconds...
+          </p>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
-    <form onSubmit={handlePasswordReset} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="new-password">New Password</Label>
+        <Label htmlFor="password">New Password</Label>
         <Input
-          id="new-password"
+          id="password"
           type="password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          placeholder="Enter your new password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
-          className="h-11"
+          minLength={6}
+          disabled={status === 'submitting'}
         />
-        <p className="text-sm text-gray-500">
-          Make sure it's at least 8 characters including a number and a special character
-        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="confirm-password">Confirm Password</Label>
+        <Input
+          id="confirm-password"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={6}
+          disabled={status === 'submitting'}
+        />
       </div>
       <Button
         type="submit"
-        disabled={isUpdating || !newPassword}
-        className="w-full bg-black hover:bg-gray-800 text-white h-11"
+        className="w-full"
+        disabled={status === 'submitting'}
       >
-        {isUpdating ? 'Updating Password...' : 'Update Password'}
+        {status === 'submitting' ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Updating Password...
+          </>
+        ) : (
+          'Reset Password'
+        )}
       </Button>
     </form>
   );
-};
+}
 
-// Main page component
 export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
@@ -94,7 +173,7 @@ export default function ResetPasswordPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
             </div>
           }>
-            <ResetPasswordForm />
+            <ResetPasswordContent />
           </Suspense>
         </CardContent>
       </Card>

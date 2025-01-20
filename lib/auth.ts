@@ -59,10 +59,24 @@ export async function signOut() {
 }
 
 export async function resetPassword(email: string) {
-  const supabase = createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`,
-  });
-  
-  if (error) throw error;
+  try {
+    const response = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send reset password email');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Reset password error:', error);
+    throw error;
+  }
 } 
