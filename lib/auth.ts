@@ -30,6 +30,7 @@ export async function signUp(email: string, password: string, full_name: string)
     email,
     password,
     options: {
+      emailRedirectTo: undefined,  // Disable Supabase's email verification
       data: {
         full_name,
       },
