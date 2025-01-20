@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/verify-signup?token=${token}`;
 
     // Send email using MailerSend API
-    const response = await fetch('https://connect.mailerlite.com/api/subscribers', {
+    const response = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

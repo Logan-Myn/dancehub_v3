@@ -30,7 +30,6 @@ export async function signUp(email: string, password: string, full_name: string)
     email,
     password,
     options: {
-      emailRedirectTo: undefined,
       data: {
         full_name,
       },
