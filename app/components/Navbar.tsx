@@ -54,7 +54,12 @@ export default function Navbar() {
 
           <div className="flex gap-4 items-center">
             {user ? (
-              <UserAccountNav user={user} profile={profile} />
+              <>
+                <Link href="/dashboard">
+                  <Button variant="ghost">Dashboard</Button>
+                </Link>
+                <UserAccountNav user={user} profile={profile} />
+              </>
             ) : (
               <>
                 <Button
