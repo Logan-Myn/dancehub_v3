@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 
 interface CommunityMember {
   user_id: string;
-  profiles: {
+  user: {
     email: string;
     full_name: string;
   };
@@ -196,12 +196,12 @@ export async function PUT(
     // If course is being made public, notify community members
     if (isPublic && !currentCourse.is_public) {
       try {
-        // Get all community members
+        // Get all community members with their profiles
         const { data: members, error: membersError } = await supabase
           .from("community_members")
           .select(`
             user_id,
-            profiles!inner (
+            user:profiles!user_id (
               email,
               full_name
             )
@@ -213,12 +213,14 @@ export async function PUT(
 
         // Send email to each member
         const emailPromises = members.map(async (member) => {
+          if (!member.user?.email) return; // Skip if no email found
+          
           const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
           
           const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #333;">New Course Available!</h2>
-              <p>Hello ${member.profiles.full_name || 'Member'},</p>
+              <p>Hello ${member.user?.full_name || 'Member'},</p>
               <p>A new course is now available in your community:</p>
               <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="color: #2563eb; margin: 0 0 10px 0;">${title}</h3>
@@ -238,7 +240,7 @@ export async function PUT(
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              email: member.profiles.email,
+              email: member.user.email,
               subject: `New Course Available: ${title}`,
               html: emailHtml
             })
