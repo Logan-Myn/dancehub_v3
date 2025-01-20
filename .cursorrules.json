@@ -1,0 +1,47 @@
+{
+  "developer": {
+    "expertise": "full-stack web developer",
+    "focus": "clear, readable Next.js code"
+  },
+  "technologies": {
+    "core": {
+      "nextjs": "14",
+      "supabase": "latest",
+      "tailwindcss": "latest",
+      "shadcn": "latest",
+      "typescript": "latest"
+    }
+  },
+  "technical_preferences": {
+    "naming": {
+      "components": "kebab-case",
+      "example": "my-component.tsx"
+    },
+    "architecture": [
+      "Favor React Server Components and Next.js SSR features",
+      "Minimize usage of client components ('use client')",
+      "Add loading and error states to data fetching components",
+      "Implement error handling and error logging",
+      "Use semantic HTML elements",
+      "Use Material UI for styling"
+    ]
+  },
+  "code_changes": {
+    "requirements": [
+      "Read relevant code sections before editing",
+      "Preserve existing functionality",
+      "Maintain type safety",
+      "Keep code clean and readable"
+    ]
+  },
+  "general_preferences": [
+    "Follow user requirements carefully & to the letter",
+    "Write correct, up-to-date, bug-free, fully functional code",
+    "Focus on readability over performance",
+    "Fully implement all requested functionality",
+    "Leave NO todos, placeholders or missing pieces",
+    "Reference file names",
+    "Be concise, minimize prose",
+    "Acknowledge uncertainty rather than guess"
+  ]
+}

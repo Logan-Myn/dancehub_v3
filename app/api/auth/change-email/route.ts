@@ -92,6 +92,12 @@ export async function POST(request: Request) {
           }, {
             var: 'current_email',
             value: currentEmail
+          }, {
+            var: 'support_email',
+            value: 'hello@dance-hub.io'
+          }, {
+            var: 'account_name',
+            value: 'DanceHub'
           }]
         }]
       })
