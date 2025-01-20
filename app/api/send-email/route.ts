@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const { email, subject, html } = await request.json();
+    console.log('Attempting to send email to:', email);
     
     const response = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
@@ -27,13 +28,14 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const error = await response.json();
-      console.error('MailerSend error:', error);
+      console.error('MailerSend API error:', error);
       throw new Error('Failed to send email');
     }
 
+    console.log('Email sent successfully to:', email);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error in send-email route:', error);
     return NextResponse.json(
       { error: 'Failed to send email' }, 
       { status: 500 }

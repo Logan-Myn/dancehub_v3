@@ -196,6 +196,8 @@ export async function PUT(
     // If course is being made public, notify community members
     if (isPublic && !currentCourse.is_public) {
       try {
+        console.log('Course is being made public, fetching members...');
+        
         // Get all community members with their profiles
         const { data: members, error: membersError } = await supabase
           .from("community_members")
@@ -209,11 +211,21 @@ export async function PUT(
           .eq("community_id", community.id)
           .returns<CommunityMember[]>();
 
-        if (membersError) throw membersError;
+        if (membersError) {
+          console.error('Error fetching members:', membersError);
+          throw membersError;
+        }
+
+        console.log('Found members:', members);
 
         // Send email to each member
         const emailPromises = members.map(async (member) => {
-          if (!member.user?.email) return; // Skip if no email found
+          if (!member.user?.email) {
+            console.log('Skipping member without email:', member.user_id);
+            return;
+          }
+          
+          console.log('Sending email to:', member.user.email);
           
           const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
           
@@ -234,25 +246,39 @@ export async function PUT(
             </div>
           `;
 
-          await fetch('/api/send-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: member.user.email,
-              subject: `New Course Available: ${title}`,
-              html: emailHtml
-            })
-          });
+          try {
+            const response = await fetch('/api/send-email', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: member.user.email,
+                subject: `New Course Available: ${title}`,
+                html: emailHtml
+              })
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error('Error sending email to', member.user.email, ':', errorData);
+            } else {
+              console.log('Successfully sent email to:', member.user.email);
+            }
+          } catch (error) {
+            console.error('Failed to send email to', member.user.email, ':', error);
+          }
         });
 
-        // Wait for all emails to be sent
+        console.log('Waiting for all emails to be sent...');
         await Promise.all(emailPromises);
+        console.log('All emails sent successfully');
       } catch (error) {
         console.error("Error sending notification emails:", error);
         // Don't fail the update if email sending fails
       }
+    } else {
+      console.log('Course visibility unchanged or set to private, skipping notifications');
     }
 
     return new NextResponse(JSON.stringify(updatedCourse), {
