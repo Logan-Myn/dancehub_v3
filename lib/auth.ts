@@ -25,43 +25,25 @@ export async function signInWithGoogle() {
 }
 
 export async function signUp(email: string, password: string, full_name: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name,
-      },
+  // Call our server endpoint to create the user and send verification email
+  const response = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
+    body: JSON.stringify({
+      email,
+      password,
+      full_name,
+    }),
   });
-  
-  if (error) throw error;
 
-  // Send verification email using our custom endpoint
-  if (data?.user) {
-    try {
-      const response = await fetch('/api/auth/verify-signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          userId: data.user.id,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send verification email');
-      }
-    } catch (error) {
-      console.error('Error sending verification email:', error);
-      // We don't throw here because the user is already created
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to sign up');
   }
 
+  const data = await response.json();
   return data;
 }
 
