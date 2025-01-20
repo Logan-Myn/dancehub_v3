@@ -27,6 +27,7 @@ interface Course {
   updated_at: string;
   slug: string;
   community_id: string;
+  is_public: boolean;
 }
 
 export default function ClassroomPage() {
@@ -45,18 +46,20 @@ export default function ClassroomPage() {
 
   useEffect(() => {
     async function fetchData() {
-      if (isAuthLoading) return; // Don't fetch if auth is still loading
+      if (isAuthLoading) return;
       
       try {
-        // Get community data using the existing route
         const response = await fetch(`/api/community/${communitySlug}`);
         if (!response.ok) {
           throw new Error("Community not found");
         }
         const communityData = await response.json();
 
-        // Get courses
-        const { data: coursesData, error: coursesError } = await supabase
+        // Check if user is creator first
+        const isUserCreator = currentUser?.id === communityData.created_by;
+
+        // Get courses based on user role
+        let coursesQuery = supabase
           .from("courses")
           .select(`
             id,
@@ -66,10 +69,18 @@ export default function ClassroomPage() {
             created_at,
             updated_at,
             slug,
-            community_id
+            community_id,
+            is_public
           `)
           .eq("community_id", communityData.id)
           .order("created_at", { ascending: false });
+
+        // If user is not the creator, only show public courses
+        if (!isUserCreator) {
+          coursesQuery = coursesQuery.eq("is_public", true);
+        }
+
+        const { data: coursesData, error: coursesError } = await coursesQuery;
 
         if (coursesError) throw coursesError;
 
@@ -93,7 +104,7 @@ export default function ClassroomPage() {
         setCommunity(communityData);
         setCourses(coursesData || []);
         setIsMember(membershipStatus);
-        setIsCreator(currentUser?.id === communityData.created_by);
+        setIsCreator(isUserCreator);
       } catch (error) {
         console.error("Error:", error);
         setError(error instanceof Error ? error : new Error('Unknown error'));
@@ -172,8 +183,14 @@ export default function ClassroomPage() {
                     >
                       <CourseCard
                         course={course}
-                        onClick={() => {}} // Empty onClick to satisfy prop requirement
+                        onClick={() => {}}
                       />
+                      {isCreator && !course.is_public && (
+                        <div className="mt-2 text-sm text-gray-500 flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 bg-gray-500 rounded-full"></span>
+                          Private Course
+                        </div>
+                      )}
                     </Link>
                   ))}
                 </div>
@@ -185,7 +202,7 @@ export default function ClassroomPage() {
                     </p>
                   ) : (
                     <p className="text-xl text-gray-600">
-                      This community doesn't have courses yet
+                      This community doesn't have any public courses yet
                     </p>
                   )}
                 </div>

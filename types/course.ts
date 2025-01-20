@@ -8,6 +8,7 @@ export interface Course {
   slug: string;
   community_id: string;
   chapters?: Chapter[];
+  is_public?: boolean;
 }
 
 export interface Chapter {

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MuxPlayer } from "@/components/MuxPlayer";
+import EditCourseModal from "@/components/EditCourseModal";
 
 interface Chapter {
   id: string;
@@ -293,11 +294,10 @@ export default function CoursePage() {
   const [newLessonTitle, setNewLessonTitle] = useState("");
   const [community, setCommunity] = useState<Community | null>(null);
   const [isEditingCourse, setIsEditingCourse] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const { user } = useAuth();
   const supabase = createClient();
-
-  const [isEditMode, setIsEditMode] = useState(false);
 
   const [expandedChapters, setExpandedChapters] = useState<{
     [key: string]: boolean;
@@ -674,7 +674,47 @@ export default function CoursePage() {
   };
 
   const handleEditCourse = () => {
-    setIsEditMode(!isEditMode);
+    setIsEditingCourse(true);
+  };
+
+  const handleUpdateCourse = async (updates: {
+    title: string;
+    description: string;
+    image?: File | null;
+    is_public: boolean;
+  }) => {
+    try {
+      const formData = new FormData();
+      formData.append("title", updates.title);
+      formData.append("description", updates.description);
+      formData.append("is_public", updates.is_public.toString());
+      if (updates.image) {
+        formData.append("image", updates.image);
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(
+        `/api/community/${communitySlug}/courses/${courseSlug}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update course");
+      }
+
+      const updatedCourse = await response.json();
+      setCourse(updatedCourse);
+      toast.success("Course updated successfully");
+    } catch (error) {
+      console.error("Error updating course:", error);
+      toast.error("Failed to update course");
+    }
   };
 
   const handleDragStart = () => {
@@ -1008,13 +1048,22 @@ export default function CoursePage() {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">{course.title}</h1>
             {isCreator && user && community && (
-              <Button
-                onClick={handleEditCourse}
-                className="bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                <Edit2 className="w-4 h-4 mr-2" />
-                {isEditMode ? "Done Editing" : "Edit Course"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleEditCourse}
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Edit Course
+                </Button>
+                <Button
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  {isEditMode ? "Done Editing" : "Edit Content"}
+                </Button>
+              </div>
             )}
           </div>
           <div className="flex">
@@ -1307,6 +1356,15 @@ export default function CoursePage() {
           </div>
         </div>
       </main>
+
+      {course && (
+        <EditCourseModal
+          isOpen={isEditingCourse}
+          onClose={() => setIsEditingCourse(false)}
+          course={course}
+          onUpdateCourse={handleUpdateCourse}
+        />
+      )}
     </div>
   );
 }

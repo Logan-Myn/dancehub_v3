@@ -126,4 +126,70 @@ export async function GET(
     console.error("Error in course route:", error);
     return new NextResponse("Internal server error", { status: 500 });
   }
+}
+
+export async function PUT(
+  req: Request,
+  {
+    params,
+  }: {
+    params: { communitySlug: string; courseSlug: string };
+  }
+) {
+  try {
+    const supabase = createAdminClient();
+
+    // Get community ID
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", params.communitySlug)
+      .single();
+
+    if (communityError || !community) {
+      return new NextResponse("Community not found", { status: 404 });
+    }
+
+    // Get course
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("community_id", community.id)
+      .eq("slug", params.courseSlug)
+      .single();
+
+    if (courseError || !course) {
+      return new NextResponse("Course not found", { status: 404 });
+    }
+
+    const formData = await req.formData();
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const isPublic = formData.get("is_public") === "true";
+
+    // Update the course
+    const { data: updatedCourse, error: updateError } = await supabase
+      .from("courses")
+      .update({
+        title,
+        description,
+        is_public: isPublic,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", course.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating course:", updateError);
+      return new NextResponse("Failed to update course", { status: 500 });
+    }
+
+    return new NextResponse(JSON.stringify(updatedCourse), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error in PUT course route:", error);
+    return new NextResponse("Internal server error", { status: 500 });
+  }
 } 
