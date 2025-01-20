@@ -58,9 +58,9 @@ function ResetPasswordContent() {
       if (response.ok) {
         setStatus('success');
         setMessage('Password updated successfully!');
-        // Redirect to login page after 3 seconds
+        // Redirect to home page after 3 seconds
         setTimeout(() => {
-          router.push('/auth/login');
+          router.push('/');
         }, 3000);
       } else {
         setStatus('error');
@@ -96,7 +96,7 @@ function ResetPasswordContent() {
         <AlertDescription>
           {message}
           <p className="mt-2 text-sm text-gray-500">
-            You will be redirected to the login page in a few seconds...
+            You will be redirected to the home page in a few seconds...
           </p>
         </AlertDescription>
       </Alert>
