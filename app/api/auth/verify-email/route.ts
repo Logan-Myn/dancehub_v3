@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     // Update the user's email in Supabase Auth
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       emailRequest.user_id,
-      { email: emailRequest.new_email }
+      { email: emailRequest.new_email, email_confirm: true }
     );
 
     if (updateError) {
