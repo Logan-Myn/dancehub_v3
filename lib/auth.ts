@@ -30,7 +30,6 @@ export async function signUp(email: string, password: string, full_name: string)
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
       data: {
         full_name,
       },
@@ -38,6 +37,31 @@ export async function signUp(email: string, password: string, full_name: string)
   });
   
   if (error) throw error;
+
+  // Send verification email using our custom endpoint
+  if (data?.user) {
+    try {
+      const response = await fetch('/api/auth/verify-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          token: data.user.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send verification email');
+      }
+    } catch (error) {
+      console.error('Error sending verification email:', error);
+      // We don't throw here because the user is already created
+    }
+  }
+
   return data;
 }
 
