@@ -2,7 +2,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 
-const supabase = createAdminClient();
 const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
 const MAILERSEND_TEMPLATE_ID = process.env.MAILERSEND_EMAIL_CHANGE_TEMPLATE_ID;
 
@@ -15,6 +14,7 @@ function generateToken(userId: string, newEmail: string): string {
 export async function POST(request: Request) {
   try {
     const { userId, currentEmail, newEmail } = await request.json();
+    const supabase = await createAdminClient();
 
     if (!userId || !currentEmail || !newEmail) {
       return NextResponse.json(

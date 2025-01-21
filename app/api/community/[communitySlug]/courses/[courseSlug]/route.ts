@@ -20,7 +20,7 @@ export async function GET(
   }
 ) {
   try {
-    const supabase = createAdminClient();
+    const supabase = await createAdminClient();
 
     // Get community ID
     const { data: community, error: communityError } = await supabase
@@ -33,7 +33,10 @@ export async function GET(
       return new NextResponse("Community not found", { status: 404 });
     }
 
-    // Get course with basic info
+    // Add a small delay to allow for Supabase replication
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Get course with basic info, using stronger consistency
     const { data: course, error: courseError } = await supabase
       .from("courses")
       .select(`
@@ -41,16 +44,32 @@ export async function GET(
         title,
         description,
         slug,
-        is_public
+        is_public,
+        updated_at
       `)
       .eq("community_id", community.id)
       .eq("slug", params.courseSlug)
-      .single();
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (courseError || !course) {
+    if (courseError) {
       console.error("Error fetching course:", courseError);
       return new NextResponse("Course not found", { status: 404 });
     }
+
+    if (!course) {
+      return new NextResponse("Course not found", { status: 404 });
+    }
+
+    // Log the raw course data from Supabase with timestamp info
+    console.log('Raw course data from Supabase:', {
+      id: course.id,
+      title: course.title,
+      is_public: course.is_public,
+      updated_at: course.updated_at,
+      fetch_time: new Date().toISOString()
+    });
 
     // Get chapters with explicit ordering
     const { data: chapters, error: chaptersError } = await supabase
@@ -75,7 +94,6 @@ export async function GET(
       chapters.map(async (chapter) => {
         console.log(`Fetching lessons for chapter ${chapter.id} (${chapter.title})`);
         
-        // Get raw lessons data directly from database with explicit ordering
         const { data: lessons, error: lessonsError } = await supabase
           .from("lessons")
           .select("*")
@@ -95,7 +113,6 @@ export async function GET(
           }))
         );
 
-        // Return chapter with its raw lessons data
         return {
           ...chapter,
           lessons: lessons
@@ -108,29 +125,21 @@ export async function GET(
       chapters: chaptersWithLessons
     };
 
-    console.log('Final data structure:', {
-      course_id: course.id,
-      chapters: fullCourse.chapters.map((c: any) => ({
-        id: c.id,
-        title: c.title,
-        chapter_position: c.chapter_position,
-        lessons: c.lessons.map((l: any) => ({
-          id: l.id,
-          title: l.title,
-          lesson_position: l.lesson_position
-        }))
-      }))
+    console.log('Course data being sent:', {
+      id: course.id,
+      title: course.title,
+      is_public: course.is_public,
+      updated_at: course.updated_at,
+      fetch_time: new Date().toISOString(),
+      chaptersCount: chaptersWithLessons.length
     });
 
-    console.log('Final data being sent:', JSON.stringify(fullCourse, null, 2));
-
-    return new NextResponse(JSON.stringify(fullCourse), {
+    return NextResponse.json(fullCourse, {
       headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Cache-Control': 'no-store, max-age=0',
+        'Surrogate-Control': 'no-store',
         'Pragma': 'no-cache',
-        'Expires': '0',
-        'Surrogate-Control': 'no-store'
+        'Expires': '-1'
       }
     });
   } catch (error) {
@@ -148,7 +157,7 @@ export async function PUT(
   }
 ) {
   try {
-    const supabase = createAdminClient();
+    const supabase = await createAdminClient();
 
     // Get community with more details
     const { data: community, error: communityError } = await supabase
@@ -182,36 +191,77 @@ export async function PUT(
     const description = typeof descriptionValue === 'string' ? descriptionValue : '';
     const isPublic = isPublicValue === 'true';
 
-    console.log('Visibility values:', {
-      currentVisibility: currentCourse.is_public,
-      newVisibility: isPublic,
-      formData: Object.fromEntries(formData.entries())
-    });
-
-    // Update the course
-    const { data: updatedCourse, error: updateError } = await supabase
-      .from("courses")
-      .update({
+    console.log('Update course request:', {
+      courseId: currentCourse.id,
+      currentIsPublic: currentCourse.is_public,
+      newIsPublic: isPublic,
+      formValues: {
         title,
         description,
-        is_public: isPublic,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", currentCourse.id)
-      .select()
-      .single();
+        isPublic,
+        rawIsPublicValue: isPublicValue
+      }
+    });
+
+    const timestamp = new Date().toISOString();
+
+    // Update the course
+    const updateData = {
+      title,
+      description,
+      is_public: isPublic,
+      updated_at: timestamp,
+    };
+
+    console.log('Updating course with data:', updateData);
+
+    // First update the course
+    const { error: updateError } = await supabase
+      .from("courses")
+      .update(updateData)
+      .eq("id", currentCourse.id);
 
     if (updateError) {
       console.error("Error updating course:", updateError);
       return new NextResponse("Failed to update course", { status: 500 });
     }
 
+    // Then fetch the updated course data with a fresh query
+    await new Promise(resolve => setTimeout(resolve, 100)); // Add delay for replication
+
+    const { data: updatedCourse, error: fetchError } = await supabase
+      .from("courses")
+      .select("*")
+      .eq("id", currentCourse.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fetchError || !updatedCourse) {
+      console.error("Error fetching updated course:", fetchError);
+      return new NextResponse("Failed to fetch updated course", { status: 500 });
+    }
+
+    console.log('Course updated successfully:', {
+      id: updatedCourse.id,
+      title: updatedCourse.title,
+      is_public: updatedCourse.is_public,
+      updated_at: updatedCourse.updated_at,
+      fetch_time: new Date().toISOString(),
+      madePublic: isPublic && !currentCourse.is_public
+    });
+
     // Return the updated course along with a flag indicating if it was made public
-    return new NextResponse(JSON.stringify({
+    return NextResponse.json({
       course: updatedCourse,
       madePublic: isPublic && !currentCourse.is_public
-    }), {
-      headers: { "Content-Type": "application/json" },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+        'Surrogate-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'Expires': '-1'
+      }
     });
   } catch (error) {
     console.error("Error in PUT course route:", error);

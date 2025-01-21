@@ -12,7 +12,7 @@ export async function POST(
   }
 ) {
   try {
-    const supabase = createAdminClient();
+    const supabase = await createAdminClient();
 
     // Get community details
     const { data: community, error: communityError } = await supabase
@@ -82,7 +82,7 @@ export async function POST(
         </div>
       `;
 
-      await fetch('/api/send-email', {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

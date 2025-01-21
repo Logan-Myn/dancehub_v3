@@ -4,8 +4,17 @@ import { createAdminClient } from '@/lib/supabase';
 import { Stripe } from 'stripe';
 
 export async function GET() {
+  // Add debug logging
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error('STRIPE_SECRET_KEY is not defined in environment');
+    return NextResponse.json(
+      { error: 'Stripe configuration is missing' },
+      { status: 500 }
+    );
+  }
+
   try {
-    const supabase = createAdminClient();
+    const supabase = await createAdminClient();
 
     // Get all connected accounts
     const { data: communities } = await supabase
@@ -31,15 +40,15 @@ export async function GET() {
     });
 
     // Calculate total platform fees for the current month
-    const platformRevenue = applicationFees.data.reduce((acc, fee) => 
+    const platformRevenue = applicationFees.data.reduce((acc: number, fee) => 
       acc + (fee.amount / 100), 0
     );
 
     // Fetch connected accounts subscriptions
     const connectedAccountsSubscriptions = await Promise.all(
       (communities || [])
-        .filter(c => c.stripe_account_id)
-        .map(async ({ stripe_account_id }) => {
+        .filter((c: { stripe_account_id: string | null }) => c.stripe_account_id)
+        .map(async ({ stripe_account_id }: { stripe_account_id: string }) => {
           const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
             apiVersion: '2024-10-28.acacia',
             stripeAccount: stripe_account_id
@@ -60,13 +69,14 @@ export async function GET() {
 
     // Calculate totals
     const totalActiveSubscriptions = mainAccountSubscriptions.data.length + 
-      connectedAccountsSubscriptions.reduce((acc, curr) => acc + curr.subscriptions.length, 0);
+      connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: any[] }) => 
+        acc + curr.subscriptions.length, 0);
 
     // Calculate total recurring revenue (including main account)
-    const totalRecurringRevenue = mainAccountSubscriptions.data.reduce((acc, sub) => 
+    const totalRecurringRevenue = mainAccountSubscriptions.data.reduce((acc: number, sub) => 
       acc + (sub.items.data[0]?.price?.unit_amount || 0) / 100, 0
-    ) + connectedAccountsSubscriptions.reduce((acc, curr) => 
-      acc + curr.subscriptions.reduce((subAcc, sub) => 
+    ) + connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: Stripe.Subscription[] }) => 
+      acc + curr.subscriptions.reduce((subAcc: number, sub: Stripe.Subscription) => 
         subAcc + (sub.items.data[0]?.price?.unit_amount || 0) / 100, 0
       ), 0
     );

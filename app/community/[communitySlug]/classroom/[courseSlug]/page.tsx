@@ -368,7 +368,8 @@ export default function CoursePage() {
         console.log("Course data received:", {
           id: courseData.id,
           title: courseData.title,
-          chaptersCount: courseData.chapters?.length,
+          is_public: courseData.is_public,
+          updated_at: courseData.updated_at
         });
 
         if (!courseData.id) {
@@ -376,10 +377,6 @@ export default function CoursePage() {
           throw new Error("Invalid course data received");
         }
 
-        // Process chapters and lessons
-        console.log('Raw course data:', courseData);
-        
-        // Just use the data directly from the API without transformations
         setCourse(courseData);
         setChapters(courseData.chapters || []);
 
@@ -696,19 +693,43 @@ export default function CoursePage() {
         formData.append("image", updates.image);
       }
 
+      console.log('Sending course update:', {
+        title: updates.title,
+        description: updates.description,
+        is_public: updates.is_public,
+        hasImage: !!updates.image
+      });
+
       const response = await fetch(`/api/community/${params.communitySlug}/courses/${params.courseSlug}`, {
         method: "PUT",
         body: formData,
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update course");
+        const errorData = await response.json();
+        console.error('Course update failed:', errorData);
+        throw new Error(errorData.error || "Failed to update course");
       }
 
       const { course, madePublic } = await response.json();
+      console.log('Course update response:', {
+        courseId: course.id,
+        title: course.title,
+        is_public: course.is_public,
+        updated_at: course.updated_at,
+        madePublic
+      });
       
-      // Update your local course state
+      // Update local state
       setCourse(course);
+      
+      // Force a refresh of the data
+      setRefreshTrigger(prev => prev + 1);
       
       // Show notification modal if the course was made public
       if (madePublic) {
