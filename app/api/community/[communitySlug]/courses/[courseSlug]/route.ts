@@ -33,8 +33,8 @@ export async function GET(
       );
     }
 
-    // Add a small delay to allow for Supabase replication
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Add a longer delay to ensure replication
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Get course with stronger consistency settings
     const { data: course, error: courseError } = await supabase
@@ -54,12 +54,23 @@ export async function GET(
       );
     }
 
-    console.log("Course fetched at:", new Date().toISOString(), "Course data:", course);
+    // Double-check the latest state
+    const { data: verifyData } = await supabase
+      .from("courses")
+      .select("is_public, updated_at")
+      .eq("id", course.id)
+      .single();
 
-    return NextResponse.json(course, {
+    // Use the most up-to-date state
+    const finalCourse = verifyData ? { ...course, ...verifyData } : course;
+
+    console.log("Course fetched at:", new Date().toISOString(), "Course data:", finalCourse);
+
+    return NextResponse.json(finalCourse, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     });
   } catch (error) {
@@ -77,7 +88,7 @@ export async function PUT(
   }
 ) {
   try {
-    const supabase = await createAdminClient();
+    const supabase = createAdminClient();
 
     // Get community with more details
     const { data: community, error: communityError } = await supabase
@@ -146,20 +157,38 @@ export async function PUT(
       return new NextResponse("Failed to update course", { status: 500 });
     }
 
-    // Then fetch the updated course data with a fresh query
-    await new Promise(resolve => setTimeout(resolve, 100)); // Add delay for replication
+    // Add a longer delay for replication
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    const { data: updatedCourse, error: fetchError } = await supabase
-      .from("courses")
-      .select("*")
-      .eq("id", currentCourse.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Fetch the updated course with multiple attempts
+    let updatedCourse = null;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    if (fetchError || !updatedCourse) {
-      console.error("Error fetching updated course:", fetchError);
-      return new NextResponse("Failed to fetch updated course", { status: 500 });
+    while (attempts < maxAttempts) {
+      const { data: fetchedCourse, error: fetchError } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("id", currentCourse.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!fetchError && fetchedCourse && fetchedCourse.is_public === isPublic) {
+        updatedCourse = fetchedCourse;
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+      attempts++;
+    }
+
+    if (!updatedCourse) {
+      console.error("Failed to verify course update after multiple attempts");
+      return NextResponse.json(
+        { error: "Failed to verify course update" },
+        { status: 500 }
+      );
     }
 
     console.log('Course updated successfully:', {
@@ -168,19 +197,21 @@ export async function PUT(
       is_public: updatedCourse.is_public,
       updated_at: updatedCourse.updated_at,
       fetch_time: new Date().toISOString(),
-      madePublic: isPublic && !currentCourse.is_public
+      madePublic: isPublic && !currentCourse.is_public,
+      attempts: attempts + 1
     });
 
-    // Return the updated course along with a flag indicating if it was made public
     return NextResponse.json({
-      course: updatedCourse,
+      courseId: updatedCourse.id,
+      title: updatedCourse.title,
+      is_public: updatedCourse.is_public,
+      updated_at: updatedCourse.updated_at,
       madePublic: isPublic && !currentCourse.is_public
     }, {
       headers: {
-        'Cache-Control': 'no-store, max-age=0',
-        'Surrogate-Control': 'no-store',
+        'Cache-Control': 'no-store, must-revalidate',
         'Pragma': 'no-cache',
-        'Expires': '-1'
+        'Expires': '0'
       }
     });
   } catch (error) {
