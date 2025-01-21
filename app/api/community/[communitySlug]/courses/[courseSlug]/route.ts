@@ -175,6 +175,12 @@ export async function PUT(
     const description = formData.get("description") as string;
     const isPublic = formData.get("is_public") === "true";
 
+    console.log('Visibility values:', {
+      currentVisibility: currentCourse.is_public,
+      newVisibility: isPublic,
+      formData: Object.fromEntries(formData.entries())
+    });
+
     // Update the course
     const { data: updatedCourse, error: updateError } = await supabase
       .from("courses")
