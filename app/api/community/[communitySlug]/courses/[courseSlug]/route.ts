@@ -38,7 +38,8 @@ export async function GET(
         id,
         title,
         description,
-        slug
+        slug,
+        is_public
       `)
       .eq("community_id", community.id)
       .eq("slug", params.courseSlug)
@@ -171,9 +172,13 @@ export async function PUT(
     }
 
     const formData = await req.formData();
-    const title = formData.get("title") as string;
-    const description = formData.get("description") as string;
-    const isPublic = formData.get("is_public") === "true";
+    const titleValue = formData.get("title");
+    const descriptionValue = formData.get("description");
+    const isPublicValue = formData.get("is_public");
+
+    const title = typeof titleValue === 'string' ? titleValue : '';
+    const description = typeof descriptionValue === 'string' ? descriptionValue : '';
+    const isPublic = isPublicValue === 'true';
 
     console.log('Visibility values:', {
       currentVisibility: currentCourse.is_public,
@@ -199,95 +204,11 @@ export async function PUT(
       return new NextResponse("Failed to update course", { status: 500 });
     }
 
-    // If course is being made public, notify community members
-    if (isPublic && !currentCourse.is_public) {
-      try {
-        console.log('Course is being made public, fetching members...');
-        
-        // Get all community members with their profiles
-        const { data: members, error: membersError } = await supabase
-          .from("community_members")
-          .select(`
-            user_id,
-            user:profiles!user_id (
-              email,
-              full_name
-            )
-          `)
-          .eq("community_id", community.id)
-          .returns<CommunityMember[]>();
-
-        if (membersError) {
-          console.error('Error fetching members:', membersError);
-          throw membersError;
-        }
-
-        console.log('Found members:', members);
-
-        // Send email to each member
-        const emailPromises = members.map(async (member) => {
-          if (!member.user?.email) {
-            console.log('Skipping member without email:', member.user_id);
-            return;
-          }
-          
-          console.log('Sending email to:', member.user.email);
-          
-          const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
-          
-          const emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">New Course Available!</h2>
-              <p>Hello ${member.user?.full_name || 'Member'},</p>
-              <p>A new course is now available in your community:</p>
-              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #2563eb; margin: 0 0 10px 0;">${title}</h3>
-                <p style="color: #666; margin: 0 0 10px 0;">${description}</p>
-                <p style="color: #666; margin: 0;">Community: ${community.name}</p>
-              </div>
-              <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">View Course</a>
-              <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
-              </p>
-            </div>
-          `;
-
-          try {
-            const response = await fetch('/api/send-email', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                email: member.user.email,
-                subject: `New Course Available: ${title}`,
-                html: emailHtml
-              })
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json();
-              console.error('Error sending email to', member.user.email, ':', errorData);
-            } else {
-              console.log('Successfully sent email to:', member.user.email);
-            }
-          } catch (error) {
-            console.error('Failed to send email to', member.user.email, ':', error);
-          }
-        });
-
-        console.log('Waiting for all emails to be sent...');
-        await Promise.all(emailPromises);
-        console.log('All emails sent successfully');
-      } catch (error) {
-        console.error("Error sending notification emails:", error);
-        // Don't fail the update if email sending fails
-      }
-    } else {
-      console.log('Course visibility unchanged or set to private, skipping notifications');
-    }
-
-    return new NextResponse(JSON.stringify(updatedCourse), {
+    // Return the updated course along with a flag indicating if it was made public
+    return new NextResponse(JSON.stringify({
+      course: updatedCourse,
+      madePublic: isPublic && !currentCourse.is_public
+    }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {

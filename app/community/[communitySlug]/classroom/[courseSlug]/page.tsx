@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { MuxPlayer } from "@/components/MuxPlayer";
 import EditCourseModal from "@/components/EditCourseModal";
+import NotifyMembersModal from "@/components/NotifyMembersModal";
 
 interface Chapter {
   id: string;
@@ -295,6 +296,7 @@ export default function CoursePage() {
   const [community, setCommunity] = useState<Community | null>(null);
   const [isEditingCourse, setIsEditingCourse] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
 
   const { user } = useAuth();
   const supabase = createClient();
@@ -692,28 +694,30 @@ export default function CoursePage() {
         formData.append("image", updates.image);
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(
-        `/api/community/${communitySlug}/courses/${courseSlug}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`/api/community/${params.communitySlug}/courses/${params.courseSlug}`, {
+        method: "PUT",
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error("Failed to update course");
       }
 
-      const updatedCourse = await response.json();
-      setCourse(updatedCourse);
+      const { course, madePublic } = await response.json();
+      
+      // Update your local course state
+      setCourse(course);
+      
+      // Show notification modal if the course was made public
+      if (madePublic) {
+        setShowNotifyModal(true);
+      }
+
       toast.success("Course updated successfully");
+      setIsEditingCourse(false);
     } catch (error) {
       console.error("Error updating course:", error);
-      toast.error("Failed to update course");
+      toast.error("Error updating course");
     }
   };
 
@@ -1365,6 +1369,14 @@ export default function CoursePage() {
           onUpdateCourse={handleUpdateCourse}
         />
       )}
+
+      <NotifyMembersModal
+        isOpen={showNotifyModal}
+        onClose={() => setShowNotifyModal(false)}
+        courseName={course?.title || ""}
+        communitySlug={String(params.communitySlug)}
+        courseSlug={String(params.courseSlug)}
+      />
     </div>
   );
 }
