@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="300" fill="#F3F4F6"/>
+  
+  <!-- Decorative elements -->
+  <circle cx="200" cy="120" r="40" fill="#E5E7EB"/>
+  <rect x="140" y="180" width="120" height="12" rx="6" fill="#E5E7EB"/>
+  <rect x="160" y="200" width="80" height="8" rx="4" fill="#E5E7EB"/>
+  
+  <!-- Icon -->
+  <path d="M180 110h40M200 90v40" stroke="#9CA3AF" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Text -->
+  <text x="200" y="260" text-anchor="middle" font-family="Arial" font-size="14" fill="#6B7280">
+    Add Course Image
+  </text>
+</svg> 

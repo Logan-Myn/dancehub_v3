@@ -65,37 +65,45 @@ export async function POST(
     const formData = await request.formData();
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
-    const imageFile = formData.get("image") as File;
+    const imageFile = formData.get("image") as File | null;
     const isPublic = formData.get("is_public") === "true";
 
     // Generate the slug from the title
     const slug = slugify(title);
 
-    // Upload the image to Supabase Storage
-    const fileExt = imageFile.name.split(".").pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const { error: uploadError, data: uploadData } = await supabase
-      .storage
-      .from("course-images")
-      .upload(fileName, imageFile, {
-        contentType: imageFile.type,
-        cacheControl: "3600",
-        upsert: false
-      });
+    // Set default image URL to placeholder
+    let imageUrl = `${process.env.NEXT_PUBLIC_APP_URL}/images/course-placeholder.svg`;
+    let fileName = '';
 
-    if (uploadError) {
-      console.error("Error uploading image:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload image" },
-        { status: 500 }
-      );
+    // Only upload image if one was provided
+    if (imageFile && imageFile instanceof File) {
+      const fileExt = imageFile.name.split(".").pop();
+      fileName = `${uuidv4()}.${fileExt}`;
+      const { error: uploadError, data: uploadData } = await supabase
+        .storage
+        .from("course-images")
+        .upload(fileName, imageFile, {
+          contentType: imageFile.type,
+          cacheControl: "3600",
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Error uploading image:", uploadError);
+        return NextResponse.json(
+          { error: "Failed to upload image" },
+          { status: 500 }
+        );
+      }
+
+      // Get the public URL of the uploaded image
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from("course-images")
+        .getPublicUrl(fileName);
+      
+      imageUrl = publicUrl;
     }
-
-    // Get the public URL of the uploaded image
-    const { data: { publicUrl: imageUrl } } = supabase
-      .storage
-      .from("course-images")
-      .getPublicUrl(fileName);
 
     // Create a new course
     const { data: newCourse, error: courseError } = await supabase
