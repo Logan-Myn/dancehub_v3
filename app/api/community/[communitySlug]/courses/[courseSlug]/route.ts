@@ -277,11 +277,8 @@ export async function PUT(
     });
 
     return NextResponse.json({
-      id: updatedCourse.id,
-      title: updatedCourse.title,
-      description: updatedCourse.description,
-      is_public: updatedCourse.is_public,
-      updated_at: updatedCourse.updated_at
+      course: updatedCourse,
+      madePublic: isPublic && !currentCourse.is_public
     }, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
