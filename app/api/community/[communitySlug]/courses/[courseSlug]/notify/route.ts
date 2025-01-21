@@ -12,7 +12,7 @@ export async function POST(
   }
 ) {
   try {
-    const supabase = await createAdminClient();
+    const supabase = createAdminClient();
 
     // Get community details
     const { data: community, error: communityError } = await supabase
@@ -22,7 +22,11 @@ export async function POST(
       .single();
 
     if (communityError || !community) {
-      return new NextResponse("Community not found", { status: 404 });
+      console.error("Error fetching community:", communityError);
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
     // Get course details
@@ -34,7 +38,11 @@ export async function POST(
       .single();
 
     if (courseError || !course) {
-      return new NextResponse("Course not found", { status: 404 });
+      console.error("Error fetching course:", courseError);
+      return NextResponse.json(
+        { error: "Course not found" },
+        { status: 404 }
+      );
     }
 
     // Get all community members
@@ -45,7 +53,10 @@ export async function POST(
 
     if (membersError) {
       console.error('Error fetching members:', membersError);
-      return new NextResponse("Failed to fetch members", { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to fetch members" },
+        { status: 500 }
+      );
     }
 
     // Get member profiles
@@ -56,11 +67,16 @@ export async function POST(
 
     if (profilesError) {
       console.error('Error fetching profiles:', profilesError);
-      return new NextResponse("Failed to fetch profiles", { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to fetch profiles" },
+        { status: 500 }
+      );
     }
 
+    console.log('Sending emails to members:', profiles.map(p => ({ id: p.id, email: p.email })));
+
     // Send email to each member
-    const emailPromises = profiles.map(async (profile) => {
+    const emailResults = await Promise.allSettled(profiles.map(async (profile) => {
       if (!profile.email) return;
 
       const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
@@ -82,7 +98,7 @@ export async function POST(
         </div>
       `;
 
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,15 +109,35 @@ export async function POST(
           html: emailHtml
         })
       });
-    });
 
-    await Promise.all(emailPromises);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to send email to ${profile.email}: ${errorData.error || response.statusText}`);
+      }
 
-    return new NextResponse(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" },
+      return { email: profile.email, success: true };
+    }));
+
+    // Check results and log any failures
+    const failures = emailResults.filter(result => result.status === 'rejected');
+    if (failures.length > 0) {
+      console.error('Some emails failed to send:', failures);
+    }
+
+    const successes = emailResults.filter(result => result.status === 'fulfilled');
+    console.log(`Successfully sent ${successes.length} out of ${emailResults.length} emails`);
+
+    return NextResponse.json({
+      success: true,
+      totalEmails: emailResults.length,
+      successfulEmails: successes.length,
+      failedEmails: failures.length
     });
   } catch (error) {
     console.error("Error in notify route:", error);
-    return new NextResponse("Internal server error", { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
 } 

@@ -3,17 +3,31 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const { email, subject, html } = await request.json();
-    console.log('Attempting to send email to:', email);
     
+    if (!process.env.MAILERSEND_API_KEY) {
+      console.error('MAILERSEND_API_KEY is not configured');
+      return NextResponse.json(
+        { error: 'Email service is not configured' },
+        { status: 500 }
+      );
+    }
+
+    console.log('Sending email:', {
+      to: email,
+      subject,
+      apiKeyPresent: !!process.env.MAILERSEND_API_KEY
+    });
+
     const response = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.MAILERSEND_API_KEY}`
+        'Authorization': `Bearer ${process.env.MAILERSEND_API_KEY}`,
+        'X-Requested-With': 'XMLHttpRequest'
       },
       body: JSON.stringify({
         "from": {
-          "email": "notifications@dancehub.app",
+          "email": "notifications@dance-hub.io",
           "name": "DanceHub"
         },
         "to": [
@@ -26,18 +40,33 @@ export async function POST(request: Request) {
       })
     });
 
+    const responseData = await response.json();
+
     if (!response.ok) {
-      const error = await response.json();
-      console.error('MailerSend API error:', error);
-      throw new Error('Failed to send email');
+      console.error('MailerSend API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: responseData,
+        apiKey: process.env.MAILERSEND_API_KEY ? 'Present' : 'Missing'
+      });
+      
+      return NextResponse.json(
+        { error: `Failed to send email: ${responseData.message || response.statusText}` },
+        { status: response.status }
+      );
     }
 
-    console.log('Email sent successfully to:', email);
+    console.log('Email sent successfully:', {
+      to: email,
+      subject,
+      response: responseData
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in send-email route:', error);
     return NextResponse.json(
-      { error: 'Failed to send email' }, 
+      { error: 'Failed to send email', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
