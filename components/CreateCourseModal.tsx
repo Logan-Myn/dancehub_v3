@@ -23,6 +23,7 @@ interface CreateCourseModalProps {
     created_at: string;
     updated_at: string;
     slug: string;
+    is_public: boolean;
   }) => void;
   communityId: string;
 }
@@ -71,6 +72,7 @@ export default function CreateCourseModal({
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         slug: slugify(title.trim()),
+        is_public: false,
       };
 
       await onCreateCourse(newCourse);

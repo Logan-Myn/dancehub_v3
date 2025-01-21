@@ -122,6 +122,7 @@ export default function ClassroomPage() {
       formData.append("title", newCourse.title);
       formData.append("description", newCourse.description);
       formData.append("image", newCourse.image as File);
+      formData.append("is_public", "false");
 
       const response = await fetch(`/api/community/${communitySlug}/courses`, {
         method: "POST",

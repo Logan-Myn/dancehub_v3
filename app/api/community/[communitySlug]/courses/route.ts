@@ -66,6 +66,7 @@ export async function POST(
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
     const imageFile = formData.get("image") as File;
+    const isPublic = formData.get("is_public") === "true";
 
     // Generate the slug from the title
     const slug = slugify(title);
@@ -107,6 +108,7 @@ export async function POST(
         community_id: community.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        is_public: isPublic,
       })
       .select()
       .single();
