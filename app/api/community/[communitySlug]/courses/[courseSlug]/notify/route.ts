@@ -85,13 +85,9 @@ export async function POST(
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">New Course Available!</h2>
           <p>Hello ${profile.full_name || 'Member'},</p>
-          <p>A new course is now available in your community:</p>
-          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="color: #2563eb; margin: 0 0 10px 0;">${course.title}</h3>
-            <p style="color: #666; margin: 0 0 10px 0;">${course.description}</p>
-            <p style="color: #666; margin: 0;">Community: ${community.name}</p>
-          </div>
-          <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">View Course</a>
+          <p>A new course is now available in your community: <strong>${community.name}</strong></p>
+          <p style="font-size: 18px; color: #2563eb; margin: 20px 0;">${course.title}</p>
+          <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Course</a>
           <p style="color: #666; font-size: 14px; margin-top: 30px;">
             This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
           </p>
