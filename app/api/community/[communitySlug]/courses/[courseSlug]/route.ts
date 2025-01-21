@@ -12,134 +12,54 @@ interface CommunityMember {
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  req: Request,
-  {
-    params,
-  }: {
-    params: { communitySlug: string; courseSlug: string };
-  }
+  request: Request,
+  { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
-    const supabase = await createAdminClient();
+    const supabase = createAdminClient();
 
-    // Get community ID
+    // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id")
+      .select("id, name")
       .eq("slug", params.communitySlug)
       .single();
 
     if (communityError || !community) {
-      return new NextResponse("Community not found", { status: 404 });
+      console.error("Error fetching community:", communityError);
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
     // Add a small delay to allow for Supabase replication
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Get course with basic info, using stronger consistency
+    // Get course with stronger consistency settings
     const { data: course, error: courseError } = await supabase
       .from("courses")
-      .select(`
-        id,
-        title,
-        description,
-        slug,
-        is_public,
-        updated_at
-      `)
+      .select("*")
       .eq("community_id", community.id)
       .eq("slug", params.courseSlug)
       .order('updated_at', { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .single();
 
     if (courseError) {
-      console.error("Error fetching course:", courseError);
-      return new NextResponse("Course not found", { status: 404 });
+      console.error("Error in course route:", courseError);
+      return NextResponse.json(
+        { error: "Course not found" },
+        { status: 404 }
+      );
     }
 
-    if (!course) {
-      return new NextResponse("Course not found", { status: 404 });
-    }
+    console.log("Course fetched at:", new Date().toISOString(), "Course data:", course);
 
-    // Log the raw course data from Supabase with timestamp info
-    console.log('Raw course data from Supabase:', {
-      id: course.id,
-      title: course.title,
-      is_public: course.is_public,
-      updated_at: course.updated_at,
-      fetch_time: new Date().toISOString()
-    });
-
-    // Get chapters with explicit ordering
-    const { data: chapters, error: chaptersError } = await supabase
-      .from("chapters")
-      .select("*")
-      .eq("course_id", course.id)
-      .order("chapter_position", { ascending: true });
-
-    if (chaptersError) {
-      console.error("Error fetching chapters:", chaptersError);
-      return new NextResponse("Failed to fetch chapters", { status: 500 });
-    }
-
-    console.log('Fetched chapters:', chapters.map(c => ({
-      id: c.id,
-      title: c.title,
-      chapter_position: c.chapter_position
-    })));
-
-    // Get lessons for each chapter with explicit ordering
-    const chaptersWithLessons = await Promise.all(
-      chapters.map(async (chapter) => {
-        console.log(`Fetching lessons for chapter ${chapter.id} (${chapter.title})`);
-        
-        const { data: lessons, error: lessonsError } = await supabase
-          .from("lessons")
-          .select("*")
-          .eq("chapter_id", chapter.id)
-          .order("lesson_position", { ascending: true });
-
-        if (lessonsError) {
-          console.error("Error fetching lessons:", lessonsError);
-          throw lessonsError;
-        }
-
-        console.log(`Raw lessons for chapter ${chapter.id}:`, 
-          lessons.map(l => ({
-            id: l.id,
-            title: l.title,
-            lesson_position: l.lesson_position
-          }))
-        );
-
-        return {
-          ...chapter,
-          lessons: lessons
-        };
-      })
-    );
-
-    const fullCourse = {
-      ...course,
-      chapters: chaptersWithLessons
-    };
-
-    console.log('Course data being sent:', {
-      id: course.id,
-      title: course.title,
-      is_public: course.is_public,
-      updated_at: course.updated_at,
-      fetch_time: new Date().toISOString(),
-      chaptersCount: chaptersWithLessons.length
-    });
-
-    return NextResponse.json(fullCourse, {
+    return NextResponse.json(course, {
       headers: {
-        'Cache-Control': 'no-store, max-age=0',
-        'Surrogate-Control': 'no-store',
-        'Pragma': 'no-cache',
-        'Expires': '-1'
+        'Cache-Control': 'no-store, must-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   } catch (error) {
