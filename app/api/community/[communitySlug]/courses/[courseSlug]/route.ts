@@ -1,27 +1,19 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { v4 as uuidv4 } from "uuid";
+import { slugify } from "@/lib/utils";
 
-interface CommunityMember {
-  user_id: string;
-  user: {
-    email: string;
-    full_name: string;
-  };
-}
-
-export const dynamic = 'force-dynamic';
+const supabase = createAdminClient();
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
-
     // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, name")
+      .select("id")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -33,134 +25,220 @@ export async function GET(
       );
     }
 
-    // Add a longer delay to ensure replication
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Get course with retries to ensure consistency
+    let course = null;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    // Get course with stronger consistency settings
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("*")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
+    while (attempts < maxAttempts) {
+      const { data: fetchedCourse, error: courseError } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("community_id", community.id)
+        .eq("slug", params.courseSlug)
+        .single();
 
-    if (courseError) {
-      console.error("Error in course route:", courseError);
+      if (!courseError && fetchedCourse) {
+        course = fetchedCourse;
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+      attempts++;
+    }
+
+    if (!course) {
+      console.error("Failed to fetch course after multiple attempts");
       return NextResponse.json(
         { error: "Course not found" },
         { status: 404 }
       );
     }
 
-    // Double-check the latest state
-    const { data: verifyData } = await supabase
-      .from("courses")
-      .select("is_public, updated_at")
-      .eq("id", course.id)
-      .single();
+    // Log the response for debugging
+    console.log("GET Course response:", {
+      id: course.id,
+      title: course.title,
+      is_public: course.is_public,
+      updated_at: course.updated_at,
+      fetch_time: new Date().toISOString()
+    });
 
-    // Use the most up-to-date state
-    const finalCourse = verifyData ? { ...course, ...verifyData } : course;
-
-    console.log("Course fetched at:", new Date().toISOString(), "Course data:", finalCourse);
-
-    return NextResponse.json(finalCourse, {
+    return NextResponse.json({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      is_public: course.is_public,
+      updated_at: course.updated_at
+    }, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
       }
     });
+
   } catch (error) {
-    console.error("Error in course route:", error);
-    return new NextResponse("Internal server error", { status: 500 });
+    console.error("Error in GET course route:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: { communitySlug: string } }
+) {
+  try {
+    const { communitySlug } = params;
+
+    // Get the community
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("slug", communitySlug)
+      .single();
+
+    if (communityError || !community) {
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
+    }
+
+    // Parse the form data
+    const formData = await request.formData();
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const imageFile = formData.get("image") as File;
+
+    // Generate the slug from the title
+    const slug = slugify(title);
+
+    // Upload the image to Supabase Storage
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const { error: uploadError, data: uploadData } = await supabase.storage
+      .from("course-images")
+      .upload(fileName, imageFile, {
+        contentType: imageFile.type,
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Error uploading image:", uploadError);
+      return NextResponse.json(
+        { error: "Failed to upload image" },
+        { status: 500 }
+      );
+    }
+
+    // Get the public URL of the uploaded image
+    const {
+      data: { publicUrl: imageUrl },
+    } = supabase.storage.from("course-images").getPublicUrl(fileName);
+
+    // Create a new course
+    const { data: newCourse, error: courseError } = await supabase
+      .from("courses")
+      .insert({
+        title,
+        description,
+        image_url: imageUrl,
+        slug,
+        community_id: community.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (courseError) {
+      console.error("Error creating course:", courseError);
+      // Clean up the uploaded image if course creation fails
+      await supabase.storage.from("course-images").remove([fileName]);
+      return NextResponse.json(
+        { error: "Failed to create course" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(newCourse);
+  } catch (error) {
+    console.error("Error creating course:", error);
+    return NextResponse.json(
+      { error: "Failed to create course" },
+      { status: 500 }
+    );
   }
 }
 
 export async function PUT(
-  req: Request,
-  {
-    params,
-  }: {
-    params: { communitySlug: string; courseSlug: string };
-  }
+  request: Request,
+  { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
     const supabase = createAdminClient();
 
-    // Get community with more details
+    // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, name")
+      .select("id")
       .eq("slug", params.communitySlug)
       .single();
 
     if (communityError || !community) {
-      return new NextResponse("Community not found", { status: 404 });
+      console.error("Error fetching community:", communityError);
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
-    // Get current course state to check if visibility is changing
+    // Get current course
     const { data: currentCourse, error: courseError } = await supabase
       .from("courses")
-      .select("id, is_public")
+      .select("*")
       .eq("community_id", community.id)
       .eq("slug", params.courseSlug)
       .single();
 
     if (courseError || !currentCourse) {
-      return new NextResponse("Course not found", { status: 404 });
+      console.error("Error fetching course:", courseError);
+      return NextResponse.json(
+        { error: "Course not found" },
+        { status: 404 }
+      );
     }
 
-    const formData = await req.formData();
-    const titleValue = formData.get("title");
-    const descriptionValue = formData.get("description");
-    const isPublicValue = formData.get("is_public");
-
-    const title = typeof titleValue === 'string' ? titleValue : '';
-    const description = typeof descriptionValue === 'string' ? descriptionValue : '';
-    const isPublic = isPublicValue === 'true';
-
-    console.log('Update course request:', {
-      courseId: currentCourse.id,
-      currentIsPublic: currentCourse.is_public,
-      newIsPublic: isPublic,
-      formValues: {
-        title,
-        description,
-        isPublic,
-        rawIsPublicValue: isPublicValue
-      }
-    });
-
-    const timestamp = new Date().toISOString();
+    const formData = await request.formData();
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const isPublic = formData.get("is_public") === "true";
 
     // Update the course
-    const updateData = {
-      title,
-      description,
-      is_public: isPublic,
-      updated_at: timestamp,
-    };
-
-    console.log('Updating course with data:', updateData);
-
-    // First update the course
     const { error: updateError } = await supabase
       .from("courses")
-      .update(updateData)
+      .update({
+        title,
+        description,
+        is_public: isPublic,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", currentCourse.id);
 
     if (updateError) {
       console.error("Error updating course:", updateError);
-      return new NextResponse("Failed to update course", { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to update course" },
+        { status: 500 }
+      );
     }
 
-    // Add a longer delay for replication
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Fetch the updated course with multiple attempts
+    // Fetch updated course with retries
     let updatedCourse = null;
     let attempts = 0;
     const maxAttempts = 3;
@@ -170,8 +248,6 @@ export async function PUT(
         .from("courses")
         .select("*")
         .eq("id", currentCourse.id)
-        .order('updated_at', { ascending: false })
-        .limit(1)
         .single();
 
       if (!fetchError && fetchedCourse && fetchedCourse.is_public === isPublic) {
@@ -191,22 +267,21 @@ export async function PUT(
       );
     }
 
-    console.log('Course updated successfully:', {
+    // Log the response for debugging
+    console.log("PUT Course response:", {
       id: updatedCourse.id,
       title: updatedCourse.title,
       is_public: updatedCourse.is_public,
       updated_at: updatedCourse.updated_at,
-      fetch_time: new Date().toISOString(),
-      madePublic: isPublic && !currentCourse.is_public,
-      attempts: attempts + 1
+      fetch_time: new Date().toISOString()
     });
 
     return NextResponse.json({
-      courseId: updatedCourse.id,
+      id: updatedCourse.id,
       title: updatedCourse.title,
+      description: updatedCourse.description,
       is_public: updatedCourse.is_public,
-      updated_at: updatedCourse.updated_at,
-      madePublic: isPublic && !currentCourse.is_public
+      updated_at: updatedCourse.updated_at
     }, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
@@ -214,8 +289,12 @@ export async function PUT(
         'Expires': '0'
       }
     });
+
   } catch (error) {
     console.error("Error in PUT course route:", error);
-    return new NextResponse("Internal server error", { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-} 
+}
