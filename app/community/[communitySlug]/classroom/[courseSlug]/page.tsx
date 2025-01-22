@@ -300,6 +300,8 @@ export default function CoursePage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccessChecked, setIsAccessChecked] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
   const [isAddingChapter, setIsAddingChapter] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState("");
   const [isAddingLesson, setIsAddingLesson] = useState<string | null>(null);
@@ -312,45 +314,92 @@ export default function CoursePage() {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const [expandedChapters, setExpandedChapters] = useState<{
-    [key: string]: boolean;
-  }>({});
-
-  const [isDragging, setIsDragging] = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const toggleChapter = (chapterId: string) => {
-    setExpandedChapters((prev) => ({
-      ...prev,
-      [chapterId]: !prev[chapterId],
-    }));
-  };
-
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
+  // Wait for auth to be initialized
   useEffect(() => {
-    if (!communitySlug || !courseSlug) {
-      console.error("Missing slugs:", { communitySlug, courseSlug });
-      router.push("/");
-      return;
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthChecked(true);
+    };
+    checkAuth();
+  }, [supabase]);
+
+  // Check authentication and membership
+  useEffect(() => {
+    // Wait for auth to be checked
+    if (!isAuthChecked) return;
+
+    async function checkAccess() {
+      // If no user after auth is checked, redirect to about page
+      if (!user) {
+        router.push(`/community/${communitySlug}/about`);
+        return;
+      }
+
+      try {
+        // First get the community ID
+        const { data: communityData, error: communityError } = await supabase
+          .from("communities")
+          .select("id, name, created_by")
+          .eq("slug", communitySlug)
+          .single();
+
+        if (communityError || !communityData) {
+          console.error("Error fetching community:", communityError);
+          router.push(`/community/${communitySlug}/about`);
+          return;
+        }
+
+        setCommunity(communityData); // Set community data
+
+        // Check if user is the creator (they always have access)
+        if (communityData.created_by === user.id) {
+          setIsAccessChecked(true);
+          return; // Exit early, no need to check membership
+        }
+
+        // Check if user is a member of the community
+        const { data: membership, error: membershipError } = await supabase
+          .from("community_members")
+          .select("status")
+          .eq("community_id", communityData.id)
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (membershipError) {
+          console.error("Error checking membership:", membershipError);
+          router.push(`/community/${communitySlug}/about`);
+          return;
+        }
+
+        // If not a member, redirect to about page
+        if (!membership) {
+          router.push(`/community/${communitySlug}/about`);
+          return;
+        }
+
+        setIsAccessChecked(true);
+      } catch (error) {
+        console.error("Error checking access:", error);
+        router.push(`/community/${communitySlug}/about`);
+      }
     }
+
+    // Run checkAccess if we have communitySlug
+    if (communitySlug) {
+      checkAccess();
+    }
+  }, [user, communitySlug, router, supabase, isAuthChecked]);
+
+  // Only fetch course data after access is checked
+  useEffect(() => {
+    if (!isAccessChecked) return;
 
     async function fetchCourse() {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        console.log("Fetching course:", {
-          communitySlug,
-          courseSlug,
-          hasSession: !!session,
-        });
 
         const response = await fetch(
           `/api/community/${communitySlug}/courses/${courseSlug}`,
@@ -410,27 +459,30 @@ export default function CoursePage() {
       }
     }
 
-    async function fetchCommunity() {
-      try {
-        const { data: community, error } = await supabase
-          .from("communities")
-          .select("*")
-          .eq("slug", communitySlug)
-          .single();
+    fetchCourse();
+  }, [isAccessChecked, communitySlug, courseSlug, supabase]);
 
-        if (error) throw error;
-        setCommunity(community);
-      } catch (error) {
-        console.error("Error fetching community data:", error);
-        toast.error("Failed to load community data");
-      }
-    }
+  const [expandedChapters, setExpandedChapters] = useState<{
+    [key: string]: boolean;
+  }>({});
 
-    if (communitySlug && courseSlug) {
-      fetchCourse();
-      fetchCommunity();
-    }
-  }, [communitySlug, courseSlug, router, refreshTrigger]);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapters((prev) => ({
+      ...prev,
+      [chapterId]: !prev[chapterId],
+    }));
+  };
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleAddChapter = async () => {
     if (!newChapterTitle.trim()) return;
@@ -1080,7 +1132,7 @@ export default function CoursePage() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading || !isAccessChecked) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -1099,10 +1151,10 @@ export default function CoursePage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
       <Navbar />
-      <CommunityNavbar 
-        communitySlug={communitySlug} 
-        activePage="classroom" 
-        isMember={true} 
+      <CommunityNavbar
+        communitySlug={communitySlug}
+        activePage="classroom"
+        isMember={true}
       />
 
       <main className="flex-grow">
