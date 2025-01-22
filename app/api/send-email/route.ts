@@ -40,26 +40,30 @@ export async function POST(request: Request) {
       })
     });
 
-    const responseData = await response.json();
-
     if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || response.statusText;
+      } catch (e) {
+        // If we can't parse the error response, just use the status text
+      }
+      
       console.error('MailerSend API error:', {
         status: response.status,
         statusText: response.statusText,
-        error: responseData,
         apiKey: process.env.MAILERSEND_API_KEY ? 'Present' : 'Missing'
       });
       
       return NextResponse.json(
-        { error: `Failed to send email: ${responseData.message || response.statusText}` },
+        { error: `Failed to send email: ${errorMessage}` },
         { status: response.status }
       );
     }
 
     console.log('Email sent successfully:', {
       to: email,
-      subject,
-      response: responseData
+      subject
     });
 
     return NextResponse.json({ success: true });

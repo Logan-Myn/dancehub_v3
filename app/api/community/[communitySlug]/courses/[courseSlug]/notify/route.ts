@@ -17,7 +17,7 @@ export async function POST(
     // Get community details
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, name")
+      .select("id, name, created_by")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -45,11 +45,12 @@ export async function POST(
       );
     }
 
-    // Get all community members
+    // Get all community members except the creator
     const { data: members, error: membersError } = await supabase
       .from("community_members")
       .select("user_id")
-      .eq("community_id", community.id);
+      .eq("community_id", community.id)
+      .neq("user_id", community.created_by); // Exclude the creator
 
     if (membersError) {
       console.error('Error fetching members:', membersError);
@@ -77,76 +78,56 @@ export async function POST(
 
     const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
 
-    // Create notifications for each member
-    const notificationPromises = profiles.map(async (profile) => {
-      // Create in-app notification
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: profile.id,
-          title: `New Course Available: ${course.title}`,
-          message: `A new course is now available in your community: ${community.name}`,
-          link: courseUrl,
-          type: 'course_published'
-        });
+    // Send email to each member
+    const emailResults = await Promise.allSettled(profiles.map(async (profile) => {
+      if (!profile.email) return;
 
-      if (notificationError) {
-        console.error(`Error creating notification for user ${profile.id}:`, notificationError);
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">New Course Available!</h2>
+          <p>Hello ${profile.full_name || 'Member'},</p>
+          <p>A new course is now available in your community: <strong>${community.name}</strong></p>
+          <p style="font-size: 18px; color: #2563eb; margin: 20px 0;">${course.title}</p>
+          <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Course</a>
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
+          </p>
+        </div>
+      `;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: profile.email,
+          subject: `New Course Available: ${course.title}`,
+          html: emailHtml
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send email to ${profile.email}: HTTP ${response.status}`);
       }
 
-      // Send email if email is available
-      if (profile.email) {
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">New Course Available!</h2>
-            <p>Hello ${profile.full_name || 'Member'},</p>
-            <p>A new course is now available in your community: <strong>${community.name}</strong></p>
-            <p style="font-size: 18px; color: #2563eb; margin: 20px 0;">${course.title}</p>
-            <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Course</a>
-            <p style="color: #666; font-size: 14px; margin-top: 30px;">
-              This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
-            </p>
-          </div>
-        `;
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: profile.email,
-            subject: `New Course Available: ${course.title}`,
-            html: emailHtml
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to send email to ${profile.email}: ${errorData.error || response.statusText}`);
-        }
-
-        return { email: profile.email, success: true };
-      }
-    });
-
-    // Wait for all notifications to be sent
-    const results = await Promise.allSettled(notificationPromises);
+      return { email: profile.email, success: true };
+    }));
 
     // Check results and log any failures
-    const failures = results.filter(result => result.status === 'rejected');
+    const failures = emailResults.filter(result => result.status === 'rejected');
     if (failures.length > 0) {
-      console.error('Some notifications failed to send:', failures);
+      console.error('Some emails failed to send:', failures);
     }
 
-    const successes = results.filter(result => result.status === 'fulfilled');
-    console.log(`Successfully sent ${successes.length} out of ${results.length} notifications`);
+    const successes = emailResults.filter(result => result.status === 'fulfilled');
+    console.log(`Successfully sent ${successes.length} out of ${emailResults.length} emails`);
 
     return NextResponse.json({
       success: true,
-      totalNotifications: results.length,
-      successfulNotifications: successes.length,
-      failedNotifications: failures.length
+      totalEmails: emailResults.length,
+      successfulEmails: successes.length,
+      failedEmails: failures.length
     });
   } catch (error) {
     console.error("Error in notify route:", error);
