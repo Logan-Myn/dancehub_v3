@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
 import NotificationsButton from "@/components/NotificationsButton";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
 import { createClient } from "@/lib/supabase/client";
 
 interface Profile {
@@ -16,10 +16,9 @@ interface Profile {
 }
 
 export default function Navbar() {
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [initialTab, setInitialTab] = useState<"signin" | "signup">("signin");
   const [profile, setProfile] = useState<Profile | null>(null);
   const { user } = useAuth();
+  const { showAuthModal } = useAuthModal();
   const supabase = createClient();
 
   useEffect(() => {
@@ -40,50 +39,37 @@ export default function Navbar() {
     fetchProfile();
   }, [user]);
 
-  const handleAuthClick = (tab: "signin" | "signup") => {
-    setInitialTab(tab);
-    setShowAuthModal(true);
-  };
-
   return (
-    <>
-      <nav className="border-b py-4 px-6">
-        <div className="container mx-auto flex justify-between items-center">
-          <Link href="/" className="text-xl font-bold">
-            DanceHub
-          </Link>
+    <nav className="border-b py-4 px-6">
+      <div className="container mx-auto flex justify-between items-center">
+        <Link href="/" className="text-xl font-bold">
+          DanceHub
+        </Link>
 
-          <div className="flex gap-4 items-center">
-            {user ? (
-              <>
-                <Link href="/dashboard">
-                  <Button variant="ghost">Dashboard</Button>
-                </Link>
-                <NotificationsButton />
-                <UserAccountNav user={user} profile={profile} />
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  onClick={() => handleAuthClick("signin")}
-                >
-                  Sign In
-                </Button>
-                <Button onClick={() => handleAuthClick("signup")}>
-                  Sign Up
-                </Button>
-              </>
-            )}
-          </div>
+        <div className="flex gap-4 items-center">
+          {user ? (
+            <>
+              <Link href="/dashboard">
+                <Button variant="ghost">Dashboard</Button>
+              </Link>
+              <NotificationsButton />
+              <UserAccountNav user={user} profile={profile} />
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => showAuthModal("signin")}
+              >
+                Sign In
+              </Button>
+              <Button onClick={() => showAuthModal("signup")}>
+                Sign Up
+              </Button>
+            </>
+          )}
         </div>
-      </nav>
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        initialTab={initialTab}
-      />
-    </>
+      </div>
+    </nav>
   );
 }

@@ -8,6 +8,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
 import Navbar from "@/app/components/Navbar";
 
 interface Community {
@@ -25,6 +26,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
   const { user } = useAuth();
+  const { showAuthModal } = useAuthModal();
 
   useEffect(() => {
     async function fetchCommunities() {
@@ -64,6 +66,13 @@ export default function Home() {
     fetchCommunities();
   }, []);
 
+  const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!user) {
+      e.preventDefault();
+      showAuthModal("signup");
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -77,6 +86,7 @@ export default function Home() {
             <Link
               href="/community/onboarding"
               className="text-blue-500 hover:underline"
+              onClick={handleCreateCommunity}
             >
               create your own
             </Link>
