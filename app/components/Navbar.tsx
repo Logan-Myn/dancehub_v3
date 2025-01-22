@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 import UserAccountNav from "@/components/UserAccountNav";
+import NotificationsButton from "@/components/NotificationsButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 
@@ -58,6 +59,7 @@ export default function Navbar() {
                 <Link href="/dashboard">
                   <Button variant="ghost">Dashboard</Button>
                 </Link>
+                <NotificationsButton />
                 <UserAccountNav user={user} profile={profile} />
               </>
             ) : (

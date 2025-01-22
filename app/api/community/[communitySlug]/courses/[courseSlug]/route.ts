@@ -176,6 +176,8 @@ export async function POST(
   }
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
@@ -186,7 +188,7 @@ export async function PUT(
     // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id")
+      .select("id, name")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -236,6 +238,39 @@ export async function PUT(
         { error: "Failed to update course" },
         { status: 500 }
       );
+    }
+
+    // If the course was made public, create in-app notifications
+    if (isPublic && !currentCourse.is_public) {
+      // Get all community members
+      const { data: members, error: membersError } = await supabase
+        .from("community_members")
+        .select("user_id")
+        .eq("community_id", community.id);
+
+      if (membersError) {
+        console.error('Error fetching members:', membersError);
+      } else {
+        // Create the course URL
+        const courseUrl = `/community/${params.communitySlug}/classroom/${params.courseSlug}`;
+
+        // Create notifications for all members
+        const { error: notificationsError } = await supabase
+          .from('notifications')
+          .insert(
+            members.map(member => ({
+              user_id: member.user_id,
+              title: `New Course Available: ${title}`,
+              message: `A new course is now available in your community: ${community.name}`,
+              link: courseUrl,
+              type: 'course_published'
+            }))
+          );
+
+        if (notificationsError) {
+          console.error('Error creating notifications:', notificationsError);
+        }
+      }
     }
 
     // Fetch updated course with retries

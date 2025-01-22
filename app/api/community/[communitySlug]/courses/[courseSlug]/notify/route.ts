@@ -73,61 +73,80 @@ export async function POST(
       );
     }
 
-    console.log('Sending emails to members:', profiles.map(p => ({ id: p.id, email: p.email })));
+    console.log('Sending notifications to members:', profiles.map(p => ({ id: p.id, email: p.email })));
 
-    // Send email to each member
-    const emailResults = await Promise.allSettled(profiles.map(async (profile) => {
-      if (!profile.email) return;
+    const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
 
-      const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
-      
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">New Course Available!</h2>
-          <p>Hello ${profile.full_name || 'Member'},</p>
-          <p>A new course is now available in your community: <strong>${community.name}</strong></p>
-          <p style="font-size: 18px; color: #2563eb; margin: 20px 0;">${course.title}</p>
-          <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Course</a>
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
-          </p>
-        </div>
-      `;
+    // Create notifications for each member
+    const notificationPromises = profiles.map(async (profile) => {
+      // Create in-app notification
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: profile.id,
+          title: `New Course Available: ${course.title}`,
+          message: `A new course is now available in your community: ${community.name}`,
+          link: courseUrl,
+          type: 'course_published'
+        });
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: profile.email,
-          subject: `New Course Available: ${course.title}`,
-          html: emailHtml
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to send email to ${profile.email}: ${errorData.error || response.statusText}`);
+      if (notificationError) {
+        console.error(`Error creating notification for user ${profile.id}:`, notificationError);
       }
 
-      return { email: profile.email, success: true };
-    }));
+      // Send email if email is available
+      if (profile.email) {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">New Course Available!</h2>
+            <p>Hello ${profile.full_name || 'Member'},</p>
+            <p>A new course is now available in your community: <strong>${community.name}</strong></p>
+            <p style="font-size: 18px; color: #2563eb; margin: 20px 0;">${course.title}</p>
+            <a href="${courseUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Course</a>
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+              This email was sent from DanceHub. If you don't want to receive these emails, you can manage your notification settings in your account.
+            </p>
+          </div>
+        `;
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: profile.email,
+            subject: `New Course Available: ${course.title}`,
+            html: emailHtml
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to send email to ${profile.email}: ${errorData.error || response.statusText}`);
+        }
+
+        return { email: profile.email, success: true };
+      }
+    });
+
+    // Wait for all notifications to be sent
+    const results = await Promise.allSettled(notificationPromises);
 
     // Check results and log any failures
-    const failures = emailResults.filter(result => result.status === 'rejected');
+    const failures = results.filter(result => result.status === 'rejected');
     if (failures.length > 0) {
-      console.error('Some emails failed to send:', failures);
+      console.error('Some notifications failed to send:', failures);
     }
 
-    const successes = emailResults.filter(result => result.status === 'fulfilled');
-    console.log(`Successfully sent ${successes.length} out of ${emailResults.length} emails`);
+    const successes = results.filter(result => result.status === 'fulfilled');
+    console.log(`Successfully sent ${successes.length} out of ${results.length} notifications`);
 
     return NextResponse.json({
       success: true,
-      totalEmails: emailResults.length,
-      successfulEmails: successes.length,
-      failedEmails: failures.length
+      totalNotifications: results.length,
+      successfulNotifications: successes.length,
+      failedNotifications: failures.length
     });
   } catch (error) {
     console.error("Error in notify route:", error);
