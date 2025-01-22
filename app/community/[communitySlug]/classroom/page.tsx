@@ -180,19 +180,31 @@ export default function ClassroomPage() {
     }
   };
 
-  if (error) {
-    return <div>Error loading classroom: {error.message}</div>;
-  }
-
-  // Show loading state while either auth or data is loading
-  if (isAuthLoading || isLoading || !community) {
+  // Show loading state while checking membership
+  if (isAuthLoading || !membershipChecked) {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
-        <div className="flex-grow flex justify-center items-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
+  }
+
+  // If we're not a member, don't show anything while redirecting
+  if (!isMember) {
+    return null;
+  }
+
+  // Only show loading state for data fetching if we're confirmed as a member
+  if (isLoading || !community) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div>Error loading classroom: {error.message}</div>;
   }
 
   return (
@@ -210,49 +222,41 @@ export default function ClassroomPage() {
             )}
           </div>
 
-          {isMember || isCreator ? (
-            <div>
-              {courses.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {courses.map((course) => (
-                    <Link
-                      key={course.id}
-                      href={`/community/${communitySlug}/classroom/${course.slug}`}
-                    >
-                      <CourseCard
-                        course={course}
-                        onClick={() => {}}
-                      />
-                      {isCreator && !course.is_public && (
-                        <div className="mt-2 text-sm text-gray-500 flex items-center gap-1">
-                          <span className="inline-block w-2 h-2 bg-gray-500 rounded-full"></span>
-                          Private Course
-                        </div>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  {isCreator ? (
-                    <p className="text-xl text-gray-600">
-                      You don't have a course yet, click on the Create Course button to create your first course
-                    </p>
-                  ) : (
-                    <p className="text-xl text-gray-600">
-                      This community doesn't have any public courses yet
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center">
-              <p className="text-xl">
-                You need to be a member of this community to access the courses.
-              </p>
-            </div>
-          )}
+          <div>
+            {courses.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {courses.map((course) => (
+                  <Link
+                    key={course.id}
+                    href={`/community/${communitySlug}/classroom/${course.slug}`}
+                  >
+                    <CourseCard
+                      course={course}
+                      onClick={() => {}}
+                    />
+                    {isCreator && !course.is_public && (
+                      <div className="mt-2 text-sm text-gray-500 flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 bg-gray-500 rounded-full"></span>
+                        Private Course
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                {isCreator ? (
+                  <p className="text-xl text-gray-600">
+                    You don't have a course yet, click on the Create Course button to create your first course
+                  </p>
+                ) : (
+                  <p className="text-xl text-gray-600">
+                    This community doesn't have any public courses yet
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <CreateCourseModal
