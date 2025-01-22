@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
 import PaymentModal from "@/components/PaymentModal";
 
 interface HeroSectionProps {
@@ -56,6 +57,7 @@ export default function HeroSection({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const { user: currentUser } = useAuth();
+  const { showAuthModal } = useAuthModal();
   const supabase = createClient();
 
   const {
@@ -158,7 +160,7 @@ export default function HeroSection({
 
   const handleJoinCommunity = async () => {
     if (!currentUser) {
-      toast.error("Please sign in to join the community");
+      showAuthModal("signup");
       return;
     }
 

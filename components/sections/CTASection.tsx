@@ -20,6 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
+import PaymentModal from "@/components/PaymentModal";
 import toast from "react-hot-toast";
 
 interface CTASectionProps {
@@ -46,6 +49,10 @@ export default function CTASection({
 }: CTASectionProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const { user: currentUser } = useAuth();
+  const { showAuthModal } = useAuthModal();
 
   const {
     attributes,
@@ -73,8 +80,68 @@ export default function CTASection({
   };
 
   const handleJoinCommunity = async () => {
-    if (!communityData?.isMember) {
-      window.location.href = `#join-community`;
+    if (!currentUser) {
+      showAuthModal("signup");
+      return;
+    }
+
+    if (!communityData) {
+      toast.error("Community data not available");
+      return;
+    }
+
+    try {
+      if (
+        communityData.membershipEnabled &&
+        communityData.membershipPrice &&
+        communityData.membershipPrice > 0
+      ) {
+        // Handle paid membership
+        const response = await fetch(
+          `/api/community/${communityData.slug}/join-paid`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              email: currentUser.email,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to create payment");
+        }
+
+        const { clientSecret, stripeAccountId } = await response.json();
+        setPaymentClientSecret(clientSecret);
+        setShowPaymentModal(true);
+      } else {
+        // Handle free membership
+        const response = await fetch(`/api/community/${communityData.slug}/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to join community");
+        }
+
+        // Refresh the page to update all UI states
+        window.location.reload();
+        toast.success("Successfully joined the community!");
+      }
+    } catch (error) {
+      console.error("Error joining community:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to join community"
+      );
     }
   };
 
@@ -273,6 +340,23 @@ export default function CTASection({
           )}
         </div>
       </div>
+
+      {showPaymentModal && paymentClientSecret && communityData && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          clientSecret={paymentClientSecret}
+          stripeAccountId={communityData.stripeAccountId || null}
+          price={communityData.membershipPrice || 0}
+          onSuccess={() => {
+            setShowPaymentModal(false);
+            // Refresh the page to update all UI states
+            window.location.reload();
+            toast.success("Successfully joined the community!");
+          }}
+          communitySlug={communityData.slug}
+        />
+      )}
     </div>
   );
 } 
