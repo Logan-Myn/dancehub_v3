@@ -1,12 +1,21 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Edit2, Trash2, ChevronDown, ChevronUp, Play, FileText, CheckCircle } from "lucide-react";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Play,
+  FileText,
+  CheckCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -201,7 +210,7 @@ interface LessonEditorProps {
 }
 
 function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
-  const [content, setContent] = useState(lesson.content || '');
+  const [content, setContent] = useState(lesson.content || "");
   const [videoAssetId, setVideoAssetId] = useState<string | undefined>(
     lesson.videoAssetId || undefined
   );
@@ -334,7 +343,9 @@ export default function CoursePage() {
 
     async function fetchCourse() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         console.log("Fetching course:", {
           communitySlug,
           courseSlug,
@@ -346,11 +357,11 @@ export default function CoursePage() {
           {
             headers: {
               Authorization: `Bearer ${session?.access_token}`,
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
             },
-            cache: 'no-store',
-            next: { revalidate: 0 }
+            cache: "no-store",
+            next: { revalidate: 0 },
           }
         );
 
@@ -361,7 +372,11 @@ export default function CoursePage() {
             statusText: response.statusText,
             error: errorData,
           });
-          throw new Error(`Failed to fetch course: ${response.status} ${JSON.stringify(errorData)}`);
+          throw new Error(
+            `Failed to fetch course: ${response.status} ${JSON.stringify(
+              errorData
+            )}`
+          );
         }
 
         const courseData = await response.json();
@@ -369,7 +384,7 @@ export default function CoursePage() {
           id: courseData.id,
           title: courseData.title,
           is_public: courseData.is_public,
-          updated_at: courseData.updated_at
+          updated_at: courseData.updated_at,
         });
 
         if (!courseData.id) {
@@ -387,7 +402,6 @@ export default function CoursePage() {
             setSelectedLesson(firstChapter.lessons[0]);
           }
         }
-
       } catch (error) {
         console.error("Error in fetchCourse:", error);
         toast.error("Failed to load course data");
@@ -399,9 +413,9 @@ export default function CoursePage() {
     async function fetchCommunity() {
       try {
         const { data: community, error } = await supabase
-          .from('communities')
-          .select('*')
-          .eq('slug', communitySlug)
+          .from("communities")
+          .select("*")
+          .eq("slug", communitySlug)
           .single();
 
         if (error) throw error;
@@ -453,7 +467,9 @@ export default function CoursePage() {
     if (!title.trim()) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons`,
         {
@@ -510,7 +526,9 @@ export default function CoursePage() {
     if (!currentChapter) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${currentChapter.id}/lessons/${selectedLesson.id}`,
         {
@@ -591,7 +609,9 @@ export default function CoursePage() {
     if (!confirmDelete) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}`,
         {
@@ -634,7 +654,9 @@ export default function CoursePage() {
     if (!confirmDelete) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/${lessonId}`,
         {
@@ -693,44 +715,47 @@ export default function CoursePage() {
         formData.append("image", updates.image);
       }
 
-      console.log('Sending course update:', {
+      console.log("Sending course update:", {
         title: updates.title,
         description: updates.description,
         is_public: updates.is_public,
-        hasImage: !!updates.image
+        hasImage: !!updates.image,
       });
 
-      const response = await fetch(`/api/community/${params.communitySlug}/courses/${params.courseSlug}`, {
-        method: "PUT",
-        body: formData,
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+      const response = await fetch(
+        `/api/community/${params.communitySlug}/courses/${params.courseSlug}`,
+        {
+          method: "PUT",
+          body: formData,
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
         }
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Course update failed:', errorData);
+        console.error("Course update failed:", errorData);
         throw new Error(errorData.error || "Failed to update course");
       }
 
       const { course, madePublic } = await response.json();
-      console.log('Course update response:', {
+      console.log("Course update response:", {
         courseId: course.id,
         title: course.title,
         is_public: course.is_public,
         updated_at: course.updated_at,
-        madePublic
+        madePublic,
       });
-      
+
       // Update local state
       setCourse(course);
-      
+
       // Force a refresh of the data
-      setRefreshTrigger(prev => prev + 1);
-      
+      setRefreshTrigger((prev) => prev + 1);
+
       // Show notification modal if the course was made public
       if (madePublic) {
         setShowNotifyModal(true);
@@ -773,14 +798,14 @@ export default function CoursePage() {
 
     if (active.id !== over.id && !isProcessingRef.current) {
       isProcessingRef.current = true;
-      
+
       try {
-        const chapter = chapters.find(c => c.id === chapterId);
+        const chapter = chapters.find((c) => c.id === chapterId);
         if (!chapter) return;
 
         const lessons = [...chapter.lessons];
-        const oldIndex = lessons.findIndex(lesson => lesson.id === active.id);
-        const newIndex = lessons.findIndex(lesson => lesson.id === over.id);
+        const oldIndex = lessons.findIndex((lesson) => lesson.id === active.id);
+        const newIndex = lessons.findIndex((lesson) => lesson.id === over.id);
 
         // Only update if indices are different
         if (oldIndex === newIndex) return;
@@ -792,28 +817,26 @@ export default function CoursePage() {
         // Update positions based on new order
         const newLessons = lessons.map((lesson, index) => ({
           ...lesson,
-          lesson_position: index
+          lesson_position: index,
         }));
 
         // Update UI state immediately with the new order
-        setChapters(prevChapters => 
-          prevChapters.map(c => 
-            c.id === chapterId 
-              ? { ...c, lessons: newLessons }
-              : c
+        setChapters((prevChapters) =>
+          prevChapters.map((c) =>
+            c.id === chapterId ? { ...c, lessons: newLessons } : c
           )
         );
 
         // Make the API call
         await updateLessonsOrder(chapterId, newLessons);
-        
+
         // Force a refresh of the data from the server
-        setRefreshTrigger(prev => prev + 1);
+        setRefreshTrigger((prev) => prev + 1);
       } catch (error) {
-        console.error('Error in handleLessonDragEnd:', error);
-        toast.error('Failed to update lesson order');
+        console.error("Error in handleLessonDragEnd:", error);
+        toast.error("Failed to update lesson order");
         // On error, force a refresh to get back to the server state
-        setRefreshTrigger(prev => prev + 1);
+        setRefreshTrigger((prev) => prev + 1);
       } finally {
         isProcessingRef.current = false;
       }
@@ -825,7 +848,9 @@ export default function CoursePage() {
 
     try {
       setIsSavingOrder(true);
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/reorder`,
         {
@@ -859,8 +884,10 @@ export default function CoursePage() {
 
     try {
       setIsSavingOrder(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/reorder`,
         {
@@ -875,15 +902,15 @@ export default function CoursePage() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Reorder API error:', errorText);
+        console.error("Reorder API error:", errorText);
         throw new Error("Failed to update lessons order");
       }
 
       const updatedLessons = await response.json();
-      console.log('Received updated lessons from API:', updatedLessons);
+      console.log("Received updated lessons from API:", updatedLessons);
 
       // Force a fresh fetch of the course data
-      setRefreshTrigger(prev => prev + 1);
+      setRefreshTrigger((prev) => prev + 1);
 
       toast.success("Order updated", {
         duration: 2000,
@@ -940,7 +967,11 @@ export default function CoursePage() {
         {/* Video Content */}
         {(selectedLesson.playbackId || selectedLesson.videoAssetId) && (
           <Card className="p-4">
-            <MuxPlayer playbackId={selectedLesson.playbackId || selectedLesson.videoAssetId!} />
+            <MuxPlayer
+              playbackId={
+                selectedLesson.playbackId || selectedLesson.videoAssetId!
+              }
+            />
           </Card>
         )}
 
@@ -950,7 +981,7 @@ export default function CoursePage() {
             <div
               className="prose max-w-none"
               dangerouslySetInnerHTML={{
-                __html: selectedLesson.content || ''
+                __html: selectedLesson.content || "",
               }}
             />
           </Card>
@@ -1068,7 +1099,11 @@ export default function CoursePage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
       <Navbar />
-      <CommunityNavbar communitySlug={communitySlug} activePage="classroom" />
+      <CommunityNavbar 
+        communitySlug={communitySlug} 
+        activePage="classroom" 
+        isMember={true} 
+      />
 
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

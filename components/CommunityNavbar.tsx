@@ -1,74 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from "@/lib/supabase/client";
 
 interface CommunityNavbarProps {
   communitySlug: string;
   activePage: string;
+  isMember: boolean;
 }
 
-export default function CommunityNavbar({ communitySlug, activePage }: CommunityNavbarProps) {
-  const { user } = useAuth();
-  const supabase = createClient();
-  const [isMember, setIsMember] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function checkMembership() {
-      if (!user) {
-        setIsMember(false);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        // Get community ID first
-        const { data: communityData } = await supabase
-          .from("communities")
-          .select("id")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (!communityData) {
-          setIsMember(false);
-          setIsLoading(false);
-          return;
-        }
-
-        // Check membership
-        const { data: memberData } = await supabase
-          .from("community_members")
-          .select("*")
-          .eq("community_id", communityData.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        setIsMember(!!memberData);
-      } catch (error) {
-        console.error("Error checking membership:", error);
-        setIsMember(false);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    checkMembership();
-  }, [user, communitySlug]);
-
+export default function CommunityNavbar({ communitySlug, activePage, isMember }: CommunityNavbarProps) {
   const navItems = [
     { label: "Community", href: `/community/${communitySlug}` },
     { label: "Classroom", href: `/community/${communitySlug}/classroom` },
     { label: "About", href: `/community/${communitySlug}/about` },
   ];
 
-  if (isLoading) {
-    return null;
-  }
-
-  // Hide entire navbar for non-members
   if (!isMember) {
     return null;
   }
