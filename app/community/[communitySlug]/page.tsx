@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Users, ExternalLink } from "lucide-react";
@@ -155,8 +155,9 @@ interface PaymentModalProps {
 
 export default function CommunityPage() {
   const params = useParams();
+  const router = useRouter();
   const communitySlug = params?.communitySlug as string;
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -184,8 +185,64 @@ export default function CommunityPage() {
   );
   const [accessEndDate, setAccessEndDate] = useState<string | null>(null);
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
+  const [membershipChecked, setMembershipChecked] = useState(false);
 
+  // Check membership first
   useEffect(() => {
+    async function checkMembership() {
+      // Wait for auth to be initialized
+      if (isAuthLoading) return;
+
+      // Only redirect if user is definitely not logged in
+      if (!isAuthLoading && !currentUser) {
+        router.replace(`/community/${communitySlug}/about`);
+        return;
+      }
+
+      try {
+        const { data: communityData } = await supabase
+          .from("communities")
+          .select("id")
+          .eq("slug", communitySlug)
+          .single();
+
+        if (!communityData) {
+          notFound();
+          return;
+        }
+
+        // Only proceed with membership check if we have a user
+        if (currentUser) {
+          const { data: memberData } = await supabase
+            .from("community_members")
+            .select("*")
+            .eq("community_id", communityData.id)
+            .eq("user_id", currentUser.id)
+            .maybeSingle();
+
+          setMembershipChecked(true);
+
+          if (!memberData) {
+            router.replace(`/community/${communitySlug}/about`);
+            return;
+          }
+
+          setIsMember(true);
+        }
+      } catch (error) {
+        console.error("Error checking membership:", error);
+        setError(error instanceof Error ? error : new Error("Unknown error"));
+        setMembershipChecked(true);
+      }
+    }
+
+    checkMembership();
+  }, [communitySlug, currentUser, isAuthLoading]);
+
+  // Only fetch data after membership is confirmed
+  useEffect(() => {
+    if (!membershipChecked || !currentUser) return;
+
     async function fetchData() {
       try {
         // Get community data
@@ -297,11 +354,6 @@ export default function CommunityPage() {
         setCommunity(formattedCommunity);
         setMembers(formattedMembers);
         setThreads(formattedThreads);
-        setIsMember(
-          currentUser
-            ? membersData.some((member) => member.user_id === currentUser.id)
-            : false
-        );
         setIsCreator(currentUser?.id === communityData.created_by);
         setTotalMembers(membersData.length);
       } catch (error) {
@@ -312,10 +364,8 @@ export default function CommunityPage() {
       }
     }
 
-    if (communitySlug) {
-      fetchData();
-    }
-  }, [communitySlug, currentUser]);
+    fetchData();
+  }, [communitySlug, currentUser, membershipChecked]);
 
   const handleJoinCommunity = async () => {
     if (!currentUser) {
@@ -636,14 +686,23 @@ export default function CommunityPage() {
     }
   };
 
+  // Show loading state until membership is checked
+  if (!membershipChecked || isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
   if (error) {
     return <div>Error loading community: {error.message}</div>;
   }
 
-  if (isLoading || !community) {
+  if (!community) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div>Community not found</div>
       </div>
     );
   }
