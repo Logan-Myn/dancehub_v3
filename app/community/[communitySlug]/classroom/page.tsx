@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import CourseCard from "@/components/CourseCard";
@@ -32,6 +32,7 @@ interface Course {
 
 export default function ClassroomPage() {
   const params = useParams();
+  const router = useRouter();
   const communitySlug = params?.communitySlug as string;
   const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
@@ -43,11 +44,65 @@ export default function ClassroomPage() {
   const [isMember, setIsMember] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
+  const [membershipChecked, setMembershipChecked] = useState(false);
 
+  // Check membership first
   useEffect(() => {
-    async function fetchData() {
+    async function checkMembership() {
+      // Wait for auth to be initialized
       if (isAuthLoading) return;
-      
+
+      // Only redirect if user is definitely not logged in
+      if (!isAuthLoading && !currentUser) {
+        router.replace(`/community/${communitySlug}/about`);
+        return;
+      }
+
+      try {
+        const { data: communityData } = await supabase
+          .from("communities")
+          .select("id")
+          .eq("slug", communitySlug)
+          .single();
+
+        if (!communityData) {
+          throw new Error("Community not found");
+          return;
+        }
+
+        // Only proceed with membership check if we have a user
+        if (currentUser) {
+          const { data: memberData } = await supabase
+            .from("community_members")
+            .select("*")
+            .eq("community_id", communityData.id)
+            .eq("user_id", currentUser.id)
+            .maybeSingle();
+
+          setMembershipChecked(true);
+
+          if (!memberData) {
+            router.replace(`/community/${communitySlug}/about`);
+            return;
+          }
+
+          setIsMember(true);
+        }
+      } catch (error) {
+        console.error("Error checking membership:", error);
+        setError(error instanceof Error ? error : new Error("Unknown error"));
+        setMembershipChecked(true);
+      }
+    }
+
+    checkMembership();
+  }, [communitySlug, currentUser, isAuthLoading]);
+
+  // Only fetch data after membership is confirmed
+  useEffect(() => {
+    if (!membershipChecked || !currentUser) return;
+
+    async function fetchData() {
       try {
         const response = await fetch(`/api/community/${communitySlug}`);
         if (!response.ok) {
@@ -55,7 +110,7 @@ export default function ClassroomPage() {
         }
         const communityData = await response.json();
 
-        // Check if user is creator first
+        // Check if user is creator
         const isUserCreator = currentUser?.id === communityData.created_by;
 
         // Get courses based on user role
@@ -84,26 +139,8 @@ export default function ClassroomPage() {
 
         if (coursesError) throw coursesError;
 
-        // Check membership if user is logged in
-        let membershipStatus = false;
-        if (currentUser) {
-          const { data: memberData, error: memberError } = await supabase
-            .from("community_members")
-            .select("id")
-            .eq("community_id", communityData.id)
-            .eq("user_id", currentUser.id)
-            .maybeSingle();
-
-          if (memberError) {
-            console.error("Error checking membership:", memberError);
-          }
-
-          membershipStatus = !!memberData;
-        }
-
         setCommunity(communityData);
         setCourses(coursesData || []);
-        setIsMember(membershipStatus);
         setIsCreator(isUserCreator);
       } catch (error) {
         console.error("Error:", error);
@@ -114,7 +151,7 @@ export default function ClassroomPage() {
     }
 
     fetchData();
-  }, [communitySlug, currentUser, isAuthLoading]);
+  }, [communitySlug, currentUser, membershipChecked]);
 
   const handleCreateCourse = async (newCourse: any) => {
     try {
