@@ -1,11 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell } from "lucide-react";
-import { Badge, IconButton, Popper, Paper, Box, Typography, List, ListItem, ListItemText, Button, ClickAwayListener } from "@mui/material";
+import { Bell, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Check } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface Notification {
   id: string;
@@ -19,8 +25,8 @@ interface Notification {
 
 export default function NotificationsButton() {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [open, setOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -91,119 +97,92 @@ export default function NotificationsButton() {
     await fetchNotifications();
   };
 
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(anchorEl ? null : event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const open = Boolean(anchorEl);
-
   return (
-    <ClickAwayListener onClickAway={handleClose}>
-      <div>
-        <IconButton
-          onClick={handleClick}
-          sx={{ color: 'inherit' }}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="relative"
         >
-          <Badge badgeContent={unreadCount} color="error">
-            <Bell className="h-5 w-5" />
-          </Badge>
-        </IconButton>
-
-        <Popper
-          open={open}
-          anchorEl={anchorEl}
-          placement="bottom-end"
-          style={{ zIndex: 1300 }}
-        >
-          <Paper 
-            sx={{ 
-              width: 360, 
-              maxHeight: '80vh',
-              overflow: 'hidden',
-              mt: 1,
-              boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            <Box 
-              sx={{ 
-                p: 2, 
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+              {unreadCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent 
+        className="w-80 p-0" 
+        align="end"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-2">
+          <h3 className="font-semibold">Notifications</h3>
+          {unreadCount > 0 && (
+            <Button
+              onClick={handleMarkAllAsRead}
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
             >
-              <Typography variant="h6">Notifications</Typography>
-              {unreadCount > 0 && (
-                <Button
-                  onClick={handleMarkAllAsRead}
-                  startIcon={<Check className="h-4 w-4" />}
-                  size="small"
-                >
-                  Mark all as read
-                </Button>
-              )}
-            </Box>
-
-            <List sx={{ maxHeight: 'calc(80vh - 60px)', overflow: 'auto' }}>
-              {notifications.length === 0 ? (
-                <Box textAlign="center" py={4}>
-                  <Typography color="textSecondary">
-                    No notifications yet
-                  </Typography>
-                </Box>
-              ) : (
-                notifications.map((notification) => (
-                  <ListItem
+              <Check className="h-4 w-4 mr-1" />
+              Mark all as read
+            </Button>
+          )}
+        </div>
+        <ScrollArea className="h-[300px] overflow-y-auto">
+          <div className="px-1">
+            {notifications.length === 0 ? (
+              <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
+                No notifications yet
+              </div>
+            ) : (
+              <div className="divide-y">
+                {notifications.map((notification) => (
+                  <div
                     key={notification.id}
-                    sx={{
-                      backgroundColor: notification.read ? 'transparent' : 'action.hover',
-                      '&:hover': {
-                        backgroundColor: 'action.selected',
-                      },
-                      borderBottom: '1px solid',
-                      borderColor: 'divider'
-                    }}
-                    secondaryAction={
-                      !notification.read && (
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleMarkAsRead(notification.id)}
-                          size="small"
-                        >
-                          <Check className="h-4 w-4" />
-                        </IconButton>
-                      )
-                    }
+                    className={cn(
+                      "flex items-start gap-4 p-4 hover:bg-muted/50 relative",
+                      notification.read ? "bg-background" : "bg-muted/30"
+                    )}
                   >
-                    <ListItemText
-                      primary={
-                        <Box component="a" href={notification.link || '#'} sx={{ textDecoration: 'none', color: 'inherit' }}>
-                          {notification.title}
-                        </Box>
-                      }
-                      secondary={
-                        <>
-                          {notification.message}
-                          <br />
-                          <Typography variant="caption" color="textSecondary">
-                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                          </Typography>
-                        </>
-                      }
-                    />
-                  </ListItem>
-                ))
-              )}
-            </List>
-          </Paper>
-        </Popper>
-      </div>
-    </ClickAwayListener>
+                    <div className="flex-1 space-y-1">
+                      <a
+                        href={notification.link || '#'}
+                        className="text-sm font-medium leading-none hover:underline"
+                        onClick={(e) => {
+                          if (!notification.link) e.preventDefault();
+                          setOpen(false);
+                        }}
+                      >
+                        {notification.title}
+                      </a>
+                      <p className="text-sm text-muted-foreground">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                    {!notification.read && (
+                      <Button
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 } 
