@@ -50,6 +50,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MuxPlayer } from "@/components/MuxPlayer";
 import EditCourseModal from "@/components/EditCourseModal";
 import NotifyMembersModal from "@/components/NotifyMembersModal";
+import DeleteLessonModal from "@/components/DeleteLessonModal";
 
 interface Chapter {
   id: string;
@@ -310,6 +311,7 @@ export default function CoursePage() {
   const [isEditingCourse, setIsEditingCourse] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [lessonToDelete, setLessonToDelete] = useState<{ chapterId: string; lessonId: string; title: string } | null>(null);
 
   const { user } = useAuth();
   const supabase = createClient();
@@ -709,18 +711,19 @@ export default function CoursePage() {
     }
   };
 
-  const handleDeleteLesson = async (chapterId: string, lessonId: string) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this lesson? This action cannot be undone."
-    );
-    if (!confirmDelete) return;
+  const handleDeleteLesson = async (chapterId: string, lessonId: string, lessonTitle: string) => {
+    setLessonToDelete({ chapterId, lessonId, title: lessonTitle });
+  };
+
+  const confirmDeleteLesson = async () => {
+    if (!lessonToDelete) return;
 
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       const response = await fetch(
-        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/${lessonId}`,
+        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${lessonToDelete.chapterId}/lessons/${lessonToDelete.lessonId}`,
         {
           method: "DELETE",
           headers: {
@@ -735,11 +738,11 @@ export default function CoursePage() {
 
       setChapters((prevChapters) =>
         prevChapters.map((chapter) =>
-          chapter.id === chapterId
+          chapter.id === lessonToDelete.chapterId
             ? {
                 ...chapter,
                 lessons: chapter.lessons.filter(
-                  (lesson) => lesson.id !== lessonId
+                  (lesson) => lesson.id !== lessonToDelete.lessonId
                 ),
               }
             : chapter
@@ -747,7 +750,7 @@ export default function CoursePage() {
       );
 
       // If the deleted lesson was selected, clear the selection
-      if (selectedLesson?.id === lessonId) {
+      if (selectedLesson?.id === lessonToDelete.lessonId) {
         setSelectedLesson(null);
       }
 
@@ -755,6 +758,8 @@ export default function CoursePage() {
     } catch (error) {
       console.error("Error deleting lesson:", error);
       toast.error("Failed to delete lesson");
+    } finally {
+      setLessonToDelete(null);
     }
   };
 
@@ -1277,7 +1282,8 @@ export default function CoursePage() {
                                                 onClick={() =>
                                                   handleDeleteLesson(
                                                     chapter.id,
-                                                    lesson.id
+                                                    lesson.id,
+                                                    lesson.title
                                                   )
                                                 }
                                                 size="sm"
@@ -1408,7 +1414,11 @@ export default function CoursePage() {
                               <div className="flex gap-2">
                                 <Button
                                   onClick={() =>
-                                    handleDeleteLesson(chapter.id, lesson.id)
+                                    handleDeleteLesson(
+                                      chapter.id,
+                                      lesson.id,
+                                      lesson.title
+                                    )
                                   }
                                   size="sm"
                                   variant="ghost"
@@ -1491,6 +1501,13 @@ export default function CoursePage() {
         courseName={course?.title || ""}
         communitySlug={String(params.communitySlug)}
         courseSlug={String(params.courseSlug)}
+      />
+
+      <DeleteLessonModal
+        isOpen={!!lessonToDelete}
+        onClose={() => setLessonToDelete(null)}
+        onConfirm={confirmDeleteLesson}
+        lessonTitle={lessonToDelete?.title || ""}
       />
     </div>
   );
