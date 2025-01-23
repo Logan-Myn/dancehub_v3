@@ -1004,12 +1004,6 @@ export default function CoursePage() {
               {selectedLesson.title}
             </h2>
             <div className="flex items-center gap-2 text-sm text-gray-500">
-              {selectedLesson.videoAssetId && (
-                <div className="flex items-center gap-1">
-                  <Play className="w-4 h-4" />
-                  <span>Video lesson</span>
-                </div>
-              )}
               {selectedLesson.content && (
                 <div className="flex items-center gap-1">
                   <FileText className="w-4 h-4" />

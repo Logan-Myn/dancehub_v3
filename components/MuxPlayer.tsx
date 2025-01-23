@@ -12,9 +12,6 @@ export function MuxPlayer({ playbackId }: MuxPlayerProps) {
       <MuxPlayerComponent
         streamType="on-demand"
         playbackId={playbackId}
-        metadata={{
-          video_title: "Lesson Video",
-        }}
         preload="auto"
         maxResolution="720p"
         onError={(error) => {
