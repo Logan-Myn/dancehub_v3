@@ -15,7 +15,6 @@ export function MuxPlayer({ playbackId }: MuxPlayerProps) {
         metadata={{
           video_title: "Lesson Video",
         }}
-        autoPlay="muted"
         preload="auto"
         maxResolution="720p"
         onError={(error) => {
