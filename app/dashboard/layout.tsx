@@ -11,7 +11,6 @@ import Navbar from "@/app/components/Navbar";
 
 const navItems = [
   { name: "Overview", icon: Home, href: "/dashboard" },
-  { name: "My Communities", icon: Users, href: "/dashboard/communities" },
   { name: "Settings", icon: Settings, href: "/dashboard/settings" },
 ];
 
