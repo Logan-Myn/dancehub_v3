@@ -1249,42 +1249,6 @@ export default function CoursePage() {
 
                             {expandedChapters[chapter.id] && (
                               <>
-                                {isAddingLesson === chapter.id && (
-                                  <div className="ml-6 mb-2 p-2 bg-gray-50 rounded-md">
-                                    <Input
-                                      value={newLessonTitle}
-                                      onChange={(e) =>
-                                        setNewLessonTitle(e.target.value)
-                                      }
-                                      placeholder="Lesson title"
-                                      className="mb-2"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button
-                                        onClick={() =>
-                                          handleAddLesson(
-                                            chapter.id,
-                                            newLessonTitle
-                                          )
-                                        }
-                                        size="sm"
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button
-                                        onClick={() => {
-                                          setIsAddingLesson(null);
-                                          setNewLessonTitle("");
-                                        }}
-                                        variant="outline"
-                                        size="sm"
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-
                                 <DndContext
                                   sensors={sensors}
                                   collisionDetection={closestCenter}
@@ -1338,6 +1302,57 @@ export default function CoursePage() {
                                     </ul>
                                   </SortableContext>
                                 </DndContext>
+
+                                {/* Add Lesson form at the bottom */}
+                                {isCreator && isEditMode && (
+                                  <div className="ml-6 mt-2">
+                                    {isAddingLesson === chapter.id ? (
+                                      <div className="p-2 bg-gray-50 rounded-md">
+                                        <Input
+                                          value={newLessonTitle}
+                                          onChange={(e) =>
+                                            setNewLessonTitle(e.target.value)
+                                          }
+                                          placeholder="Lesson title"
+                                          className="mb-2"
+                                        />
+                                        <div className="flex gap-2">
+                                          <Button
+                                            onClick={() =>
+                                              handleAddLesson(
+                                                chapter.id,
+                                                newLessonTitle
+                                              )
+                                            }
+                                            size="sm"
+                                          >
+                                            Save
+                                          </Button>
+                                          <Button
+                                            onClick={() => {
+                                              setIsAddingLesson(null);
+                                              setNewLessonTitle("");
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        onClick={() => setIsAddingLesson(chapter.id)}
+                                        size="sm"
+                                        variant="ghost"
+                                        className="w-full text-blue-500 hover:text-blue-600"
+                                      >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Add Lesson
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
                               </>
                             )}
                           </div>
