@@ -15,6 +15,7 @@ import {
   Play,
   FileText,
   CheckCircle,
+  CheckCircle2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
@@ -227,7 +228,7 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
       await onSave({
         content,
         videoAssetId: assetId,
-        playbackId: playbackId
+        playbackId: playbackId,
       });
       toast.success("Video uploaded successfully");
     } catch (error) {
@@ -615,7 +616,7 @@ export default function CoursePage() {
             title: selectedLesson.title,
             content: lessonData.content,
             videoAssetId: lessonData.videoAssetId,
-            playbackId: lessonData.playbackId
+            playbackId: lessonData.playbackId,
           }),
         }
       );
@@ -1005,6 +1006,52 @@ export default function CoursePage() {
     }
   };
 
+  const toggleLessonCompletion = async (lessonId: string) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${selectedLesson?.chapter_id}/lessons/${lessonId}/completion`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle completion status');
+      }
+
+      const { completed } = await response.json();
+
+      // Update the chapters state with the new completion status
+      setChapters(prevChapters =>
+        prevChapters.map(chapter => ({
+          ...chapter,
+          lessons: chapter.lessons.map(lesson =>
+            lesson.id === lessonId
+              ? { ...lesson, completed }
+              : lesson
+          ),
+        }))
+      );
+
+      // Update selected lesson if it's the one being toggled
+      if (selectedLesson?.id === lessonId) {
+        setSelectedLesson(prev => prev ? { ...prev, completed } : null);
+      }
+
+      toast.success(completed ? 'Lesson marked as completed' : 'Lesson marked as incomplete');
+    } catch (error) {
+      console.error('Error toggling lesson completion:', error);
+      toast.error('Failed to update lesson status');
+    }
+  };
+
   const renderLessonContent = (): JSX.Element => {
     if (!selectedLesson) {
       return (
@@ -1031,20 +1078,22 @@ export default function CoursePage() {
               )}
             </div>
           </div>
-          {selectedLesson.completed && (
-            <div className="flex items-center gap-2 text-green-500">
-              <CheckCircle className="w-5 h-5" />
-              <span>Completed</span>
-            </div>
-          )}
+          <Button
+            variant={selectedLesson.completed ? "default" : "outline"}
+            onClick={() => toggleLessonCompletion(selectedLesson.id)}
+            className={`flex items-center gap-2 ${
+              selectedLesson.completed ? 'bg-green-500 hover:bg-green-600 text-white' : ''
+            }`}
+          >
+            <CheckCircle2 className={`w-5 h-5 ${selectedLesson.completed ? 'text-white' : 'text-gray-400'}`} />
+            {selectedLesson.completed ? 'Completed' : 'Mark as Complete'}
+          </Button>
         </div>
 
         {/* Video Content */}
         {selectedLesson.playbackId && (
           <Card className="p-4">
-            <MuxPlayer
-              playbackId={selectedLesson.playbackId}
-            />
+            <MuxPlayer playbackId={selectedLesson.playbackId} />
           </Card>
         )}
 

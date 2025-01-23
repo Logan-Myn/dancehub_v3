@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { slugify } from "@/lib/utils";
+import { headers } from "next/headers";
 
 const supabase = createAdminClient();
 
@@ -32,7 +33,7 @@ export async function GET(
     console.log("GET Course request params:", {
       communitySlug: params.communitySlug,
       courseSlug: params.courseSlug,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Get community
@@ -46,7 +47,7 @@ export async function GET(
       console.error("Error fetching community:", {
         error: communityError,
         slug: params.communitySlug,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
       return NextResponse.json(
         { error: "Community not found" },
@@ -57,7 +58,7 @@ export async function GET(
     console.log("Found community:", {
       id: community.id,
       slug: params.communitySlug,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Get course with retries to ensure consistency
@@ -69,13 +70,15 @@ export async function GET(
       console.log(`Attempt ${attempts + 1} to fetch course`);
       const { data: fetchedCourse, error: courseError } = await supabase
         .from("courses")
-        .select(`
+        .select(
+          `
           *,
           chapters(
             *,
             lessons(*)
           )
-        `)
+        `
+        )
         .eq("community_id", community.id)
         .eq("slug", params.courseSlug)
         .single();
@@ -84,7 +87,7 @@ export async function GET(
         console.error(`Attempt ${attempts + 1} failed:`, {
           error: courseError,
           communityId: community.id,
-          courseSlug: params.courseSlug
+          courseSlug: params.courseSlug,
         });
       }
 
@@ -95,22 +98,47 @@ export async function GET(
         console.log("Chapters data:", JSON.stringify(course.chapters, null, 2));
         if (course.chapters) {
           course.chapters.forEach((chapter: Chapter, i: number) => {
-            console.log(`Chapter ${i + 1} lessons:`, JSON.stringify(chapter.lessons, null, 2));
+            console.log(
+              `Chapter ${i + 1} lessons:`,
+              JSON.stringify(chapter.lessons, null, 2)
+            );
           });
         }
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       attempts++;
     }
 
     if (!course) {
       console.error("Failed to fetch course after multiple attempts");
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    // Get user from auth header
+    const headersList = headers();
+    const authHeader = headersList.get('authorization');
+    let userId = null;
+
+    if (authHeader) {
+      const { data: { user } } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
       );
+      userId = user?.id;
+    }
+
+    // If user is authenticated, fetch completion status
+    let completedLessonIds = new Set<string>();
+    if (userId) {
+      const { data: completions } = await supabase
+        .from('lesson_completions')
+        .select('lesson_id')
+        .eq('user_id', userId);
+      
+      if (completions) {
+        completedLessonIds = new Set(completions.map(c => c.lesson_id));
+      }
     }
 
     // Transform the data to ensure video fields are included
@@ -121,22 +149,25 @@ export async function GET(
         lessons: chapter.lessons?.map((lesson: Lesson) => ({
           ...lesson,
           videoAssetId: lesson.video_asset_id,
-          playbackId: lesson.playback_id
+          playbackId: lesson.playback_id,
+          completed: completedLessonIds.has(lesson.id)
         })) || []
       })) || []
     };
 
     // Log the final transformed data
-    console.log("Transformed course data:", JSON.stringify(transformedCourse, null, 2));
+    console.log(
+      "Transformed course data:",
+      JSON.stringify(transformedCourse, null, 2)
+    );
 
     return NextResponse.json(transformedCourse, {
       headers: {
-        'Cache-Control': 'no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
+        "Cache-Control": "no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
     });
-
   } catch (error) {
     console.error("Error in GET course route:", error);
     return NextResponse.json(
@@ -235,7 +266,7 @@ export async function POST(
   }
 }
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function PUT(
   request: Request,
@@ -269,10 +300,7 @@ export async function PUT(
 
     if (courseError || !currentCourse) {
       console.error("Error fetching course:", courseError);
-      return NextResponse.json(
-        { error: "Course not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     const formData = await request.formData();
@@ -287,7 +315,7 @@ export async function PUT(
         title,
         description,
         is_public: isPublic,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq("id", currentCourse.id);
 
@@ -309,7 +337,7 @@ export async function PUT(
         .neq("user_id", community.created_by); // Exclude the creator
 
       if (membersError) {
-        console.error('Error fetching members:', membersError);
+        console.error("Error fetching members:", membersError);
       } else {
         // Create the course URL
         const courseUrl = `/community/${params.communitySlug}/classroom/${params.courseSlug}`;
@@ -317,19 +345,19 @@ export async function PUT(
         // Create notifications for all members except creator
         if (members && members.length > 0) {
           const { error: notificationsError } = await supabase
-            .from('notifications')
+            .from("notifications")
             .insert(
-              members.map(member => ({
+              members.map((member) => ({
                 user_id: member.user_id,
                 title: `New Course Available: ${title}`,
                 message: `A new course is now available in your community: ${community.name}`,
                 link: courseUrl,
-                type: 'course_published'
+                type: "course_published",
               }))
             );
 
           if (notificationsError) {
-            console.error('Error creating notifications:', notificationsError);
+            console.error("Error creating notifications:", notificationsError);
           }
         }
       }
@@ -347,12 +375,16 @@ export async function PUT(
         .eq("id", currentCourse.id)
         .single();
 
-      if (!fetchError && fetchedCourse && fetchedCourse.is_public === isPublic) {
+      if (
+        !fetchError &&
+        fetchedCourse &&
+        fetchedCourse.is_public === isPublic
+      ) {
         updatedCourse = fetchedCourse;
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       attempts++;
     }
 
@@ -370,20 +402,22 @@ export async function PUT(
       title: updatedCourse.title,
       is_public: updatedCourse.is_public,
       updated_at: updatedCourse.updated_at,
-      fetch_time: new Date().toISOString()
+      fetch_time: new Date().toISOString(),
     });
 
-    return NextResponse.json({
-      course: updatedCourse,
-      madePublic: isPublic && !currentCourse.is_public
-    }, {
-      headers: {
-        'Cache-Control': 'no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+    return NextResponse.json(
+      {
+        course: updatedCourse,
+        madePublic: isPublic && !currentCourse.is_public,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
       }
-    });
-
+    );
   } catch (error) {
     console.error("Error in PUT course route:", error);
     return NextResponse.json(
