@@ -130,7 +130,9 @@ export default function ThreadModal({
 }: ThreadModalProps) {
   const { user } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
-  const isLiked = user ? thread.likes?.includes(user.id) : false;
+  const [localLikesCount, setLocalLikesCount] = useState(thread.likes_count);
+  const [localLikes, setLocalLikes] = useState(thread.likes || []);
+  const isLiked = user ? localLikes.includes(user.id) : false;
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -145,6 +147,12 @@ export default function ThreadModal({
   useEffect(() => {
     setLocalComments(thread.comments || []);
   }, [thread.comments]);
+
+  // Update local state when thread changes
+  useEffect(() => {
+    setLocalLikesCount(thread.likes_count);
+    setLocalLikes(thread.likes || []);
+  }, [thread.likes_count, thread.likes]);
 
   const iconConfig = CATEGORY_ICONS.find(
     (i) => i.label === thread.category_type
@@ -185,7 +193,14 @@ export default function ThreadModal({
       }
 
       const data = await response.json();
-      onLikeUpdate(thread.id, data.likes_count, data.liked);
+      // Update the thread's likes count in the parent component
+      onLikeUpdate(thread.id, data.likesCount, data.liked);
+      // Update local state
+      setLocalLikesCount(data.likesCount);
+      setLocalLikes(data.liked 
+        ? [...localLikes, user.id]
+        : localLikes.filter(id => id !== user.id)
+      );
     } catch (error) {
       console.error("Error liking thread:", error);
       if (error instanceof Error && error.message.includes("session")) {
@@ -701,7 +716,7 @@ export default function ThreadModal({
                 <ThumbsUp
                   className={`h-5 w-5 ${isLiking ? "animate-pulse" : ""}`}
                 />
-                <span>{thread.likes_count}</span>
+                <span>{localLikesCount}</span>
               </button>
               <button className="flex items-center space-x-1 hover:text-gray-700">
                 <MessageSquare className="h-5 w-5" />
