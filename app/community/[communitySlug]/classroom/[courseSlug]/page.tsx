@@ -466,6 +466,16 @@ export default function CoursePage() {
     [key: string]: boolean;
   }>({});
 
+  // Set initial expanded state for first chapter
+  useEffect(() => {
+    if (chapters.length > 0) {
+      setExpandedChapters(prev => ({
+        ...prev,
+        [chapters[0].id]: true
+      }));
+    }
+  }, [chapters]);
+
   const [isDragging, setIsDragging] = useState(false);
 
   const sensors = useSensors(
