@@ -3,14 +3,25 @@ import { createAdminClient } from "@/lib/supabase";
 
 export async function PUT(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
+  {
+    params,
+  }: {
+    params: {
+      communitySlug: string;
+      courseSlug: string;
+      chapterId: string;
+      lessonId: string;
+    };
+  }
 ) {
   const supabase = createAdminClient();
-  
+
   try {
     console.log("Updating lesson with params:", params);
-    const { title, content, videoAssetId } = await request.json();
-    console.log("Update data received:", { title, content, videoAssetId });
+    const body = await request.json();
+    console.log("Raw request body:", body);
+    const { title, content, videoAssetId, playbackId } = body;
+    console.log("Parsed update data:", { title, content, videoAssetId, playbackId });
 
     // First, verify the community exists and get its ID
     const { data: community, error: communityError } = await supabase
@@ -20,7 +31,10 @@ export async function PUT(
       .single();
 
     if (communityError || !community) {
-      return NextResponse.json({ error: "Community not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
     // Get the course ID
@@ -54,12 +68,10 @@ export async function PUT(
 
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
-    if (videoAssetId !== undefined) {
-      updateData.video_asset_id = videoAssetId;
-      updateData.playback_id = videoAssetId; // Use the same ID for playback
-    }
+    if (videoAssetId !== undefined) updateData.video_asset_id = videoAssetId;
+    if (playbackId !== undefined) updateData.playback_id = playbackId;
 
-    console.log("Final update data:", updateData);
+    console.log("Final update data to be sent to Supabase:", updateData);
 
     // Update the lesson
     const { data: updatedLesson, error: updateError } = await supabase
@@ -75,6 +87,8 @@ export async function PUT(
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
+    console.log("Lesson after update:", updatedLesson);
+
     // Transform the response for frontend compatibility
     const transformedLesson = {
       ...updatedLesson,
@@ -83,7 +97,7 @@ export async function PUT(
       playbackId: updatedLesson.playback_id,
     };
 
-    console.log("Updated lesson data:", transformedLesson);
+    console.log("Transformed lesson data:", transformedLesson);
 
     return NextResponse.json(transformedLesson);
   } catch (error) {
@@ -97,10 +111,19 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string; lessonId: string } }
+  {
+    params,
+  }: {
+    params: {
+      communitySlug: string;
+      courseSlug: string;
+      chapterId: string;
+      lessonId: string;
+    };
+  }
 ) {
   const supabase = createAdminClient();
-  
+
   try {
     // Verify auth token
     const authHeader = request.headers.get("Authorization");
@@ -109,7 +132,10 @@ export async function DELETE(
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -123,7 +149,10 @@ export async function DELETE(
       .single();
 
     if (communityError || !community) {
-      return NextResponse.json({ error: "Community not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
     }
 
     // Verify user is community creator
@@ -164,7 +193,10 @@ export async function DELETE(
 
     if (deleteError) {
       console.error("Error deleting lesson:", deleteError);
-      return NextResponse.json({ error: "Failed to delete lesson" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to delete lesson" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ message: "Lesson deleted successfully" });
@@ -175,4 +207,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

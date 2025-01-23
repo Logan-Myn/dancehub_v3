@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useRef } from "react";
 import { Upload, X } from "lucide-react";
@@ -8,11 +8,14 @@ import { toast } from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 
 interface VideoUploadProps {
-  onUploadComplete: (assetId: string) => void;
+  onUploadComplete: (assetId: string, playbackId: string) => void;
   onUploadError: (error: string) => void;
 }
 
-export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUploadProps) {
+export default function VideoUpload({
+  onUploadComplete,
+  onUploadError,
+}: VideoUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -26,21 +29,23 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
       setUploadProgress(0);
 
       // Get session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
-        throw new Error('Authentication required');
+        throw new Error("Authentication required");
       }
 
       // Get upload URL
-      const response = await fetch('/api/mux/upload-url', {
-        method: 'POST',
+      const response = await fetch("/api/mux/upload-url", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get upload URL');
+        throw new Error("Failed to get upload URL");
       }
 
       const { uploadId, uploadUrl } = await response.json();
@@ -49,14 +54,14 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
       const uploadPromise = new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
-        xhr.upload.addEventListener('progress', (event) => {
+        xhr.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) {
             const progress = Math.round((event.loaded / event.total) * 100);
             setUploadProgress(progress);
           }
         });
 
-        xhr.addEventListener('load', () => {
+        xhr.addEventListener("load", () => {
           // 204 is success for Mux uploads
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
@@ -65,11 +70,11 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
           }
         });
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
+        xhr.addEventListener("error", () => {
+          reject(new Error("Network error during upload"));
         });
 
-        xhr.open('PUT', uploadUrl);
+        xhr.open("PUT", uploadUrl);
         xhr.send(file);
       });
 
@@ -84,48 +89,53 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
 
       const pollAsset = async (): Promise<any> => {
         if (attempts >= maxAttempts) {
-          throw new Error('Timeout waiting for asset to be ready');
+          throw new Error("Timeout waiting for asset to be ready");
         }
 
         try {
           const assetResponse = await fetch(`/api/mux/assets/${uploadId}`, {
             headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
+              Authorization: `Bearer ${session.access_token}`,
+            },
           });
 
           if (!assetResponse.ok) {
-            throw new Error('Failed to check asset status');
+            throw new Error("Failed to check asset status");
           }
 
           const asset = await assetResponse.json();
-          console.log('Asset status:', asset.status); // Debug log
+          console.log("Mux asset response:", {
+            id: asset.id,
+            playbackId: asset.playbackId,
+            status: asset.status,
+            uploadId
+          });
 
-          if (asset.status === 'ready') {
+          if (asset.status === "ready") {
             return asset;
           }
 
           // If not ready, wait and try again
           attempts++;
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
           return pollAsset();
         } catch (error) {
-          console.error('Error polling asset:', error);
+          console.error("Error polling asset:", error);
           throw error;
         }
       };
 
       // Start polling for asset readiness
       const readyAsset = await pollAsset();
-      onUploadComplete(readyAsset.playbackId);
+      onUploadComplete(readyAsset.id, readyAsset.playbackId);
       setIsUploading(false);
       setSelectedFile(null);
-      toast.success('Video uploaded successfully!');
+      toast.success("Video uploaded successfully!");
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error("Upload error:", error);
       setIsUploading(false);
       setSelectedFile(null);
-      onUploadError(error instanceof Error ? error.message : 'Upload failed');
+      onUploadError(error instanceof Error ? error.message : "Upload failed");
     }
   };
 
@@ -153,8 +163,9 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
 
     const file = e.dataTransfer.files[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) { // 500MB limit
-        toast.error('File size must be less than 500MB');
+      if (file.size > 500 * 1024 * 1024) {
+        // 500MB limit
+        toast.error("File size must be less than 500MB");
         return;
       }
       setSelectedFile(file);
@@ -165,8 +176,9 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) { // 500MB limit
-        toast.error('File size must be less than 500MB');
+      if (file.size > 500 * 1024 * 1024) {
+        // 500MB limit
+        toast.error("File size must be less than 500MB");
         return;
       }
       setSelectedFile(file);
@@ -213,9 +225,7 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
               browse
             </button>
           </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Maximum file size: 500MB
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Maximum file size: 500MB</p>
         </div>
       </div>
 
@@ -229,10 +239,12 @@ export default function VideoUpload({ onUploadComplete, onUploadError }: VideoUp
         <div className="mt-4 space-y-2">
           <Progress value={uploadProgress} className="w-full" />
           <div className="text-sm text-gray-500">
-            {uploadProgress === 100 ? 'Processing...' : `Uploading... ${uploadProgress}%`}
+            {uploadProgress === 100
+              ? "Processing..."
+              : `Uploading... ${uploadProgress}%`}
           </div>
         </div>
       )}
     </div>
   );
-} 
+}

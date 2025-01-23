@@ -47,7 +47,7 @@ export async function getMuxAsset(uploadId: string) {
     }
 
     return {
-      id: asset.id,
+      id: upload.asset_id,
       playbackId,
       status: asset.status,
     };

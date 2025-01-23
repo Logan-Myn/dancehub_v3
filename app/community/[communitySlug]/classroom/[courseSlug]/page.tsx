@@ -206,6 +206,7 @@ interface LessonEditorProps {
   onSave: (lessonData: {
     content: string;
     videoAssetId?: string;
+    playbackId?: string;
   }) => Promise<void>;
   isCreator: boolean;
 }
@@ -221,22 +222,26 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   // Add new function to handle immediate video update
-  const handleVideoUpload = async (assetId: string) => {
-    setVideoAssetId(assetId);
+  const handleVideoUpload = async (assetId: string, playbackId: string) => {
     try {
-      // Save only the video update immediately
-      await onSave({ content, videoAssetId: assetId });
+      console.log("Uploading video with:", { assetId, playbackId });
+      // Save both IDs immediately
+      await onSave({
+        content,
+        videoAssetId: assetId,
+        playbackId: playbackId // Make sure to pass the playbackId
+      });
       toast.success("Video uploaded successfully");
     } catch (error) {
+      console.error("Failed to save video:", error);
       toast.error("Failed to save video");
-      setVideoAssetId(undefined); // Reset if save fails
     }
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave({ content, videoAssetId });
+      await onSave({ content, videoAssetId, playbackId });
       toast.success("Lesson content updated successfully");
     } catch (error) {
       toast.error("Failed to update lesson");
@@ -252,9 +257,10 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Video Content</h3>
             <VideoUpload
-              onUploadComplete={(playbackId) => {
+              onUploadComplete={(assetId, playbackId) => {
+                setVideoAssetId(assetId);
                 setPlaybackId(playbackId);
-                handleVideoUpload(playbackId);
+                handleVideoUpload(assetId, playbackId);
               }}
               onUploadError={(error) => toast.error(error)}
             />
@@ -311,7 +317,11 @@ export default function CoursePage() {
   const [isEditingCourse, setIsEditingCourse] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
-  const [lessonToDelete, setLessonToDelete] = useState<{ chapterId: string; lessonId: string; title: string } | null>(null);
+  const [lessonToDelete, setLessonToDelete] = useState<{
+    chapterId: string;
+    lessonId: string;
+    title: string;
+  } | null>(null);
 
   const { user } = useAuth();
   const supabase = createClient();
@@ -319,7 +329,9 @@ export default function CoursePage() {
   // Wait for auth to be initialized
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setIsAuthChecked(true);
     };
     checkAuth();
@@ -471,9 +483,9 @@ export default function CoursePage() {
   // Set initial expanded state for first chapter
   useEffect(() => {
     if (chapters.length > 0) {
-      setExpandedChapters(prev => ({
+      setExpandedChapters((prev) => ({
         ...prev,
-        [chapters[0].id]: true
+        [chapters[0].id]: true,
       }));
     }
   }, [chapters]);
@@ -581,6 +593,7 @@ export default function CoursePage() {
   const handleUpdateLesson = async (lessonData: {
     content: string;
     videoAssetId?: string;
+    playbackId?: string;
   }) => {
     if (!selectedLesson) return;
 
@@ -590,6 +603,7 @@ export default function CoursePage() {
     if (!currentChapter) return;
 
     try {
+      console.log("Updating lesson with data:", lessonData);
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -605,6 +619,7 @@ export default function CoursePage() {
             title: selectedLesson.title,
             content: lessonData.content,
             videoAssetId: lessonData.videoAssetId,
+            playbackId: lessonData.playbackId // Make sure to include playbackId
           }),
         }
       );
@@ -633,7 +648,7 @@ export default function CoursePage() {
       setSelectedLesson(updatedLesson);
     } catch (error) {
       console.error("Error updating lesson:", error);
-      toast.error("Failed to update lesson");
+      throw error;
     }
   };
 
@@ -711,7 +726,11 @@ export default function CoursePage() {
     }
   };
 
-  const handleDeleteLesson = async (chapterId: string, lessonId: string, lessonTitle: string) => {
+  const handleDeleteLesson = async (
+    chapterId: string,
+    lessonId: string,
+    lessonTitle: string
+  ) => {
     setLessonToDelete({ chapterId, lessonId, title: lessonTitle });
   };
 
@@ -1339,7 +1358,9 @@ export default function CoursePage() {
                                       </div>
                                     ) : (
                                       <Button
-                                        onClick={() => setIsAddingLesson(chapter.id)}
+                                        onClick={() =>
+                                          setIsAddingLesson(chapter.id)
+                                        }
                                         size="sm"
                                         variant="ghost"
                                         className="w-full text-blue-500 hover:text-blue-600"
@@ -1374,9 +1395,7 @@ export default function CoursePage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Button
-                              onClick={() =>
-                                handleDeleteChapter(chapter.id)
-                              }
+                              onClick={() => handleDeleteChapter(chapter.id)}
                               size="sm"
                               variant="ghost"
                               className="text-red-500 hover:text-red-600"
