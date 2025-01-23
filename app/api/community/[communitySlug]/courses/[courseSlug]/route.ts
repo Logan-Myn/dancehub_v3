@@ -5,11 +5,35 @@ import { slugify } from "@/lib/utils";
 
 const supabase = createAdminClient();
 
+interface Lesson {
+  id: string;
+  title: string;
+  content: string | null;
+  video_asset_id: string | null;
+  chapter_id: string;
+  lesson_position: number;
+  [key: string]: any;
+}
+
+interface Chapter {
+  id: string;
+  title: string;
+  chapter_position: number;
+  lessons: Lesson[];
+  [key: string]: any;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
+    console.log("GET Course request params:", {
+      communitySlug: params.communitySlug,
+      courseSlug: params.courseSlug,
+      timestamp: new Date().toISOString()
+    });
+
     // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
@@ -18,12 +42,22 @@ export async function GET(
       .single();
 
     if (communityError || !community) {
-      console.error("Error fetching community:", communityError);
+      console.error("Error fetching community:", {
+        error: communityError,
+        slug: params.communitySlug,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
+
+    console.log("Found community:", {
+      id: community.id,
+      slug: params.communitySlug,
+      timestamp: new Date().toISOString()
+    });
 
     // Get course with retries to ensure consistency
     let course = null;
@@ -31,15 +65,38 @@ export async function GET(
     const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
+      console.log(`Attempt ${attempts + 1} to fetch course`);
       const { data: fetchedCourse, error: courseError } = await supabase
         .from("courses")
-        .select("*")
+        .select(`
+          *,
+          chapters(
+            *,
+            lessons(*)
+          )
+        `)
         .eq("community_id", community.id)
         .eq("slug", params.courseSlug)
         .single();
 
+      if (courseError) {
+        console.error(`Attempt ${attempts + 1} failed:`, {
+          error: courseError,
+          communityId: community.id,
+          courseSlug: params.courseSlug
+        });
+      }
+
       if (!courseError && fetchedCourse) {
         course = fetchedCourse;
+        console.log("Successfully fetched course on attempt", attempts + 1);
+        console.log("Raw course data:", JSON.stringify(course, null, 2));
+        console.log("Chapters data:", JSON.stringify(course.chapters, null, 2));
+        if (course.chapters) {
+          course.chapters.forEach((chapter: Chapter, i: number) => {
+            console.log(`Chapter ${i + 1} lessons:`, JSON.stringify(chapter.lessons, null, 2));
+          });
+        }
         break;
       }
 
@@ -55,22 +112,23 @@ export async function GET(
       );
     }
 
-    // Log the response for debugging
-    console.log("GET Course response:", {
-      id: course.id,
-      title: course.title,
-      is_public: course.is_public,
-      updated_at: course.updated_at,
-      fetch_time: new Date().toISOString()
-    });
+    // Transform the data to ensure video fields are included
+    const transformedCourse = {
+      ...course,
+      chapters: course.chapters?.map((chapter: Chapter) => ({
+        ...chapter,
+        lessons: chapter.lessons?.map((lesson: Lesson) => ({
+          ...lesson,
+          videoAssetId: lesson.video_asset_id,
+          playbackId: lesson.video_asset_id
+        })) || []
+      })) || []
+    };
 
-    return NextResponse.json({
-      id: course.id,
-      title: course.title,
-      description: course.description,
-      is_public: course.is_public,
-      updated_at: course.updated_at
-    }, {
+    // Log the final transformed data
+    console.log("Transformed course data:", JSON.stringify(transformedCourse, null, 2));
+
+    return NextResponse.json(transformedCourse, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
         'Pragma': 'no-cache',
