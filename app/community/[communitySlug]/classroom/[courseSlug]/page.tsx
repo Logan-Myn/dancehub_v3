@@ -224,16 +224,13 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
   // Add new function to handle immediate video update
   const handleVideoUpload = async (assetId: string, playbackId: string) => {
     try {
-      console.log("Uploading video with:", { assetId, playbackId });
-      // Save both IDs immediately
       await onSave({
         content,
         videoAssetId: assetId,
-        playbackId: playbackId // Make sure to pass the playbackId
+        playbackId: playbackId
       });
       toast.success("Video uploaded successfully");
     } catch (error) {
-      console.error("Failed to save video:", error);
       toast.error("Failed to save video");
     }
   };
@@ -603,7 +600,6 @@ export default function CoursePage() {
     if (!currentChapter) return;
 
     try {
-      console.log("Updating lesson with data:", lessonData);
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -619,7 +615,7 @@ export default function CoursePage() {
             title: selectedLesson.title,
             content: lessonData.content,
             videoAssetId: lessonData.videoAssetId,
-            playbackId: lessonData.playbackId // Make sure to include playbackId
+            playbackId: lessonData.playbackId
           }),
         }
       );
@@ -647,7 +643,6 @@ export default function CoursePage() {
       // Update the selected lesson
       setSelectedLesson(updatedLesson);
     } catch (error) {
-      console.error("Error updating lesson:", error);
       throw error;
     }
   };
