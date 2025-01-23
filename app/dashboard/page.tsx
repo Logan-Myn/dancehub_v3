@@ -112,7 +112,7 @@ export default function DashboardPage() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {communities.map((community) => (
               <Link key={community.id} href={`/community/${community.slug}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer h-[300px] flex flex-col hover:-translate-y-1">
                   <div className="aspect-video relative overflow-hidden rounded-t-xl">
                     <img
                       src={community.image_url || '/placeholder.svg'}
@@ -120,10 +120,10 @@ export default function DashboardPage() {
                       className="object-cover w-full h-full"
                     />
                   </div>
-                  <CardContent className="pt-4">
-                    <h3 className="font-semibold mb-2">{community.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2 line-clamp-2">
-                      {community.description}
+                  <CardContent className="flex flex-col flex-grow p-3">
+                    <h3 className="font-semibold text-lg mb-1">{community.name}</h3>
+                    <p className="text-sm text-gray-500 mb-2 flex-grow line-clamp-2">
+                      {community.description || "No description available"}
                     </p>
                     <div className="flex items-center text-sm text-gray-500">
                       <Users className="h-4 w-4 mr-1" />
