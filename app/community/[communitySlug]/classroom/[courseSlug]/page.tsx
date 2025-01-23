@@ -456,13 +456,27 @@ export default function CoursePage() {
         setCourse(courseData);
         setChapters(courseData.chapters || []);
 
-        // Set initial selected lesson
-        if (courseData.chapters?.length > 0) {
-          const firstChapter = courseData.chapters[0];
-          if (firstChapter.lessons?.length > 0) {
-            setSelectedLesson(firstChapter.lessons[0]);
+        // Find the next uncompleted lesson
+        let foundNextLesson = false;
+        let nextLesson = null;
+
+        // Loop through chapters
+        for (const chapter of courseData.chapters || []) {
+          // Loop through lessons in each chapter
+          for (const lesson of chapter.lessons || []) {
+            if (!lesson.completed) {
+              nextLesson = lesson;
+              foundNextLesson = true;
+              break;
+            }
           }
+          if (foundNextLesson) break;
         }
+
+        // If no uncompleted lesson found, select the first lesson
+        // If all lessons are completed, this will show the first lesson
+        setSelectedLesson(nextLesson || (courseData.chapters?.[0]?.lessons?.[0] || null));
+
       } catch (error) {
         console.error("Error in fetchCourse:", error);
         toast.error("Failed to load course data");
