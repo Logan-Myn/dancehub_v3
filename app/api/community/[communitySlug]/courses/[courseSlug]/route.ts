@@ -12,6 +12,7 @@ interface Lesson {
   video_asset_id: string | null;
   chapter_id: string;
   lesson_position: number;
+  playback_id: string | null;
   [key: string]: any;
 }
 
@@ -120,7 +121,7 @@ export async function GET(
         lessons: chapter.lessons?.map((lesson: Lesson) => ({
           ...lesson,
           videoAssetId: lesson.video_asset_id,
-          playbackId: lesson.video_asset_id
+          playbackId: lesson.playback_id
         })) || []
       })) || []
     };

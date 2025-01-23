@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { deleteMuxAsset } from "@/lib/mux";
 
 export async function PUT(
   request: Request,
@@ -175,6 +176,19 @@ export async function DELETE(
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
+    // Get the lesson to check if it has a video before deleting
+    const { data: lesson, error: lessonFetchError } = await supabase
+      .from("lessons")
+      .select("video_asset_id")
+      .eq("id", params.lessonId)
+      .eq("chapter_id", params.chapterId)
+      .single();
+
+    if (!lessonFetchError && lesson?.video_asset_id) {
+      // Delete the video from Mux if it exists
+      await deleteMuxAsset(lesson.video_asset_id);
+    }
+
     // Delete the lesson
     const { error: deleteError } = await supabase
       .from("lessons")
@@ -190,7 +204,7 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ message: "Lesson deleted successfully" });
+    return NextResponse.json({ message: "Lesson and associated video deleted successfully" });
   } catch (error) {
     console.error("Error deleting lesson:", error);
     return NextResponse.json(

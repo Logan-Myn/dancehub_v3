@@ -1040,12 +1040,10 @@ export default function CoursePage() {
         </div>
 
         {/* Video Content */}
-        {(selectedLesson.playbackId || selectedLesson.videoAssetId) && (
+        {selectedLesson.playbackId && (
           <Card className="p-4">
             <MuxPlayer
-              playbackId={
-                selectedLesson.playbackId || selectedLesson.videoAssetId!
-              }
+              playbackId={selectedLesson.playbackId}
             />
           </Card>
         )}

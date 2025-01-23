@@ -55,4 +55,15 @@ export async function getMuxAsset(uploadId: string) {
     console.error('Error getting Mux asset:', error);
     return null;
   }
-} 
+}
+
+// Add new function to delete a Mux asset
+export async function deleteMuxAsset(assetId: string) {
+  try {
+    await Video.assets.delete(assetId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting Mux asset:', error);
+    return false;
+  }
+}
