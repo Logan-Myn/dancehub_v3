@@ -1220,15 +1220,6 @@ export default function CoursePage() {
                                   >
                                     <Button
                                       onClick={() =>
-                                        setIsAddingLesson(chapter.id)
-                                      }
-                                      size="sm"
-                                      variant="ghost"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      onClick={() =>
                                         handleDeleteChapter(chapter.id)
                                       }
                                       size="sm"
@@ -1377,14 +1368,9 @@ export default function CoursePage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Button
-                              onClick={() => setIsAddingLesson(chapter.id)}
-                              size="sm"
-                              variant="ghost"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              onClick={() => handleDeleteChapter(chapter.id)}
+                              onClick={() =>
+                                handleDeleteChapter(chapter.id)
+                              }
                               size="sm"
                               variant="ghost"
                               className="text-red-500 hover:text-red-600"
