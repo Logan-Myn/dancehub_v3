@@ -223,6 +223,29 @@ export default function CommunitySettingsModal({
   const supabase = createClient();
   const { user } = useAuth();
 
+  // Fetch revenue data
+  useEffect(() => {
+    async function fetchRevenueData() {
+      if (activeCategory === "dashboard" && stripeAccountId) {
+        try {
+          const response = await fetch(
+            `/api/community/${communitySlug}/stripe-revenue`
+          );
+          if (!response.ok) throw new Error("Failed to fetch revenue data");
+          const data = await response.json();
+          setRevenueData(data);
+        } catch (error) {
+          console.error("Error fetching revenue data:", error);
+          toast.error("Failed to fetch revenue data");
+        }
+      }
+    }
+
+    if (isOpen) {
+      fetchRevenueData();
+    }
+  }, [communitySlug, activeCategory, isOpen, stripeAccountId]);
+
   // Add effect to fetch initial membership state
   useEffect(() => {
     async function fetchMembershipState() {
@@ -231,19 +254,16 @@ export default function CommunitySettingsModal({
         if (!response.ok) throw new Error("Failed to fetch community data");
 
         const data = await response.json();
-        console.log('Community Data for', communitySlug, ':', {
-          raw_data: data,
-          membership_price: data.membership_price,
-          membership_enabled: data.membership_enabled,
-          price_type: typeof data.membership_price,
-          hasPrice: data.membership_price && data.membership_price > 0
-        });
         
-        // If there's a price set, enable the membership toggle
-        const hasPrice = data.membership_price && data.membership_price > 0;
-        
-        setIsMembershipEnabled(hasPrice || data.membership_enabled || false);
-        setPrice(data.membership_price || 0);
+        // Only set membership data if Stripe is connected
+        if (stripeAccountId) {
+          const hasPrice = data.membership_price && data.membership_price > 0;
+          setIsMembershipEnabled(hasPrice || data.membership_enabled || false);
+          setPrice(data.membership_price || 0);
+        } else {
+          setIsMembershipEnabled(false);
+          setPrice(0);
+        }
       } catch (error) {
         console.error("Error fetching membership state:", error);
       }
@@ -252,7 +272,7 @@ export default function CommunitySettingsModal({
     if (isOpen) {
       fetchMembershipState();
     }
-  }, [communitySlug, isOpen]);
+  }, [communitySlug, isOpen, stripeAccountId]);
 
   // Fetch Stripe account status when component mounts or stripeAccountId changes
   useEffect(() => {
@@ -381,29 +401,6 @@ export default function CommunitySettingsModal({
     }
   }, [communitySlug, activeCategory, isOpen]);
 
-  // Fetch revenue data
-  useEffect(() => {
-    async function fetchRevenueData() {
-      if (activeCategory === "dashboard") {
-        try {
-          const response = await fetch(
-            `/api/community/${communitySlug}/stripe-revenue`
-          );
-          if (!response.ok) throw new Error("Failed to fetch revenue data");
-          const data = await response.json();
-          setRevenueData(data);
-        } catch (error) {
-          console.error("Error fetching revenue data:", error);
-          toast.error("Failed to fetch revenue data");
-        }
-      }
-    }
-
-    if (isOpen) {
-      fetchRevenueData();
-    }
-  }, [communitySlug, activeCategory, isOpen]);
-
   useEffect(() => {
     if (isOpen) {
       setRefreshMembersTrigger(prev => prev + 1);
@@ -461,9 +458,10 @@ export default function CommunitySettingsModal({
     fetchMembers();
   }, [communitySlug, activeCategory, refreshMembersTrigger]);
 
+  // Fetch payout data
   useEffect(() => {
     async function fetchPayoutData() {
-      if (activeCategory === "subscriptions" && stripeAccountId) {
+      if (activeCategory === "subscriptions" && stripeAccountId && stripeAccountStatus.isEnabled) {
         setIsLoadingPayouts(true);
         try {
           const response = await fetch(
@@ -482,12 +480,12 @@ export default function CommunitySettingsModal({
     }
 
     fetchPayoutData();
-  }, [activeCategory, communitySlug, stripeAccountId]);
+  }, [activeCategory, communitySlug, stripeAccountId, stripeAccountStatus.isEnabled]);
 
   // Add effect to fetch bank account details
   useEffect(() => {
     async function fetchBankAccount() {
-      if (activeCategory === "subscriptions" && stripeAccountId) {
+      if (activeCategory === "subscriptions" && stripeAccountId && stripeAccountStatus.isEnabled) {
         setIsLoadingBank(true);
         try {
           const response = await fetch(
@@ -509,7 +507,7 @@ export default function CommunitySettingsModal({
     }
 
     fetchBankAccount();
-  }, [activeCategory, stripeAccountId]);
+  }, [activeCategory, stripeAccountId, stripeAccountStatus.isEnabled]);
 
   const handleUpdateIban = async () => {
     if (!stripeAccountId) return;
