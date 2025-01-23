@@ -1326,18 +1326,25 @@ export default function CoursePage() {
                                           id={lesson.id}
                                         >
                                           <li className="flex-1 flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50">
-                                            <span
-                                              className={`cursor-pointer ${
-                                                selectedLesson?.id === lesson.id
-                                                  ? "text-blue-500"
-                                                  : "text-gray-700"
-                                              }`}
-                                              onClick={() =>
-                                                setSelectedLesson(lesson)
-                                              }
-                                            >
-                                              {lesson.title}
-                                            </span>
+                                            <div className="flex items-center gap-2 flex-1">
+                                              <div className="w-4">
+                                                {lesson.completed && (
+                                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                                )}
+                                              </div>
+                                              <span
+                                                className={`cursor-pointer ${
+                                                  selectedLesson?.id === lesson.id
+                                                    ? "text-blue-500"
+                                                    : "text-gray-700"
+                                                }`}
+                                                onClick={() =>
+                                                  setSelectedLesson(lesson)
+                                                }
+                                              >
+                                                {lesson.title}
+                                              </span>
+                                            </div>
                                             {isCreator && isEditMode && (
                                               <Button
                                                 onClick={() =>
@@ -1461,33 +1468,38 @@ export default function CoursePage() {
                             key={lesson.id}
                             className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50"
                           >
-                            <span
-                              className={`cursor-pointer ${
-                                selectedLesson?.id === lesson.id
-                                  ? "text-blue-500"
-                                  : "text-gray-700"
-                              }`}
-                              onClick={() => setSelectedLesson(lesson)}
-                            >
-                              {lesson.title}
-                            </span>
-                            {isCreator && isEditMode && (
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() =>
-                                    handleDeleteLesson(
-                                      chapter.id,
-                                      lesson.id,
-                                      lesson.title
-                                    )
-                                  }
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-red-500 hover:text-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="w-4">
+                                {lesson.completed && (
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                )}
                               </div>
+                              <span
+                                className={`cursor-pointer ${
+                                  selectedLesson?.id === lesson.id
+                                    ? "text-blue-500"
+                                    : "text-gray-700"
+                                }`}
+                                onClick={() => setSelectedLesson(lesson)}
+                              >
+                                {lesson.title}
+                              </span>
+                            </div>
+                            {isCreator && isEditMode && (
+                              <Button
+                                onClick={() =>
+                                  handleDeleteLesson(
+                                    chapter.id,
+                                    lesson.id,
+                                    lesson.title
+                                  )
+                                }
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-500 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             )}
                           </li>
                         ))}
