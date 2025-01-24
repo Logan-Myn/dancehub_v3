@@ -45,6 +45,7 @@ export default function ClassroomPage() {
   const [isCreator, setIsCreator] = useState(false);
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
   const [membershipChecked, setMembershipChecked] = useState(false);
+  const [profile, setProfile] = useState<{ is_admin: boolean } | null>(null);
 
   // Check membership first
   useEffect(() => {
@@ -65,6 +66,8 @@ export default function ClassroomPage() {
           .select("is_admin")
           .eq("id", currentUser?.id)
           .single();
+
+        setProfile(profile);
 
         // Get community data first
         const { data: communityData, error: communityError } = await supabase
@@ -269,7 +272,7 @@ export default function ClassroomPage() {
                       course={course}
                       onClick={() => {}}
                     />
-                    {isCreator && !course.is_public && (
+                    {(isCreator || profile?.is_admin) && !course.is_public && (
                       <div className="mt-2 text-sm text-gray-500 flex items-center gap-1">
                         <span className="inline-block w-2 h-2 bg-gray-500 rounded-full"></span>
                         Private Course
