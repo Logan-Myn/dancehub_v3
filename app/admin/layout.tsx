@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LucideLayoutDashboard, Users, MessageSquare, CreditCard, ChevronLeft } from 'lucide-react';
+import { LucideLayoutDashboard, Users, MessageSquare, ChevronLeft, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ const ADMIN_MENU_ITEMS = [
   { text: 'Dashboard', icon: LucideLayoutDashboard, href: '/admin' },
   { text: 'Users', icon: Users, href: '/admin/users' },
   { text: 'Communities', icon: MessageSquare, href: '/admin/communities' },
-  { text: 'Payments', icon: CreditCard, href: '/admin/payments' },
+  { text: 'Threads', icon: MessageCircle, href: '/admin/threads' },
 ];
 
 export default function AdminLayout({
