@@ -154,8 +154,15 @@ export default function ClassroomPage() {
           .eq("community_id", communityData.id)
           .order("created_at", { ascending: false });
 
-        // If user is not the creator, only show public courses
-        if (!isUserCreator) {
+        // Check if user is admin
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", currentUser?.id)
+          .single();
+
+        // If user is not the creator or admin, only show public courses
+        if (!isUserCreator && !profile?.is_admin) {
           coursesQuery = coursesQuery.eq("is_public", true);
         }
 
