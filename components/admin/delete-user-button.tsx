@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Trash2 } from "lucide-react";
+import { MoreVertical, Trash2, Pencil } from "lucide-react";
 import { createClient } from '@/lib/supabase/client';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import EditUserModal from './edit-user-modal';
 import toast from "react-hot-toast";
 
 interface DeleteUserButtonProps {
@@ -28,6 +29,7 @@ interface DeleteUserButtonProps {
 
 export default function DeleteUserButton({ userId }: DeleteUserButtonProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const supabase = createClient();
 
   const handleDelete = async () => {
@@ -68,6 +70,12 @@ export default function DeleteUserButton({ userId }: DeleteUserButtonProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
+            onClick={() => setIsEditModalOpen(true)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit User
+          </DropdownMenuItem>
+          <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onClick={() => setIsDeleteDialogOpen(true)}
           >
@@ -97,6 +105,12 @@ export default function DeleteUserButton({ userId }: DeleteUserButtonProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        userId={userId}
+      />
     </>
   );
 } 
