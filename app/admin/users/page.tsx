@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Ban, CheckCircle, MoreVertical } from "lucide-react";
+import DeleteUserButton from '@/components/admin/delete-user-button';
 
 type Community = {
   name: string;
@@ -170,9 +171,7 @@ export default async function UsersPage() {
                   {new Date(user.created_at).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+                  <DeleteUserButton userId={user.id} />
                 </TableCell>
               </TableRow>
             ))}
