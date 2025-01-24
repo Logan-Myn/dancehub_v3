@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   
   try {
     const body = await request.json();
-    const { name, createdBy } = body;
+    const { name, description, imageUrl, createdBy } = body;
 
     // Create a slug from the community name
     const slug = name
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
       .insert({
         name,
         slug,
+        description,
+        image_url: imageUrl,
         created_by: createdBy,
       })
       .select()
