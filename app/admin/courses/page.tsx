@@ -61,21 +61,32 @@ async function getCourses(communityId?: string) {
   // Get chapter and lesson counts for each course
   const coursesWithCounts = await Promise.all(
     (courses || []).map(async (course) => {
-      const [{ count: chaptersCount }, { count: lessonsCount }] = await Promise.all([
+      const [{ count: chaptersCount }, { data: chapters }] = await Promise.all([
         supabase
           .from('chapters')
           .select('*', { count: 'exact', head: true })
           .eq('course_id', course.id),
         supabase
+          .from('chapters')
+          .select('id')
+          .eq('course_id', course.id)
+      ]);
+
+      // Get total lessons count across all chapters
+      let lessonsCount = 0;
+      if (chapters && chapters.length > 0) {
+        const { count } = await supabase
           .from('lessons')
           .select('*', { count: 'exact', head: true })
-          .eq('course_id', course.id),
-      ]);
+          .in('chapter_id', chapters.map(chapter => chapter.id));
+        
+        lessonsCount = count || 0;
+      }
 
       return {
         ...course,
         chapters_count: chaptersCount || 0,
-        lessons_count: lessonsCount || 0,
+        lessons_count: lessonsCount,
       };
     })
   );
