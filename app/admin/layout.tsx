@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LucideLayoutDashboard, Users, MessageSquare, ChevronLeft, MessageCircle } from 'lucide-react';
+import { LucideLayoutDashboard, Users, MessageSquare, ChevronLeft, MessageCircle, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ const ADMIN_MENU_ITEMS = [
   { text: 'Users', icon: Users, href: '/admin/users' },
   { text: 'Communities', icon: MessageSquare, href: '/admin/communities' },
   { text: 'Threads', icon: MessageCircle, href: '/admin/threads' },
+  { text: 'Courses', icon: BookOpen, href: '/admin/courses' },
 ];
 
 export default function AdminLayout({
