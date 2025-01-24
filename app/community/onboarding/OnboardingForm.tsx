@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from "@/contexts/AuthContext";
 import toast from 'react-hot-toast';
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 
 export default function OnboardingForm() {
   const [communityName, setCommunityName] = useState('');
@@ -16,6 +17,7 @@ export default function OnboardingForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
   const supabase = createClient();
@@ -31,6 +33,17 @@ export default function OnboardingForm() {
     }
 
     setImageFile(file);
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,11 +147,28 @@ export default function OnboardingForm() {
           Community photo
         </label>
         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-          <div className="space-y-1 text-center">
+          <div className="w-full max-w-2xl space-y-1 text-center">
             <div className="flex flex-col items-center">
-              {imageFile ? (
-                <div className="text-sm text-gray-600">
-                  Selected: {imageFile.name}
+              {previewUrl && imageFile ? (
+                <div className="relative w-full">
+                  <div className="relative w-full h-40 rounded-lg overflow-hidden">
+                    <Image
+                      src={previewUrl}
+                      alt="Preview"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 p-1 bg-red-100 rounded-full hover:bg-red-200 transition-colors"
+                  >
+                    <X className="h-4 w-4 text-red-500" />
+                  </button>
+                  <div className="mt-2 text-sm text-gray-600">
+                    {imageFile.name}
+                  </div>
                 </div>
               ) : (
                 <>
