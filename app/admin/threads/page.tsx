@@ -68,7 +68,7 @@ async function getThreads(communityId?: string) {
   // Fetch threads
   let query = supabase
     .from("threads")
-    .select("*")
+    .select("*, comments_count")
     .order("created_at", { ascending: false });
 
   if (communityId && communityId !== "all") {
@@ -88,8 +88,7 @@ async function getThreads(communityId?: string) {
       const [
         { data: communityData },
         { data: authorData },
-        { count: reportsCount },
-        { count: repliesCount }
+        { count: reportsCount }
       ] = await Promise.all([
         supabase
           .from("communities")
@@ -105,10 +104,6 @@ async function getThreads(communityId?: string) {
           .from("thread_reports")
           .select("*", { count: "exact", head: true })
           .eq("thread_id", thread.id),
-        supabase
-          .from("thread_replies")
-          .select("*", { count: "exact", head: true })
-          .eq("thread_id", thread.id),
       ]);
 
       return {
@@ -116,7 +111,7 @@ async function getThreads(communityId?: string) {
         community: communityData || { name: "Unknown", slug: "" },
         author: authorData || { full_name: "Unknown", email: "", avatar_url: "" },
         reports_count: reportsCount || 0,
-        replies_count: repliesCount || 0,
+        replies_count: thread.comments_count || 0,
       };
     })
   );
