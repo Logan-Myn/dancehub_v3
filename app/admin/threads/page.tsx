@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Eye, MessageCircle, Flag, MoreVertical, Trash2 } from "lucide-react";
+import { Eye, MessageCircle, Flag, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThreadFilters } from "@/components/admin/thread-filters";
+import { DeleteThreadButton } from "@/components/admin/delete-thread-button";
 
 type Thread = {
   id: string;
@@ -233,10 +234,10 @@ export default async function ThreadsPage({
                           <Eye className="mr-2 h-4 w-4" />
                           View Thread
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete Thread
-                        </DropdownMenuItem>
+                        <DeleteThreadButton 
+                          threadId={thread.id}
+                          threadTitle={thread.title}
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
