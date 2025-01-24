@@ -47,26 +47,26 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- Check if the executing user is an admin
-  IF EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid()
-    AND is_admin = true
-  ) THEN
-    -- Only update if the email is actually different
+    -- Check if the executing user is an admin
     IF EXISTS (
-      SELECT 1 FROM auth.users
-      WHERE id = user_id
-      AND email != new_email
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+        AND is_admin = true
     ) THEN
-      -- Update the user's email in auth.users
-      UPDATE auth.users
-      SET email = new_email,
-          updated_at = now()
-      WHERE id = user_id;
+        -- Only update if the email is actually different
+        IF EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE id = user_id
+            AND email != new_email
+        ) THEN
+            -- Update the user's email in auth.users
+            UPDATE auth.users
+            SET email = new_email,
+                updated_at = now()
+            WHERE id = user_id;
+        END IF;
+    ELSE
+        RAISE EXCEPTION 'Unauthorized: Only admins can update user emails';
     END IF;
-  ELSE
-    RAISE EXCEPTION 'Unauthorized: Only admins can update user emails';
-  END IF;
 END;
 $$; 

@@ -130,21 +130,24 @@ export async function PATCH(
     // Update user email if changed
     if (updates.email) {
       // Get current user email
-      const { data: currentUser } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", userId)
-        .single();
+      const { data: currentUser, error: userError } = await supabase.auth.admin
+        .getUserById(userId);
+
+      if (userError) {
+        console.error("Error getting user:", userError);
+        return NextResponse.json(
+          { error: "Failed to get user" },
+          { status: 500 }
+        );
+      }
 
       // Only update if email has changed
-      if (currentUser && currentUser.email !== updates.email) {
-        const { error: emailUpdateError } = await supabase.rpc(
-          'update_user_email',
-          { 
-            user_id: userId,
-            new_email: updates.email
-          }
-        );
+      if (currentUser && currentUser.user.email !== updates.email) {
+        const { error: emailUpdateError } = await supabase.auth.admin
+          .updateUserById(
+            userId,
+            { email: updates.email }
+          );
 
         if (emailUpdateError) {
           console.error("Error updating email:", emailUpdateError);
