@@ -337,9 +337,6 @@ export default function CoursePage() {
 
   // Check authentication and membership
   useEffect(() => {
-    // Wait for auth to be checked
-    if (!isAuthChecked) return;
-
     async function checkAccess() {
       // If no user after auth is checked, redirect to about page
       if (!user) {
@@ -348,6 +345,19 @@ export default function CoursePage() {
       }
 
       try {
+        // First check if user is admin
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .single();
+
+        // Admins have access to all communities
+        if (profile?.is_admin) {
+          setIsAccessChecked(true);
+          return;
+        }
+
         // First get the community ID
         const { data: communityData, error: communityError } = await supabase
           .from("communities")
@@ -401,7 +411,7 @@ export default function CoursePage() {
     if (communitySlug) {
       checkAccess();
     }
-  }, [user, communitySlug, router, supabase, isAuthChecked]);
+  }, [communitySlug, user]);
 
   // Only fetch course data after access is checked
   useEffect(() => {

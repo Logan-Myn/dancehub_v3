@@ -9,6 +9,18 @@ export async function GET(
     const supabase = createAdminClient();
     const { communitySlug, userId } = params;
 
+    // Check if user is admin
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", userId)
+      .single();
+
+    // Admins have access to all communities
+    if (profile?.is_admin) {
+      return NextResponse.json({ isMember: true });
+    }
+
     // Get community and check if user is creator
     const { data: community, error: communityError } = await supabase
       .from("communities")

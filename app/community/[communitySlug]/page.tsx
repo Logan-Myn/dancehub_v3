@@ -200,6 +200,20 @@ export default function CommunityPage() {
       }
 
       try {
+        // First check if user is admin
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", currentUser?.id)
+          .single();
+
+        // Admins have access to all communities
+        if (profile?.is_admin) {
+          setMembershipChecked(true);
+          setIsMember(true);
+          return;
+        }
+
         const { data: communityData } = await supabase
           .from("communities")
           .select("id")
