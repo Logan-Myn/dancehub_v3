@@ -115,6 +115,7 @@ export async function PATCH(
       .update({
         full_name: updates.full_name,
         display_name: updates.display_name,
+        email: updates.email,
         updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
@@ -127,7 +128,7 @@ export async function PATCH(
       );
     }
 
-    // Update user email if changed
+    // Update user email in auth.users if changed
     if (updates.email) {
       // Get current user email
       const { data: currentUser, error: userError } = await supabase.auth.admin
