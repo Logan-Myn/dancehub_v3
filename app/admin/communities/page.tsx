@@ -1,6 +1,6 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { stripe } from '@/lib/stripe';
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { stripe } from "@/lib/stripe";
 import {
   Table,
   TableBody,
@@ -12,7 +12,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MoreVertical, Users, DollarSign, CheckCircle, XCircle } from "lucide-react";
+import {
+  MoreVertical,
+  Users,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  Pencil,
+  Trash,
+} from "lucide-react";
+import { EditCommunityButton } from "@/components/admin/edit-community-button";
+import { DeleteCommunityButton } from "@/components/admin/delete-community-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Community = {
   id: string;
@@ -45,66 +61,66 @@ async function getStripeRevenue(stripeAccountId: string | null) {
     );
 
     // Calculate totals from transactions
-    const totals = balanceTransactions.data.reduce((acc, transaction) => {
-      if (transaction.type === 'charge') {
-        return {
-          revenue: acc.revenue + transaction.amount,
-          fees: acc.fees + transaction.fee
-        };
-      }
-      return acc;
-    }, { revenue: 0, fees: 0 });
+    const totals = balanceTransactions.data.reduce(
+      (acc, transaction) => {
+        if (transaction.type === "charge") {
+          return {
+            revenue: acc.revenue + transaction.amount,
+            fees: acc.fees + transaction.fee,
+          };
+        }
+        return acc;
+      },
+      { revenue: 0, fees: 0 }
+    );
 
     return {
       revenue: totals.revenue / 100, // Convert from cents to dollars
-      fees: totals.fees / 100
+      fees: totals.fees / 100,
     };
   } catch (error) {
-    console.error('Error fetching Stripe data:', error);
+    console.error("Error fetching Stripe data:", error);
     return { revenue: 0, fees: 0 };
   }
 }
 
 async function getCommunities() {
   const supabase = createServerComponentClient({ cookies });
-  
+
   // First fetch all communities
   const { data: communities, error: communitiesError } = await supabase
-    .from('communities')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .from("communities")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   if (communitiesError) {
-    console.error('Error fetching communities:', communitiesError);
+    console.error("Error fetching communities:", communitiesError);
     return [];
   }
 
   // Then fetch creator profiles, member counts, and Stripe data separately
   const communitiesWithDetails = await Promise.all(
     (communities || []).map(async (community) => {
-      const [
-        { data: creatorData }, 
-        { count: membersCount },
-        stripeData
-      ] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', community.created_by)
-          .single(),
-        supabase
-          .from('community_members')
-          .select('*', { count: 'exact', head: true })
-          .eq('community_id', community.id),
-        getStripeRevenue(community.stripe_account_id)
-      ]);
+      const [{ data: creatorData }, { count: membersCount }, stripeData] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, email")
+            .eq("id", community.created_by)
+            .single(),
+          supabase
+            .from("community_members")
+            .select("*", { count: "exact", head: true })
+            .eq("community_id", community.id),
+          getStripeRevenue(community.stripe_account_id),
+        ]);
 
       return {
         ...community,
         creator: creatorData || { full_name: null, email: null },
         members_count: membersCount || 0,
         total_revenue: stripeData.revenue,
-        platform_fees: stripeData.fees
+        platform_fees: stripeData.fees,
       };
     })
   );
@@ -116,10 +132,10 @@ export default async function CommunitiesPage() {
   const communities = await getCommunities();
 
   const formatCurrency = (amount: number | null) => {
-    if (!amount) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
+    if (!amount) return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
@@ -128,10 +144,7 @@ export default async function CommunitiesPage() {
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold tracking-tight">Communities</h2>
         <div className="flex items-center gap-4">
-          <Input
-            placeholder="Search communities..."
-            className="w-[300px]"
-          />
+          <Input placeholder="Search communities..." className="w-[300px]" />
           <Button>Export</Button>
         </div>
       </div>
@@ -181,8 +194,12 @@ export default async function CommunitiesPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">{community.creator.full_name}</span>
-                    <span className="text-xs text-muted-foreground">{community.creator.email}</span>
+                    <span className="font-medium">
+                      {community.creator.full_name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {community.creator.email}
+                    </span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -228,9 +245,18 @@ export default async function CommunitiesPage() {
                   {new Date(community.created_at).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <EditCommunityButton
+                      communityId={community.id}
+                      communityName={community.name}
+                      communityDescription={community.description || ""}
+                      communitySlug={community.slug}
+                    />
+                    <DeleteCommunityButton
+                      communityId={community.id}
+                      communityName={community.name}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -239,4 +265,4 @@ export default async function CommunitiesPage() {
       </div>
     </div>
   );
-} 
+}
