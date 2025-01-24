@@ -66,54 +66,52 @@ export default function ClassroomPage() {
           .eq("id", currentUser?.id)
           .single();
 
-        // Admins have access to all communities
-        if (profile?.is_admin) {
-          const { data: communityData } = await supabase
-            .from("communities")
-            .select("id, name, created_by")
-            .eq("slug", communitySlug)
-            .single();
-
-          if (!communityData) {
-            throw new Error("Community not found");
-            return;
-          }
-
-          setCommunity(communityData);
-          setIsMember(true);
-          setMembershipChecked(true);
-          return;
-        }
-
-        const { data: communityData } = await supabase
+        // Get community data first
+        const { data: communityData, error: communityError } = await supabase
           .from("communities")
-          .select("id")
+          .select("id, name, created_by")
           .eq("slug", communitySlug)
           .single();
 
-        if (!communityData) {
+        if (communityError || !communityData) {
           throw new Error("Community not found");
           return;
         }
 
-        // Only proceed with membership check if we have a user
-        if (currentUser) {
-          const { data: memberData } = await supabase
-            .from("community_members")
-            .select("*")
-            .eq("community_id", communityData.id)
-            .eq("user_id", currentUser.id)
-            .maybeSingle();
-
+        // Admins have access to all communities
+        if (profile?.is_admin) {
+          setCommunity(communityData);
           setMembershipChecked(true);
-
-          if (!memberData) {
-            router.replace(`/community/${communitySlug}/about`);
-            return;
-          }
-
           setIsMember(true);
+          return;
         }
+
+        // Check if user is creator
+        if (communityData.created_by === currentUser?.id) {
+          setCommunity(communityData);
+          setMembershipChecked(true);
+          setIsMember(true);
+          setIsCreator(true);
+          return;
+        }
+
+        // Check if user is a member
+        const { data: memberData } = await supabase
+          .from("community_members")
+          .select("*")
+          .eq("community_id", communityData.id)
+          .eq("user_id", currentUser?.id)
+          .maybeSingle();
+
+        setMembershipChecked(true);
+
+        if (!memberData) {
+          router.replace(`/community/${communitySlug}/about`);
+          return;
+        }
+
+        setCommunity(communityData);
+        setIsMember(true);
       } catch (error) {
         console.error("Error checking membership:", error);
         setError(error instanceof Error ? error : new Error("Unknown error"));
@@ -137,7 +135,7 @@ export default function ClassroomPage() {
         const communityData = await response.json();
 
         // Check if user is creator
-        const isUserCreator = currentUser?.id === communityData.created_by;
+        const isUserCreator = currentUser!.id === communityData.created_by;
 
         // Get courses based on user role
         let coursesQuery = supabase

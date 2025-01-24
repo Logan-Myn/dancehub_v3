@@ -337,6 +337,9 @@ export default function CoursePage() {
 
   // Check authentication and membership
   useEffect(() => {
+    // Wait for auth to be checked
+    if (!isAuthChecked) return;
+
     async function checkAccess() {
       // If no user after auth is checked, redirect to about page
       if (!user) {
@@ -354,20 +357,6 @@ export default function CoursePage() {
 
         // Admins have access to all communities
         if (profile?.is_admin) {
-          // Get community data for admin
-          const { data: communityData, error: communityError } = await supabase
-            .from("communities")
-            .select("id, name, created_by")
-            .eq("slug", communitySlug)
-            .single();
-
-          if (communityError || !communityData) {
-            console.error("Error fetching community:", communityError);
-            router.push(`/community/${communitySlug}/about`);
-            return;
-          }
-
-          setCommunity(communityData);
           setIsAccessChecked(true);
           return;
         }
@@ -425,7 +414,7 @@ export default function CoursePage() {
     if (communitySlug) {
       checkAccess();
     }
-  }, [communitySlug, user]);
+  }, [user, communitySlug, router, supabase, isAuthChecked]);
 
   // Only fetch course data after access is checked
   useEffect(() => {
@@ -499,8 +488,9 @@ export default function CoursePage() {
 
         // If no uncompleted lesson found, select the first lesson
         // If all lessons are completed, this will show the first lesson
-        setSelectedLesson(nextLesson || (courseData.chapters?.[0]?.lessons?.[0] || null));
-
+        setSelectedLesson(
+          nextLesson || courseData.chapters?.[0]?.lessons?.[0] || null
+        );
       } catch (error) {
         console.error("Error in fetchCourse:", error);
         toast.error("Failed to load course data");
@@ -1053,7 +1043,7 @@ export default function CoursePage() {
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${selectedLesson?.chapter_id}/lessons/${lessonId}/completion`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
             Authorization: `Bearer ${session?.access_token}`,
           },
@@ -1061,32 +1051,32 @@ export default function CoursePage() {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to toggle completion status');
+        throw new Error("Failed to toggle completion status");
       }
 
       const { completed } = await response.json();
 
       // Update the chapters state with the new completion status
-      setChapters(prevChapters =>
-        prevChapters.map(chapter => ({
+      setChapters((prevChapters) =>
+        prevChapters.map((chapter) => ({
           ...chapter,
-          lessons: chapter.lessons.map(lesson =>
-            lesson.id === lessonId
-              ? { ...lesson, completed }
-              : lesson
+          lessons: chapter.lessons.map((lesson) =>
+            lesson.id === lessonId ? { ...lesson, completed } : lesson
           ),
         }))
       );
 
       // Update selected lesson if it's the one being toggled
       if (selectedLesson?.id === lessonId) {
-        setSelectedLesson(prev => prev ? { ...prev, completed } : null);
+        setSelectedLesson((prev) => (prev ? { ...prev, completed } : null));
       }
 
-      toast.success(completed ? 'Lesson marked as completed' : 'Lesson marked as incomplete');
+      toast.success(
+        completed ? "Lesson marked as completed" : "Lesson marked as incomplete"
+      );
     } catch (error) {
-      console.error('Error toggling lesson completion:', error);
-      toast.error('Failed to update lesson status');
+      console.error("Error toggling lesson completion:", error);
+      toast.error("Failed to update lesson status");
     }
   };
 
@@ -1120,11 +1110,17 @@ export default function CoursePage() {
             variant={selectedLesson.completed ? "default" : "outline"}
             onClick={() => toggleLessonCompletion(selectedLesson.id)}
             className={`flex items-center gap-2 ${
-              selectedLesson.completed ? 'bg-green-500 hover:bg-green-600 text-white' : ''
+              selectedLesson.completed
+                ? "bg-green-500 hover:bg-green-600 text-white"
+                : ""
             }`}
           >
-            <CheckCircle2 className={`w-5 h-5 ${selectedLesson.completed ? 'text-white' : 'text-gray-400'}`} />
-            {selectedLesson.completed ? 'Completed' : 'Mark as Complete'}
+            <CheckCircle2
+              className={`w-5 h-5 ${
+                selectedLesson.completed ? "text-white" : "text-gray-400"
+              }`}
+            />
+            {selectedLesson.completed ? "Completed" : "Mark as Complete"}
           </Button>
         </div>
 
@@ -1372,7 +1368,8 @@ export default function CoursePage() {
                                               </div>
                                               <span
                                                 className={`cursor-pointer ${
-                                                  selectedLesson?.id === lesson.id
+                                                  selectedLesson?.id ===
+                                                  lesson.id
                                                     ? "text-blue-500"
                                                     : "text-gray-700"
                                                 }`}
