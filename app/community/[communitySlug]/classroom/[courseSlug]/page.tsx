@@ -354,6 +354,20 @@ export default function CoursePage() {
 
         // Admins have access to all communities
         if (profile?.is_admin) {
+          // Get community data for admin
+          const { data: communityData, error: communityError } = await supabase
+            .from("communities")
+            .select("id, name, created_by")
+            .eq("slug", communitySlug)
+            .single();
+
+          if (communityError || !communityData) {
+            console.error("Error fetching community:", communityError);
+            router.push(`/community/${communitySlug}/about`);
+            return;
+          }
+
+          setCommunity(communityData);
           setIsAccessChecked(true);
           return;
         }

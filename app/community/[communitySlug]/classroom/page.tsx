@@ -59,6 +59,32 @@ export default function ClassroomPage() {
       }
 
       try {
+        // First check if user is admin
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", currentUser?.id)
+          .single();
+
+        // Admins have access to all communities
+        if (profile?.is_admin) {
+          const { data: communityData } = await supabase
+            .from("communities")
+            .select("id, name, created_by")
+            .eq("slug", communitySlug)
+            .single();
+
+          if (!communityData) {
+            throw new Error("Community not found");
+            return;
+          }
+
+          setCommunity(communityData);
+          setIsMember(true);
+          setMembershipChecked(true);
+          return;
+        }
+
         const { data: communityData } = await supabase
           .from("communities")
           .select("id")
