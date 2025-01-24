@@ -8,15 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Eye, MessageCircle, Flag, MoreVertical, Trash2 } from "lucide-react";
 import {
@@ -26,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ThreadFilters } from "@/components/admin/thread-filters";
 
 type Thread = {
   id: string;
@@ -145,23 +138,7 @@ export default async function ThreadsPage({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold tracking-tight">Thread Moderation</h2>
-        <div className="flex items-center gap-4">
-          <Select defaultValue={searchParams.community || "all"}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by Community" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Communities</SelectItem>
-              {communities.map((community: Community) => (
-                <SelectItem key={community.id} value={community.id}>
-                  {community.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input placeholder="Search threads..." className="w-[300px]" />
-          <Button>Export</Button>
-        </div>
+        <ThreadFilters communities={communities} />
       </div>
 
       <div className="rounded-md border">
