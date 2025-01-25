@@ -69,6 +69,7 @@ interface DashboardStats {
   totalThreads: number;
   activeMembers: number;
   membershipGrowth: number;
+  revenueGrowth: number;
 }
 
 interface RevenueData {
@@ -1218,8 +1219,9 @@ export default function CommunitySettingsModal({
           <p className="text-2xl font-bold">
             €{revenueData.monthlyRevenue.toFixed(2)}
           </p>
-          <p className="text-sm text-gray-500">
-            From {localCommunityStats?.totalMembers || 0} paid memberships
+          <p className="text-sm text-green-600">
+            <TrendingUp className="h-4 w-4 inline mr-1" />
+            {(localCommunityStats?.revenueGrowth ?? 0) >= 0 ? '+' : ''}{localCommunityStats?.revenueGrowth ?? 0}% this month
           </p>
         </Card>
 
@@ -1244,7 +1246,7 @@ export default function CommunitySettingsModal({
           <p className="text-2xl font-bold">
             {localCommunityStats?.activeMembers || 0}
           </p>
-          <p className="text-sm text-gray-500">In the last 30 days</p>
+          <p className="text-sm text-gray-500">Current active memberships</p>
         </Card>
       </div>
 

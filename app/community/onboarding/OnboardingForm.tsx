@@ -18,6 +18,7 @@ export default function OnboardingForm() {
   const [isUploading, setIsUploading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
   const supabase = createClient();
@@ -46,6 +47,44 @@ export default function OnboardingForm() {
     }
   };
 
+  // Function to generate slug from name
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+  };
+
+  // Function to check name and slug availability
+  const checkAvailability = async (name: string) => {
+    const slug = generateSlug(name);
+    
+    // Check both name and slug
+    const { data: existingCommunities, error } = await supabase
+      .from('communities')
+      .select('name, slug')
+      .or(`name.eq.${name},slug.eq.${slug}`)
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking availability:', error);
+      return false;
+    }
+
+    if (existingCommunities && existingCommunities.length > 0) {
+      const community = existingCommunities[0];
+      if (community.name.toLowerCase() === name.toLowerCase()) {
+        setNameError('A community with this name already exists');
+      } else {
+        setNameError('This name would create a URL that is already taken');
+      }
+      return false;
+    }
+
+    setNameError(null);
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -53,6 +92,13 @@ export default function OnboardingForm() {
     setIsLoading(true);
 
     try {
+      // Check availability before proceeding
+      const isAvailable = await checkAvailability(communityName);
+      if (!isAvailable) {
+        setIsLoading(false);
+        return;
+      }
+
       let imageUrl = '';
       
       // Upload image if one is selected
@@ -122,11 +168,22 @@ export default function OnboardingForm() {
         <Input
           type="text"
           value={communityName}
-          onChange={(e) => setCommunityName(e.target.value)}
+          onChange={async (e) => {
+            const newName = e.target.value;
+            setCommunityName(newName);
+            if (newName.length > 2) {
+              await checkAvailability(newName);
+            } else {
+              setNameError(null);
+            }
+          }}
           placeholder="Enter your community name"
           required
-          className="w-full"
+          className={`w-full ${nameError ? 'border-red-500' : ''}`}
         />
+        {nameError && (
+          <p className="mt-1 text-sm text-red-500">{nameError}</p>
+        )}
       </div>
 
       <div>

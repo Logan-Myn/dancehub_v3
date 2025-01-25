@@ -10,6 +10,7 @@ import { LogOut, User as UserIcon, Settings } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import { signOut } from "@/lib/auth";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface Profile {
   id: string;
@@ -23,10 +24,13 @@ interface UserAccountNavProps {
 }
 
 export default function UserAccountNav({ user, profile }: UserAccountNavProps) {
+  const router = useRouter();
+  
   const handleSignOut = async () => {
     try {
       await signOut();
       toast.success("Successfully signed out");
+      router.push('/');
     } catch (error) {
       toast.error("Error signing out");
     }

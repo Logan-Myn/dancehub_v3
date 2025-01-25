@@ -14,6 +14,36 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
 
+    // Check if name or slug already exists
+    const { data: existingCommunities, error: checkError } = await supabase
+      .from('communities')
+      .select('name, slug')
+      .or(`name.ilike.${name},slug.eq.${slug}`)
+      .limit(1);
+
+    if (checkError) {
+      console.error('Error checking community existence:', checkError);
+      return NextResponse.json(
+        { error: 'Failed to validate community name' },
+        { status: 500 }
+      );
+    }
+
+    if (existingCommunities && existingCommunities.length > 0) {
+      const community = existingCommunities[0];
+      if (community.name.toLowerCase() === name.toLowerCase()) {
+        return NextResponse.json(
+          { error: 'A community with this name already exists' },
+          { status: 400 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: 'This name would create a URL that is already taken' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Start a transaction
     const { data: community, error: communityError } = await supabase
       .from('communities')
@@ -64,14 +94,15 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      communityId: community.id,
-      slug,
+    return NextResponse.json({ 
+      message: 'Community created successfully',
+      slug: community.slug 
     });
+
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Error creating community:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { error: 'Failed to create community' },
       { status: 500 }
     );
   }

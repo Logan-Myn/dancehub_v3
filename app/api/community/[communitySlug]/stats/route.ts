@@ -11,7 +11,7 @@ export async function GET(
     // Get community
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id")
+      .select("id, created_by")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -25,12 +25,12 @@ export async function GET(
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
-    // Get total active members count
+    // Get total active members count (excluding creator)
     const { count: totalMembers, error: membersError } = await supabase
       .from("community_members")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id)
-      .eq("status", "active");
+      .neq("user_id", community.created_by);
 
     console.log('Stats API - Members count:', {
       totalMembers,
@@ -66,13 +66,31 @@ export async function GET(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    // Get current month's revenue
     const { data: monthlyPayments, error: revenueError } = await supabase
       .from("payments")
       .select("amount")
       .eq("community_id", community.id)
       .gte("created_at", thirtyDaysAgo.toISOString());
 
+    // Get previous month's revenue
+    const { data: previousMonthPayments, error: prevRevenueError } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("community_id", community.id)
+      .gte("created_at", sixtyDaysAgo.toISOString())
+      .lt("created_at", thirtyDaysAgo.toISOString());
+
     const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
+    const previousMonthRevenue = previousMonthPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
+
+    // Calculate revenue growth percentage
+    const revenueGrowth = previousMonthRevenue === 0 
+      ? 100 // If previous month was 0, then it's 100% growth
+      : Math.round(((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100);
 
     // Get membership growth (new members in last 30 days)
     const { count: newMembers, error: growthError } = await supabase
@@ -91,16 +109,17 @@ export async function GET(
 
     const activeUserIds = Array.from(new Set(activeThreadCreators?.map(t => t.created_by) || []));
 
+    // Get active members (members with active status)
     const { count: activeMembers } = await supabase
       .from("community_members")
       .select("*", { count: 'exact', head: true })
       .eq("community_id", community.id)
-      .eq("status", "active")
-      .in("user_id", activeUserIds);
+      .eq("status", "active");
 
     const response = {
       totalMembers: totalMembers || 0,
       monthlyRevenue,
+      revenueGrowth,
       totalThreads: totalThreads || 0,
       activeMembers: activeMembers || 0,
       membershipGrowth: newMembers || 0

@@ -852,7 +852,7 @@ export default function CommunityPage() {
 
                   <div className="flex items-center text-sm text-gray-500 mb-4">
                     <Users className="h-4 w-4 mr-1" />
-                    <span>{totalMembers} members</span>
+                    <span>{totalMembers - 1} members</span>
                   </div>
 
                   <div className="space-y-2">
@@ -873,7 +873,10 @@ export default function CommunityPage() {
                   <div className="mt-4 flex items-center space-x-2">
                     {Array.isArray(members) && members.length > 0 ? (
                       <>
-                        {members.slice(0, 5).map((member) => (
+                        {members
+                          .filter(member => member.user_id !== community.created_by)
+                          .slice(0, 5)
+                          .map((member) => (
                           <div key={member.id}>
                             <div className="relative group/avatar">
                               <Avatar className="h-8 w-8">
@@ -893,16 +896,13 @@ export default function CommunityPage() {
                               </Avatar>
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                 {member.profile?.full_name || "Anonymous"}
-                                {member.user_id === community.created_by
-                                  ? " (Creator)"
-                                  : ""}
                               </div>
                             </div>
                           </div>
                         ))}
-                        {members.length > 5 && (
+                        {members.filter(member => member.user_id !== community.created_by).length > 5 && (
                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
-                            +{members.length - 5}
+                            +{members.filter(member => member.user_id !== community.created_by).length - 5}
                           </div>
                         )}
                       </>
