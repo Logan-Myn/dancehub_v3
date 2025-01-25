@@ -212,9 +212,9 @@ export default function HeroSection({
           throw new Error(errorData.error || "Failed to join community");
         }
 
-        // Refresh the page to update all UI states
-        window.location.reload();
         toast.success("Successfully joined the community!");
+        // Redirect to the main community page
+        window.location.href = `/community/${communityData.slug}`;
       }
     } catch (error) {
       console.error("Error joining community:", error);
@@ -527,9 +527,8 @@ export default function HeroSection({
           price={communityData.membershipPrice || 0}
           onSuccess={() => {
             setShowPaymentModal(false);
-            // Refresh the page to update all UI states
-            window.location.reload();
-            toast.success("Successfully joined the community!");
+            // Redirect to the main community page instead of reloading
+            window.location.href = `/community/${communityData.slug}`;
           }}
           communitySlug={communityData.slug}
         />
