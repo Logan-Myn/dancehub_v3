@@ -10,6 +10,7 @@ export async function DELETE(
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
+    const adminClient = createAdminClient();
 
     // Check if user is admin
     const {
@@ -31,14 +32,14 @@ export async function DELETE(
     }
 
     // Get all chapters for this course
-    const { data: chapters } = await supabase
+    const { data: chapters } = await adminClient
       .from('chapters')
       .select('id')
       .eq('course_id', params.courseId);
 
     if (chapters && chapters.length > 0) {
       // Get all lessons for these chapters
-      const { data: lessons } = await supabase
+      const { data: lessons } = await adminClient
         .from('lessons')
         .select('id, mux_playback_id')
         .in('chapter_id', chapters.map(chapter => chapter.id));
@@ -60,7 +61,7 @@ export async function DELETE(
 
       // Delete lessons
       if (lessons && lessons.length > 0) {
-        const { error: lessonsError } = await supabase
+        const { error: lessonsError } = await adminClient
           .from('lessons')
           .delete()
           .in('id', lessons.map(lesson => lesson.id));
@@ -71,7 +72,7 @@ export async function DELETE(
       }
 
       // Delete chapters
-      const { error: chaptersError } = await supabase
+      const { error: chaptersError } = await adminClient
         .from('chapters')
         .delete()
         .in('id', chapters.map(chapter => chapter.id));
@@ -82,7 +83,7 @@ export async function DELETE(
     }
 
     // Finally delete the course
-    const { error: courseError } = await supabase
+    const { error: courseError } = await adminClient
       .from('courses')
       .delete()
       .eq('id', params.courseId);
