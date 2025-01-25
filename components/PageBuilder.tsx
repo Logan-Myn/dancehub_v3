@@ -69,6 +69,9 @@ export default function PageBuilder({
       content: {
         title: 'Add a title',
         subtitle: 'Add a subtitle',
+        ...(selectedSectionType === 'hero' && {
+          buttonType: 'join'
+        })
       },
       order: sections.length,
     };
