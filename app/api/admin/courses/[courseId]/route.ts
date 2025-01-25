@@ -1,6 +1,8 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { Video } from '@/lib/mux';
+import { createAdminClient } from '@/lib/supabase';
 
 export async function DELETE(
   request: Request,
@@ -28,14 +30,65 @@ export async function DELETE(
       return new NextResponse('Forbidden', { status: 403 });
     }
 
-    // Delete course and related content
-    const { error } = await supabase
+    // Get all chapters for this course
+    const { data: chapters } = await supabase
+      .from('chapters')
+      .select('id')
+      .eq('course_id', params.courseId);
+
+    if (chapters && chapters.length > 0) {
+      // Get all lessons for these chapters
+      const { data: lessons } = await supabase
+        .from('lessons')
+        .select('id, mux_playback_id')
+        .in('chapter_id', chapters.map(chapter => chapter.id));
+
+      // Delete Mux videos
+      if (lessons) {
+        await Promise.all(
+          lessons
+            .filter(lesson => lesson.mux_playback_id)
+            .map(async (lesson) => {
+              try {
+                await Video.assets.delete(lesson.mux_playback_id);
+              } catch (error) {
+                console.error('Error deleting Mux video:', error);
+              }
+            })
+        );
+      }
+
+      // Delete lessons
+      if (lessons && lessons.length > 0) {
+        const { error: lessonsError } = await supabase
+          .from('lessons')
+          .delete()
+          .in('id', lessons.map(lesson => lesson.id));
+
+        if (lessonsError) {
+          console.error('Error deleting lessons:', lessonsError);
+        }
+      }
+
+      // Delete chapters
+      const { error: chaptersError } = await supabase
+        .from('chapters')
+        .delete()
+        .in('id', chapters.map(chapter => chapter.id));
+
+      if (chaptersError) {
+        console.error('Error deleting chapters:', chaptersError);
+      }
+    }
+
+    // Finally delete the course
+    const { error: courseError } = await supabase
       .from('courses')
       .delete()
       .eq('id', params.courseId);
 
-    if (error) {
-      console.error('Error deleting course:', error);
+    if (courseError) {
+      console.error('Error deleting course:', courseError);
       return new NextResponse('Internal Server Error', { status: 500 });
     }
 
@@ -52,6 +105,7 @@ export async function PATCH(
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
+    const adminClient = createAdminClient();
 
     // Check if user is admin
     const {
@@ -80,22 +134,28 @@ export async function PATCH(
       return new NextResponse('Title is required', { status: 400 });
     }
 
-    // Update course
-    const { error } = await supabase
+    // Update course using admin client
+    const { data: updatedCourse, error: updateError } = await adminClient
       .from('courses')
       .update({
         title,
         description,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.courseId);
+      .eq('id', params.courseId)
+      .select()
+      .single();
 
-    if (error) {
-      console.error('Error updating course:', error);
+    if (updateError) {
+      console.error('Error updating course:', updateError);
       return new NextResponse('Internal Server Error', { status: 500 });
     }
 
-    return new NextResponse(null, { status: 204 });
+    if (!updatedCourse) {
+      return new NextResponse('Course not found', { status: 404 });
+    }
+
+    return NextResponse.json(updatedCourse);
   } catch (error) {
     console.error('Error in PATCH /api/admin/courses/[courseId]:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

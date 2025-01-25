@@ -51,7 +51,11 @@ export function DeleteCourseButton({ courseId, courseTitle }: DeleteCourseButton
   return (
     <>
       <DropdownMenuItem
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
         className="text-destructive"
       >
         <Trash className="mr-2 h-4 w-4" />

@@ -55,8 +55,8 @@ export function EditCourseButton({
       }
 
       toast.success('Course updated successfully');
-      router.refresh();
       setOpen(false);
+      router.refresh();
     } catch (error) {
       console.error('Error updating course:', error);
       toast.error('Failed to update course');
@@ -67,7 +67,13 @@ export function EditCourseButton({
 
   return (
     <>
-      <DropdownMenuItem onClick={() => setOpen(true)}>
+      <DropdownMenuItem 
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
         <Pencil className="mr-2 h-4 w-4" />
         Edit Course
       </DropdownMenuItem>
