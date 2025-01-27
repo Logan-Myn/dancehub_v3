@@ -52,6 +52,8 @@ import { MuxPlayer } from "@/components/MuxPlayer";
 import EditCourseModal from "@/components/EditCourseModal";
 import NotifyMembersModal from "@/components/NotifyMembersModal";
 import DeleteLessonModal from "@/components/DeleteLessonModal";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 
 interface Chapter {
   id: string;
@@ -324,6 +326,12 @@ export default function CoursePage() {
   const { user } = useAuth();
   const supabase = createClient();
 
+  // Add SWR hook for course data
+  const { data: courseData, error: courseError, mutate: mutateCourse } = useSWR(
+    isAccessChecked ? `course:${communitySlug}:${courseSlug}` : null,
+    fetcher
+  );
+
   // Wait for auth to be initialized
   useEffect(() => {
     const checkAuth = async () => {
@@ -416,91 +424,33 @@ export default function CoursePage() {
     }
   }, [user, communitySlug, router, supabase, isAuthChecked]);
 
-  // Only fetch course data after access is checked
+  // Add selected lesson logic
   useEffect(() => {
-    if (!isAccessChecked) return;
+    if (courseData) {
+      setCourse(courseData);
+      setChapters(courseData.chapters || []);
+      setIsLoading(false);
 
-    async function fetchCourse() {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+      // Find the next uncompleted lesson
+      let foundNextLesson = false;
+      let nextLesson = null;
 
-        const response = await fetch(
-          `/api/community/${communitySlug}/courses/${courseSlug}`,
-          {
-            headers: {
-              Authorization: `Bearer ${session?.access_token}`,
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            },
-            cache: "no-store",
-            next: { revalidate: 0 },
+      for (const chapter of courseData.chapters || []) {
+        for (const lesson of chapter.lessons || []) {
+          if (!lesson.completed) {
+            nextLesson = lesson;
+            foundNextLesson = true;
+            break;
           }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error("Course fetch failed:", {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData,
-          });
-          throw new Error(
-            `Failed to fetch course: ${response.status} ${JSON.stringify(
-              errorData
-            )}`
-          );
         }
-
-        const courseData = await response.json();
-        console.log("Course data received:", {
-          id: courseData.id,
-          title: courseData.title,
-          is_public: courseData.is_public,
-          updated_at: courseData.updated_at,
-        });
-
-        if (!courseData.id) {
-          console.error("Invalid course data received:", courseData);
-          throw new Error("Invalid course data received");
-        }
-
-        setCourse(courseData);
-        setChapters(courseData.chapters || []);
-
-        // Find the next uncompleted lesson
-        let foundNextLesson = false;
-        let nextLesson = null;
-
-        // Loop through chapters
-        for (const chapter of courseData.chapters || []) {
-          // Loop through lessons in each chapter
-          for (const lesson of chapter.lessons || []) {
-            if (!lesson.completed) {
-              nextLesson = lesson;
-              foundNextLesson = true;
-              break;
-            }
-          }
-          if (foundNextLesson) break;
-        }
-
-        // If no uncompleted lesson found, select the first lesson
-        // If all lessons are completed, this will show the first lesson
-        setSelectedLesson(
-          nextLesson || courseData.chapters?.[0]?.lessons?.[0] || null
-        );
-      } catch (error) {
-        console.error("Error in fetchCourse:", error);
-        toast.error("Failed to load course data");
-      } finally {
-        setIsLoading(false);
+        if (foundNextLesson) break;
       }
-    }
 
-    fetchCourse();
-  }, [isAccessChecked, communitySlug, courseSlug, supabase]);
+      setSelectedLesson(
+        nextLesson || courseData.chapters?.[0]?.lessons?.[0] || null
+      );
+    }
+  }, [courseData]);
 
   const [expandedChapters, setExpandedChapters] = useState<{
     [key: string]: boolean;
@@ -558,6 +508,7 @@ export default function CoursePage() {
       setNewChapterTitle("");
       setIsAddingChapter(false);
       toast.success("Chapter added successfully");
+      mutateCourse();
     } catch (error) {
       console.error("Error adding chapter:", error);
       toast.error("Failed to add chapter");
@@ -609,13 +560,14 @@ export default function CoursePage() {
       // Select the new lesson
       setSelectedLesson(newLesson);
       toast.success("Lesson added successfully");
+      mutateCourse();
     } catch (error) {
       console.error("Error adding lesson:", error);
       toast.error("Failed to add lesson");
     }
   };
 
-  // Add this new function to handle lesson updates
+  // Update handleUpdateLesson
   const handleUpdateLesson = async (lessonData: {
     content: string;
     videoAssetId?: string;
@@ -654,8 +606,6 @@ export default function CoursePage() {
       }
 
       const updatedLesson = await response.json();
-
-      // Update the chapters state with the new lesson data
       setChapters((prevChapters) =>
         prevChapters.map((chapter) =>
           chapter.id === currentChapter.id
@@ -668,14 +618,14 @@ export default function CoursePage() {
             : chapter
         )
       );
-
-      // Update the selected lesson
       setSelectedLesson(updatedLesson);
+      mutateCourse();
     } catch (error) {
       throw error;
     }
   };
 
+  // Update handleEditChapter
   const handleEditChapter = async (chapterId: string, title: string) => {
     try {
       const response = await fetch(
@@ -699,12 +649,14 @@ export default function CoursePage() {
         )
       );
       toast.success("Chapter updated successfully");
+      mutateCourse();
     } catch (error) {
       console.error("Error updating chapter:", error);
       toast.error("Failed to update chapter");
     }
   };
 
+  // Update handleDeleteChapter
   const handleDeleteChapter = async (chapterId: string) => {
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this chapter and all its lessons? This action cannot be undone."
@@ -733,7 +685,6 @@ export default function CoursePage() {
         prevChapters.filter((chapter) => chapter.id !== chapterId)
       );
 
-      // If the deleted chapter had the selected lesson, clear the selection
       if (
         selectedLesson &&
         chapters
@@ -744,6 +695,7 @@ export default function CoursePage() {
       }
 
       toast.success("Chapter deleted successfully");
+      mutateCourse();
     } catch (error) {
       console.error("Error deleting chapter:", error);
       toast.error("Failed to delete chapter");
@@ -798,6 +750,7 @@ export default function CoursePage() {
       }
 
       toast.success("Lesson deleted successfully");
+      mutateCourse();
     } catch (error) {
       console.error("Error deleting lesson:", error);
       toast.error("Failed to delete lesson");
@@ -810,6 +763,7 @@ export default function CoursePage() {
     setIsEditingCourse(true);
   };
 
+  // Update handleUpdateCourse
   const handleUpdateCourse = async (updates: {
     title: string;
     description: string;
@@ -824,13 +778,6 @@ export default function CoursePage() {
       if (updates.image) {
         formData.append("image", updates.image);
       }
-
-      console.log("Sending course update:", {
-        title: updates.title,
-        description: updates.description,
-        is_public: updates.is_public,
-        hasImage: !!updates.image,
-      });
 
       const response = await fetch(
         `/api/community/${params.communitySlug}/courses/${params.courseSlug}`,
@@ -847,32 +794,20 @@ export default function CoursePage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Course update failed:", errorData);
         throw new Error(errorData.error || "Failed to update course");
       }
 
       const { course, madePublic } = await response.json();
-      console.log("Course update response:", {
-        courseId: course.id,
-        title: course.title,
-        is_public: course.is_public,
-        updated_at: course.updated_at,
-        madePublic,
-      });
-
-      // Update local state
       setCourse(course);
-
-      // Force a refresh of the data
       setRefreshTrigger((prev) => prev + 1);
 
-      // Show notification modal if the course was made public
       if (madePublic) {
         setShowNotifyModal(true);
       }
 
       toast.success("Course updated successfully");
       setIsEditingCourse(false);
+      mutateCourse();
     } catch (error) {
       console.error("Error updating course:", error);
       toast.error("Error updating course");
@@ -953,6 +888,7 @@ export default function CoursePage() {
     }
   };
 
+  // Update updateChaptersOrder
   const updateChaptersOrder = async (chapters: Chapter[]) => {
     if (!isCreator || !isEditMode || isSavingOrder) return;
 
@@ -981,6 +917,7 @@ export default function CoursePage() {
         duration: 2000,
         position: "bottom-right",
       });
+      mutateCourse();
     } catch (error) {
       console.error("Error updating chapters order:", error);
       toast.error("Failed to update order");
@@ -989,6 +926,7 @@ export default function CoursePage() {
     }
   };
 
+  // Update updateLessonsOrder
   const updateLessonsOrder = async (chapterId: string, lessons: Lesson[]) => {
     if (!isCreator || !isEditMode || isSavingOrder) return;
 
@@ -1011,21 +949,15 @@ export default function CoursePage() {
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Reorder API error:", errorText);
         throw new Error("Failed to update lessons order");
       }
 
-      const updatedLessons = await response.json();
-      console.log("Received updated lessons from API:", updatedLessons);
-
-      // Force a fresh fetch of the course data
       setRefreshTrigger((prev) => prev + 1);
-
       toast.success("Order updated", {
         duration: 2000,
         position: "bottom-right",
       });
+      mutateCourse();
     } catch (error) {
       console.error("Error updating lessons order:", error);
       toast.error("Failed to update order");
@@ -1074,6 +1006,7 @@ export default function CoursePage() {
       toast.success(
         completed ? "Lesson marked as completed" : "Lesson marked as incomplete"
       );
+      mutateCourse();
     } catch (error) {
       console.error("Error toggling lesson completion:", error);
       toast.error("Failed to update lesson status");

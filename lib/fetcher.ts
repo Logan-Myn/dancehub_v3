@@ -186,6 +186,31 @@ export const fetcher = async (key: string) => {
     return data;
   }
 
+  // Fetch a specific course with chapters and lessons
+  if (key.startsWith('course:')) {
+    const [_, communitySlug, courseSlug] = key.split(':');
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const response = await fetch(
+      `/api/community/${communitySlug}/courses/${courseSlug}`,
+      {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch course');
+    }
+
+    const data = await response.json();
+    return data;
+  }
+
   throw new Error(`No fetcher defined for key ${key}`);
 };
 
