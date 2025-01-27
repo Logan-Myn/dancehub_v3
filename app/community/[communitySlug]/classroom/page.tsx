@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/auth";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 
 interface Community {
   id: string;
@@ -37,15 +39,26 @@ export default function ClassroomPage() {
   const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
 
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [community, setCommunity] = useState<Community | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [isMember, setIsMember] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
   const [membershipChecked, setMembershipChecked] = useState(false);
   const [profile, setProfile] = useState<{ is_admin: boolean } | null>(null);
+
+  // Use SWR for community data
+  const { data: community, error: communityError, isLoading: isCommunityLoading } = useSWR(
+    membershipChecked ? `community:${communitySlug}` : null,
+    fetcher
+  );
+
+  // Use SWR for courses data
+  const { data: courses = [], mutate: mutateCourses, isLoading: isCoursesLoading } = useSWR(
+    membershipChecked && community?.id
+      ? `courses:${community.id}${!isCreator && !profile?.is_admin ? ':public' : ''}`
+      : null,
+    fetcher
+  );
 
   // Check membership first
   useEffect(() => {
@@ -83,7 +96,6 @@ export default function ClassroomPage() {
 
         // Admins have access to all communities
         if (profile?.is_admin) {
-          setCommunity(communityData);
           setMembershipChecked(true);
           setIsMember(true);
           return;
@@ -91,7 +103,6 @@ export default function ClassroomPage() {
 
         // Check if user is creator
         if (communityData.created_by === currentUser?.id) {
-          setCommunity(communityData);
           setMembershipChecked(true);
           setIsMember(true);
           setIsCreator(true);
@@ -113,7 +124,6 @@ export default function ClassroomPage() {
           return;
         }
 
-        setCommunity(communityData);
         setIsMember(true);
       } catch (error) {
         console.error("Error checking membership:", error);
@@ -124,68 +134,6 @@ export default function ClassroomPage() {
 
     checkMembership();
   }, [communitySlug, currentUser, isAuthLoading]);
-
-  // Only fetch data after membership is confirmed
-  useEffect(() => {
-    if (!membershipChecked || !currentUser) return;
-
-    async function fetchData() {
-      try {
-        const response = await fetch(`/api/community/${communitySlug}`);
-        if (!response.ok) {
-          throw new Error("Community not found");
-        }
-        const communityData = await response.json();
-
-        // Check if user is creator
-        const isUserCreator = currentUser!.id === communityData.created_by;
-
-        // Get courses based on user role
-        let coursesQuery = supabase
-          .from("courses")
-          .select(`
-            id,
-            title,
-            description,
-            image_url,
-            created_at,
-            updated_at,
-            slug,
-            community_id,
-            is_public
-          `)
-          .eq("community_id", communityData.id)
-          .order("created_at", { ascending: false });
-
-        // Check if user is admin
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", currentUser?.id)
-          .single();
-
-        // If user is not the creator or admin, only show public courses
-        if (!isUserCreator && !profile?.is_admin) {
-          coursesQuery = coursesQuery.eq("is_public", true);
-        }
-
-        const { data: coursesData, error: coursesError } = await coursesQuery;
-
-        if (coursesError) throw coursesError;
-
-        setCommunity(communityData);
-        setCourses(coursesData || []);
-        setIsCreator(isUserCreator);
-      } catch (error) {
-        console.error("Error:", error);
-        setError(error instanceof Error ? error : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [communitySlug, currentUser, membershipChecked]);
 
   const handleCreateCourse = async (newCourse: any) => {
     try {
@@ -205,12 +153,13 @@ export default function ClassroomPage() {
       }
 
       const createdCourse = await response.json();
-      setCourses((prevCourses) => [...prevCourses, createdCourse]);
+      mutateCourses([...courses, createdCourse], false); // Update the courses list optimistically
       setIsCreateCourseModalOpen(false);
       toast.success("Course created successfully");
     } catch (error) {
       console.error("Error creating course:", error);
       toast.error("Failed to create course");
+      mutateCourses(); // Revalidate the courses list if the optimistic update failed
     }
   };
 
@@ -228,17 +177,51 @@ export default function ClassroomPage() {
     return null;
   }
 
+  // Show loading state for data fetching if we're confirmed as a member
+  if (isCommunityLoading || isCoursesLoading) {
+    return (
+      <div className="flex flex-col min-h-screen bg-white">
+        <Navbar />
+        <CommunityNavbar 
+          communitySlug={communitySlug} 
+          activePage="classroom" 
+          isMember={isMember} 
+        />
+        <main className="flex-grow">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex justify-between items-center mb-8">
+              <div className="h-9 w-32 bg-gray-200 rounded animate-pulse"></div>
+              {isCreator && (
+                <div className="h-9 w-28 bg-gray-200 rounded animate-pulse"></div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-gray-100 rounded-lg p-4 h-64 animate-pulse">
+                  <div className="w-full h-40 bg-gray-200 rounded-lg mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Show error state if any error occurred
+  if (error || communityError) {
+    return <div>Error loading classroom: {(error || communityError)?.message}</div>;
+  }
+
   // Only show loading state for data fetching if we're confirmed as a member
-  if (isLoading || !community) {
+  if (!community) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
-  }
-
-  if (error) {
-    return <div>Error loading classroom: {error.message}</div>;
   }
 
   return (
@@ -263,7 +246,7 @@ export default function ClassroomPage() {
           <div>
             {courses.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {courses.map((course) => (
+                {courses.map((course: Course) => (
                   <Link
                     key={course.id}
                     href={`/community/${communitySlug}/classroom/${course.slug}`}

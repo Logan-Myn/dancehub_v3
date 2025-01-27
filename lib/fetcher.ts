@@ -145,6 +145,35 @@ export const fetcher = async (key: string) => {
     return [];
   }
 
+  // Fetch courses for a community
+  if (key.startsWith('courses:')) {
+    const [_, communityId, visibility] = key.split(':');
+    let query = supabase
+      .from("courses")
+      .select(`
+        id,
+        title,
+        description,
+        image_url,
+        created_at,
+        updated_at,
+        slug,
+        community_id,
+        is_public
+      `)
+      .eq("community_id", communityId)
+      .order("created_at", { ascending: false });
+
+    // If visibility is public, only show public courses
+    if (visibility === 'public') {
+      query = query.eq("is_public", true);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
   if (key.startsWith('profile:')) {
     const userId = key.split(':')[1];
     const { data, error } = await supabase
