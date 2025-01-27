@@ -54,6 +54,7 @@ create table if not exists threads (
 -- Create indexes for thread lookups
 create index if not exists threads_community_id_idx on threads(community_id);
 create index if not exists threads_user_id_idx on threads(user_id);
+create index if not exists threads_community_created_idx on threads(community_id, created_at desc);
 
 -- Row Level Security Policies
 
