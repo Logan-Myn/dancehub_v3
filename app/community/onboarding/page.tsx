@@ -56,13 +56,10 @@ export default function OnboardingPage() {
                 <Users className="mr-2 text-green-500" /> Build your community
               </li>
               <li className="flex items-center">
-                <Smartphone className="mr-2 text-purple-500" /> iOS + Android apps
-              </li>
-              <li className="flex items-center">
                 <Globe className="mr-2 text-indigo-500" /> Connect with dancers worldwide
               </li>
             </ul>
-            <p className="mt-6 text-gray-600">help@dancehub.com</p>
+            <p className="mt-6 text-gray-600">hello@dancehub.com</p>
           </div>
 
           {/* Right side - Onboarding form */}
