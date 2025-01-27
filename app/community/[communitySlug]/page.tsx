@@ -32,6 +32,8 @@ import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
+import useSWR from 'swr';
+import { fetcher } from '@/lib/fetcher';
 
 interface CustomLink {
   title: string;
@@ -160,6 +162,24 @@ export default function CommunityPage() {
   const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
 
+  // Add SWR for community data
+  const { data: communityData, error: communityError, isLoading: isCommunityLoading } = useSWR<Community>(
+    communitySlug ? `community:${communitySlug}` : null,
+    fetcher
+  );
+
+  // Add SWR for members data
+  const { data: membersData, error: membersError, isLoading: isMembersLoading } = useSWR<Member[]>(
+    communityData?.id ? `community-members:${communityData.id}` : null,
+    fetcher
+  );
+
+  // Add SWR for threads data
+  const { data: threadsData, error: threadsError, isLoading: isThreadsLoading } = useSWR<Thread[]>(
+    communityData?.id ? `community-threads:${communityData.id}` : null,
+    fetcher
+  );
+
   const [isLoading, setIsLoading] = useState(true);
   const [community, setCommunity] = useState<Community | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -186,6 +206,50 @@ export default function CommunityPage() {
   const [accessEndDate, setAccessEndDate] = useState<string | null>(null);
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
   const [membershipChecked, setMembershipChecked] = useState(false);
+
+  // Update community state when SWR data changes
+  useEffect(() => {
+    if (communityData) {
+      setCommunity(communityData);
+      setStripeAccountId(communityData.stripeAccountId || null);
+    }
+  }, [communityData]);
+
+  // Update error state when SWR error occurs
+  useEffect(() => {
+    if (communityError) {
+      setError(communityError instanceof Error ? communityError : new Error("Failed to fetch community"));
+    }
+  }, [communityError]);
+
+  // Update members state when SWR data changes
+  useEffect(() => {
+    if (membersData) {
+      setMembers(membersData);
+      setTotalMembers(membersData.length);
+    }
+  }, [membersData]);
+
+  // Update error state when SWR error occurs
+  useEffect(() => {
+    if (membersError) {
+      setError(membersError instanceof Error ? membersError : new Error("Failed to fetch members"));
+    }
+  }, [membersError]);
+
+  // Update threads state when SWR data changes
+  useEffect(() => {
+    if (threadsData) {
+      setThreads(threadsData);
+    }
+  }, [threadsData]);
+
+  // Update error state when SWR error occurs
+  useEffect(() => {
+    if (threadsError) {
+      setError(threadsError instanceof Error ? threadsError : new Error("Failed to fetch threads"));
+    }
+  }, [threadsError]);
 
   // Check membership first
   useEffect(() => {
@@ -380,6 +444,13 @@ export default function CommunityPage() {
 
     fetchData();
   }, [communitySlug, currentUser, membershipChecked]);
+
+  // Update loading state to include threads loading
+  useEffect(() => {
+    if (!isAuthLoading && !isCommunityLoading && !isMembersLoading && !isThreadsLoading) {
+      setIsLoading(false);
+    }
+  }, [isAuthLoading, isCommunityLoading, isMembersLoading, isThreadsLoading]);
 
   const handleJoinCommunity = async () => {
     if (!currentUser) {
