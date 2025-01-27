@@ -4,8 +4,20 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import Navbar from "@/app/components/Navbar";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
 
 export default function LandingPage() {
+  const { user } = useAuth();
+  const { showAuthModal } = useAuthModal();
+
+  const handleTeachingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!user) {
+      e.preventDefault();
+      showAuthModal("signup");
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -22,7 +34,7 @@ export default function LandingPage() {
                   Join our platform to reach students worldwide, monetize your expertise, and build your dance teaching brand.
                 </p>
                 <div className="space-x-4">
-                  <Link href="/community/onboarding">
+                  <Link href="/community/onboarding" onClick={handleTeachingClick}>
                     <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100">
                       Start Teaching Today
                     </Button>
@@ -91,7 +103,7 @@ export default function LandingPage() {
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-4xl font-bold mb-8">Ready to Start Your Teaching Journey?</h2>
             <p className="text-xl text-gray-600 mb-8">Join dance teachers who are already growing their business online.</p>
-            <Link href="/community/onboarding">
+            <Link href="/community/onboarding" onClick={handleTeachingClick}>
               <Button size="lg" className="bg-purple-600 text-white hover:bg-purple-700">
                 Create Your Community
               </Button>
