@@ -28,19 +28,20 @@ export default function LandingPage() {
                     </Button>
                   </Link>
                   <Link href="/discovery">
-                    <Button size="lg" variant="outline" className="text-white border-white hover:bg-white/10">
+                    <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100">
                       Explore Communities
                     </Button>
                   </Link>
                 </div>
               </div>
               <div className="md:w-1/2">
-                <div className="relative h-[400px] w-full">
+                <div className="relative h-[500px] w-full flex items-center justify-center">
                   <Image
-                    src="/dance-teacher.jpg"
-                    alt="Dance Teacher"
+                    src="/Teachers1-2-removebg-preview.png"
+                    alt="Dance teachers performing a dance move"
                     fill
-                    className="object-cover rounded-lg"
+                    className="object-contain scale-110 hover:scale-105 transition-transform duration-300"
+                    style={{ filter: 'drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1))' }}
                     priority
                   />
                 </div>
@@ -61,7 +62,7 @@ export default function LandingPage() {
                   </svg>
                 </div>
                 <h3 className="text-2xl font-semibold mb-4">Monetize Your Expertise</h3>
-                <p className="text-gray-600">Set your own prices and earn from courses, private lessons, and exclusive content.</p>
+                <p className="text-gray-600">Set your own prices and earn from courses and exclusive content.</p>
               </div>
               <div className="text-center">
                 <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -79,7 +80,7 @@ export default function LandingPage() {
                   </svg>
                 </div>
                 <h3 className="text-2xl font-semibold mb-4">Powerful Teaching Tools</h3>
-                <p className="text-gray-600">Access video hosting, scheduling, and student management tools all in one place.</p>
+                <p className="text-gray-600">Access video hosting and student management tools all in one place.</p>
               </div>
             </div>
           </div>
@@ -89,7 +90,7 @@ export default function LandingPage() {
         <section className="bg-gray-50 py-20">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-4xl font-bold mb-8">Ready to Start Your Teaching Journey?</h2>
-            <p className="text-xl text-gray-600 mb-8">Join thousands of dance teachers who are already growing their business online.</p>
+            <p className="text-xl text-gray-600 mb-8">Join dance teachers who are already growing their business online.</p>
             <Link href="/community/onboarding">
               <Button size="lg" className="bg-purple-600 text-white hover:bg-purple-700">
                 Create Your Community

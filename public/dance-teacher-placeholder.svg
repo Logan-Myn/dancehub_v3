@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <rect width="800" height="600" fill="url(#gradient)" />
+  
+  <!-- Stylized dance studio elements -->
+  <rect x="100" y="500" width="600" height="20" fill="#4B5563" opacity="0.1" /> <!-- Floor -->
+  <rect x="700" y="100" width="20" height="400" fill="#4B5563" opacity="0.1" /> <!-- Mirror edge -->
+  
+  <!-- Abstract dancer silhouette -->
+  <path d="M400 200 
+           C420 180, 450 190, 460 220
+           C470 250, 450 280, 430 290
+           C410 300, 390 320, 400 350
+           C410 380, 440 400, 460 420"
+        stroke="#7C3AED" 
+        stroke-width="8"
+        fill="none"
+        stroke-linecap="round" />
+  
+  <!-- Dancing figures -->
+  <circle cx="400" cy="150" r="30" fill="#7C3AED" opacity="0.8" /> <!-- Head -->
+  <path d="M400 180 L400 280 M360 230 L440 230 M380 350 L400 280 L420 350" 
+        stroke="#7C3AED" 
+        stroke-width="8" 
+        stroke-linecap="round"
+        opacity="0.8" />
+  
+  <!-- Decorative elements -->
+  <circle cx="300" cy="200" r="5" fill="#7C3AED" opacity="0.5" />
+  <circle cx="500" cy="200" r="5" fill="#7C3AED" opacity="0.5" />
+  <circle cx="400" cy="400" r="5" fill="#7C3AED" opacity="0.5" />
+  
+  <!-- Text placeholder -->
+  <text x="400" y="500" 
+        font-family="Arial" 
+        font-size="24" 
+        fill="#4B5563"
+        text-anchor="middle">
+    Dance Teacher Image
+  </text>
+  
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="800" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F3F4F6" />
+      <stop offset="100%" stop-color="#E5E7EB" />
+    </linearGradient>
+  </defs>
+</svg> 
