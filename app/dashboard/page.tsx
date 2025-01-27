@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/auth";
-import Link from "next/link";
 import { Users, Calendar } from "lucide-react";
+import Link from "next/link";
+import { useAuth } from "@/hooks/auth";
+import useSWR from 'swr';
+import { fetcher } from '@/lib/fetcher';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 interface Community {
   id: string;
@@ -18,44 +20,32 @@ interface Community {
 }
 
 export default function DashboardPage() {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
-  const supabase = createClient();
+  const router = useRouter();
+  const { user, loading: isAuthLoading } = useAuth();
+  const { data: communities, error, isLoading: isDataLoading } = useSWR<Community[]>(
+    user ? `user-communities:${user.id}` : null,
+    fetcher
+  );
 
+  // Redirect to home if not authenticated
   useEffect(() => {
-    async function fetchCommunities() {
-      if (!user) return;
-
-      try {
-        const { data: memberCommunities, error: memberError } = await supabase
-          .from('community_members')
-          .select('community_id')
-          .eq('user_id', user.id);
-
-        if (memberError) throw memberError;
-
-        if (memberCommunities && memberCommunities.length > 0) {
-          const communityIds = memberCommunities.map(mc => mc.community_id);
-          const { data: communities, error: communitiesError } = await supabase
-            .from('communities')
-            .select('*')
-            .in('id', communityIds);
-
-          if (communitiesError) throw communitiesError;
-          setCommunities(communities || []);
-        }
-      } catch (error) {
-        console.error('Error fetching communities:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    if (!isAuthLoading && !user) {
+      router.push('/');
     }
+  }, [user, isAuthLoading, router]);
 
-    fetchCommunities();
-  }, [user]);
+  // Show nothing while checking auth
+  if (isAuthLoading) {
+    return null;
+  }
 
-  if (isLoading) {
+  // If not authenticated, don't show anything (will redirect)
+  if (!user) {
+    return null;
+  }
+
+  // Show loading spinner only when fetching data
+  if (isDataLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -77,7 +67,7 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{communities.length}</div>
+            <div className="text-2xl font-bold">{communities?.length || 0}</div>
           </CardContent>
         </Card>
 
@@ -96,12 +86,18 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="text-xl font-semibold mb-4">Your Communities</h2>
-        {communities.length === 0 ? (
+        {error ? (
+          <Card>
+            <CardContent className="text-center py-6">
+              <p className="text-red-500">Error loading communities. Please try again later.</p>
+            </CardContent>
+          </Card>
+        ) : !communities || communities.length === 0 ? (
           <Card>
             <CardContent className="text-center py-6">
               <p className="text-gray-500 mb-4">You haven't joined any communities yet.</p>
               <Link 
-                href="/"
+                href="/discovery"
                 className="text-blue-500 hover:text-blue-600 underline"
               >
                 Discover communities

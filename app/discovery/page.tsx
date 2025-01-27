@@ -5,64 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
 import Navbar from "@/app/components/Navbar";
-
-interface Community {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  membersCount: number;
-  privacy?: string;
-  slug: string;
-}
+import useSWR from 'swr';
+import { fetcher, type Community } from '@/lib/fetcher';
 
 export default function DiscoveryPage() {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
+  const { data: communities, error, isLoading } = useSWR('communities', fetcher);
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
-
-  useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        const { data: communitiesData, error: communitiesError } = await supabase
-          .from('communities')
-          .select('*');
-
-        if (communitiesError) throw communitiesError;
-
-        const communitiesWithCounts = await Promise.all(
-          (communitiesData || []).map(async (community) => {
-            const { count, error: membersError } = await supabase
-              .from('community_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('community_id', community.id);
-
-            if (membersError) throw membersError;
-
-            return {
-              ...community,
-              membersCount: count || 0,
-            } as Community;
-          })
-        );
-
-        setCommunities(communitiesWithCounts);
-      } catch (error) {
-        console.error("Error fetching communities:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchCommunities();
-  }, []);
 
   const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!user) {
@@ -110,11 +62,15 @@ export default function DiscoveryPage() {
             <div className="flex justify-center items-center min-h-[200px]">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
-          ) : communities.length === 0 ? (
+          ) : error ? (
+            <div className="text-center text-red-500">
+              Error loading communities. Please try again later.
+            </div>
+          ) : !communities?.length ? (
             <div className="text-center text-gray-500">No communities found</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {communities.map((community) => (
+              {communities.map((community: Community) => (
                 <div
                   key={community.id}
                   className="border rounded-lg overflow-hidden shadow-lg"
