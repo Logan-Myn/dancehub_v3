@@ -1,158 +1,102 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useAuthModal } from "@/contexts/AuthModalContext";
 import Navbar from "@/app/components/Navbar";
 
-interface Community {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  membersCount: number;
-  privacy?: string;
-  slug: string;
-}
-
-export default function Home() {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
-  const { user } = useAuth();
-  const { showAuthModal } = useAuthModal();
-
-  useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        // First get all communities
-        const { data: communitiesData, error: communitiesError } = await supabase
-          .from('communities')
-          .select('*');
-
-        if (communitiesError) throw communitiesError;
-
-        // Then get member counts for each community
-        const communitiesWithCounts = await Promise.all(
-          (communitiesData || []).map(async (community) => {
-            const { count, error: membersError } = await supabase
-              .from('community_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('community_id', community.id);
-
-            if (membersError) throw membersError;
-
-            return {
-              ...community,
-              membersCount: count || 0,
-            } as Community;
-          })
-        );
-
-        setCommunities(communitiesWithCounts);
-      } catch (error) {
-        console.error("Error fetching communities:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchCommunities();
-  }, []);
-
-  const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!user) {
-      e.preventDefault();
-      showAuthModal("signup");
-    }
-  };
-
+export default function LandingPage() {
   return (
     <>
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <main>
-          <h2 className="text-4xl font-bold text-center mb-4">
-            Discover dance communities
-          </h2>
-          <p className="text-center mb-8">
-            or{" "}
-            <Link
-              href="/community/onboarding"
-              className="text-blue-500 hover:underline"
-              onClick={handleCreateCommunity}
-            >
-              create your own
-            </Link>
-          </p>
-          <div className="relative mb-8">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <Input
-              className="pl-10"
-              placeholder="Search dance styles, teachers, and more"
-              type="search"
-            />
-          </div>
-          <div className="flex space-x-4 mb-8 overflow-x-auto">
-            <Button variant="secondary">All</Button>
-            <Button variant="ghost">Ballet</Button>
-            <Button variant="ghost">Hip Hop</Button>
-            <Button variant="ghost">Contemporary</Button>
-            <Button variant="ghost">Salsa</Button>
-            <Button variant="ghost">Breakdancing</Button>
-          </div>
-
-          {isLoading ? (
-            <div className="flex justify-center items-center min-h-[200px]">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-          ) : communities.length === 0 ? (
-            <div className="text-center text-gray-500">No communities found</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {communities.map((community) => (
-                <div
-                  key={community.id}
-                  className="border rounded-lg overflow-hidden shadow-lg"
-                >
-                  <div className="relative w-full h-48">
-                    <Image
-                      alt={community.name}
-                      src={community.image_url || "/placeholder.svg"}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      priority={false}
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-xl font-semibold mb-2">
-                      {community.name}
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      {community.description || "No description available"}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">
-                        {community.privacy || "Public"} • {community.membersCount}{" "}
-                        Members
-                      </span>
-                      <Link href={`/community/${community.slug}`}>
-                        <Button variant="outline">Join</Button>
-                      </Link>
-                    </div>
-                  </div>
+      <div className="min-h-screen">
+        {/* Hero Section */}
+        <section className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-20">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-col md:flex-row items-center justify-between">
+              <div className="md:w-1/2 mb-10 md:mb-0">
+                <h1 className="text-5xl font-bold mb-6">
+                  Transform Your Dance Teaching Into a Thriving Online Business
+                </h1>
+                <p className="text-xl mb-8">
+                  Join our platform to reach students worldwide, monetize your expertise, and build your dance teaching brand.
+                </p>
+                <div className="space-x-4">
+                  <Link href="/community/onboarding">
+                    <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100">
+                      Start Teaching Today
+                    </Button>
+                  </Link>
+                  <Link href="/discovery">
+                    <Button size="lg" variant="outline" className="text-white border-white hover:bg-white/10">
+                      Explore Communities
+                    </Button>
+                  </Link>
                 </div>
-              ))}
+              </div>
+              <div className="md:w-1/2">
+                <div className="relative h-[400px] w-full">
+                  <Image
+                    src="/dance-teacher.jpg"
+                    alt="Dance Teacher"
+                    fill
+                    className="object-cover rounded-lg"
+                    priority
+                  />
+                </div>
+              </div>
             </div>
-          )}
-        </main>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section className="py-20">
+          <div className="container mx-auto px-4">
+            <h2 className="text-4xl font-bold text-center mb-16">Why Choose Our Platform?</h2>
+            <div className="grid md:grid-cols-3 gap-12">
+              <div className="text-center">
+                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-semibold mb-4">Monetize Your Expertise</h3>
+                <p className="text-gray-600">Set your own prices and earn from courses, private lessons, and exclusive content.</p>
+              </div>
+              <div className="text-center">
+                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-semibold mb-4">Build Your Community</h3>
+                <p className="text-gray-600">Create and grow your own dance community with dedicated tools and features.</p>
+              </div>
+              <div className="text-center">
+                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-semibold mb-4">Powerful Teaching Tools</h3>
+                <p className="text-gray-600">Access video hosting, scheduling, and student management tools all in one place.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="bg-gray-50 py-20">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-4xl font-bold mb-8">Ready to Start Your Teaching Journey?</h2>
+            <p className="text-xl text-gray-600 mb-8">Join thousands of dance teachers who are already growing their business online.</p>
+            <Link href="/community/onboarding">
+              <Button size="lg" className="bg-purple-600 text-white hover:bg-purple-700">
+                Create Your Community
+              </Button>
+            </Link>
+          </div>
+        </section>
       </div>
     </>
   );
