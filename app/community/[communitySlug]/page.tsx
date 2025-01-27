@@ -32,8 +32,8 @@ import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
-import useSWR from 'swr';
-import { fetcher } from '@/lib/fetcher';
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 
 interface CustomLink {
   title: string;
@@ -163,19 +163,31 @@ export default function CommunityPage() {
   const supabase = createClient();
 
   // Add SWR for community data
-  const { data: communityData, error: communityError, isLoading: isCommunityLoading } = useSWR<Community>(
+  const {
+    data: communityData,
+    error: communityError,
+    isLoading: isCommunityLoading,
+  } = useSWR<Community>(
     communitySlug ? `community:${communitySlug}` : null,
     fetcher
   );
 
   // Add SWR for members data
-  const { data: membersData, error: membersError, isLoading: isMembersLoading } = useSWR<Member[]>(
+  const {
+    data: membersData,
+    error: membersError,
+    isLoading: isMembersLoading,
+  } = useSWR<Member[]>(
     communityData?.id ? `community-members:${communityData.id}` : null,
     fetcher
   );
 
   // Add SWR for threads data
-  const { data: threadsData, error: threadsError, isLoading: isThreadsLoading } = useSWR<Thread[]>(
+  const {
+    data: threadsData,
+    error: threadsError,
+    isLoading: isThreadsLoading,
+  } = useSWR<Thread[]>(
     communityData?.id ? `community-threads:${communityData.id}` : null,
     fetcher
   );
@@ -218,7 +230,11 @@ export default function CommunityPage() {
   // Update error state when SWR error occurs
   useEffect(() => {
     if (communityError) {
-      setError(communityError instanceof Error ? communityError : new Error("Failed to fetch community"));
+      setError(
+        communityError instanceof Error
+          ? communityError
+          : new Error("Failed to fetch community")
+      );
     }
   }, [communityError]);
 
@@ -233,7 +249,11 @@ export default function CommunityPage() {
   // Update error state when SWR error occurs
   useEffect(() => {
     if (membersError) {
-      setError(membersError instanceof Error ? membersError : new Error("Failed to fetch members"));
+      setError(
+        membersError instanceof Error
+          ? membersError
+          : new Error("Failed to fetch members")
+      );
     }
   }, [membersError]);
 
@@ -247,7 +267,11 @@ export default function CommunityPage() {
   // Update error state when SWR error occurs
   useEffect(() => {
     if (threadsError) {
-      setError(threadsError instanceof Error ? threadsError : new Error("Failed to fetch threads"));
+      setError(
+        threadsError instanceof Error
+          ? threadsError
+          : new Error("Failed to fetch threads")
+      );
     }
   }, [threadsError]);
 
@@ -379,7 +403,9 @@ export default function CommunityPage() {
         if (error) throw error;
 
         // Get all unique user IDs from threads
-        const userIds = Array.from(new Set(threadsData.map((thread: any) => thread.user_id)));
+        const userIds = Array.from(
+          new Set(threadsData.map((thread: any) => thread.user_id))
+        );
 
         // Fetch profiles for these users
         const { data: profilesData } = await supabase
@@ -388,10 +414,13 @@ export default function CommunityPage() {
           .in("id", userIds);
 
         // Create a map of profiles for easy lookup
-        const profilesMap = (profilesData || []).reduce((acc: any, profile: any) => {
-          acc[profile.id] = profile;
-          return acc;
-        }, {});
+        const profilesMap = (profilesData || []).reduce(
+          (acc: any, profile: any) => {
+            acc[profile.id] = profile;
+            return acc;
+          },
+          {}
+        );
 
         const formattedThreads = threadsData.map((thread: any) => {
           const profile = profilesMap[thread.user_id];
@@ -447,7 +476,12 @@ export default function CommunityPage() {
 
   // Update loading state to include threads loading
   useEffect(() => {
-    if (!isAuthLoading && !isCommunityLoading && !isMembersLoading && !isThreadsLoading) {
+    if (
+      !isAuthLoading &&
+      !isCommunityLoading &&
+      !isMembersLoading &&
+      !isThreadsLoading
+    ) {
       setIsLoading(false);
     }
   }, [isAuthLoading, isCommunityLoading, isMembersLoading, isThreadsLoading]);
@@ -594,16 +628,20 @@ export default function CommunityPage() {
 
     // Get the current user's profile to get the display name
     const { data: profileData } = await supabase
-      .from('profiles')
-      .select('display_name, full_name, avatar_url')
-      .eq('id', currentUser?.id)
+      .from("profiles")
+      .select("display_name, full_name, avatar_url")
+      .eq("id", currentUser?.id)
       .single();
 
     const threadWithAuthor = {
       ...newThread,
       author: {
-        name: profileData?.display_name || profileData?.full_name || "Anonymous",
-        image: profileData?.avatar_url || currentUser?.user_metadata?.avatar_url || "",
+        name:
+          profileData?.display_name || profileData?.full_name || "Anonymous",
+        image:
+          profileData?.avatar_url ||
+          currentUser?.user_metadata?.avatar_url ||
+          "",
       },
       categoryId: newThread.categoryId,
       category: selectedCategory?.name || "General",
@@ -725,7 +763,9 @@ export default function CommunityPage() {
       if (error) throw error;
 
       // Get all unique user IDs from threads
-      const userIds = Array.from(new Set(threadsData.map((thread: any) => thread.user_id)));
+      const userIds = Array.from(
+        new Set(threadsData.map((thread: any) => thread.user_id))
+      );
 
       // Fetch profiles for these users
       const { data: profilesData } = await supabase
@@ -734,10 +774,13 @@ export default function CommunityPage() {
         .in("id", userIds);
 
       // Create a map of profiles for easy lookup
-      const profilesMap = (profilesData || []).reduce((acc: any, profile: any) => {
-        acc[profile.id] = profile;
-        return acc;
-      }, {});
+      const profilesMap = (profilesData || []).reduce(
+        (acc: any, profile: any) => {
+          acc[profile.id] = profile;
+          return acc;
+        },
+        {}
+      );
 
       const formattedThreads = threadsData.map((thread: any) => {
         const profile = profilesMap[thread.user_id];
@@ -795,10 +838,10 @@ export default function CommunityPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
       <Navbar />
-      <CommunityNavbar 
-        communitySlug={communitySlug} 
-        activePage="community" 
-        isMember={isMember} 
+      <CommunityNavbar
+        communitySlug={communitySlug}
+        activePage="community"
+        isMember={isMember}
       />
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -945,35 +988,43 @@ export default function CommunityPage() {
                     {Array.isArray(members) && members.length > 0 ? (
                       <>
                         {members
-                          .filter(member => member.user_id !== community.created_by)
+                          .filter(
+                            (member) => member.user_id !== community.created_by
+                          )
                           .slice(0, 5)
                           .map((member) => (
-                          <div key={member.id}>
-                            <div className="relative group/avatar">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage
-                                  src={
-                                    member.profile?.avatar_url ||
-                                    "/placeholder-avatar.png"
-                                  }
-                                  alt={member.profile?.full_name || "Member"}
-                                />
-                                <AvatarFallback>
-                                  {member.profile?.full_name?.[0]?.toUpperCase() ||
-                                    member.user_id
-                                      .substring(0, 2)
-                                      .toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                {member.profile?.full_name || "Anonymous"}
+                            <div key={member.id}>
+                              <div className="relative group/avatar">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage
+                                    src={
+                                      member.profile?.avatar_url ||
+                                      "/placeholder-avatar.png"
+                                    }
+                                    alt={member.profile?.full_name || "Member"}
+                                  />
+                                  <AvatarFallback>
+                                    {member.profile?.full_name?.[0]?.toUpperCase() ||
+                                      member.user_id
+                                        .substring(0, 2)
+                                        .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                  {member.profile?.full_name || "Anonymous"}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                        {members.filter(member => member.user_id !== community.created_by).length > 5 && (
+                          ))}
+                        {members.filter(
+                          (member) => member.user_id !== community.created_by
+                        ).length > 5 && (
                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
-                            +{members.filter(member => member.user_id !== community.created_by).length - 5}
+                            +
+                            {members.filter(
+                              (member) =>
+                                member.user_id !== community.created_by
+                            ).length - 5}
                           </div>
                         )}
                       </>

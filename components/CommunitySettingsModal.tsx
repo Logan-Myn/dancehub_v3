@@ -157,7 +157,6 @@ const navigationCategories = [
   { id: "members", name: "Members", icon: UserGroupIcon },
   { id: "subscriptions", name: "Subscriptions", icon: CreditCardIcon },
   { id: "thread_categories", name: "Thread Categories", icon: TagIcon },
-  { id: "billing", name: "Billing", icon: CurrencyDollarIcon },
 ];
 
 const formatUrl = (url: string): string => {
