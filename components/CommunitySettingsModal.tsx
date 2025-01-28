@@ -193,12 +193,13 @@ export default function CommunitySettingsModal({
   const [newCategoryIconType, setNewCategoryIconType] = useState("");
   const [isCreatorOnly, setIsCreatorOnly] = useState(false);
   const [isConnectingStripe, setIsConnectingStripe] = useState(false);
-  const [stripeAccountStatus, setStripeAccountStatus] = useState<StripeAccountStatus>({
-    isEnabled: false,
-    needsSetup: true,
-    accountId: stripeAccountId || undefined,
-    details: undefined
-  });
+  const [stripeAccountStatus, setStripeAccountStatus] =
+    useState<StripeAccountStatus>({
+      isEnabled: false,
+      needsSetup: true,
+      accountId: stripeAccountId || undefined,
+      details: undefined,
+    });
   const [isLoadingStripeStatus, setIsLoadingStripeStatus] = useState(false);
   const [isMembershipEnabled, setIsMembershipEnabled] = useState(false);
   const [price, setPrice] = useState(0);
@@ -254,7 +255,7 @@ export default function CommunitySettingsModal({
         if (!response.ok) throw new Error("Failed to fetch community data");
 
         const data = await response.json();
-        
+
         // Only set membership data if Stripe is connected
         if (stripeAccountId) {
           const hasPrice = data.membership_price && data.membership_price > 0;
@@ -278,13 +279,13 @@ export default function CommunitySettingsModal({
   useEffect(() => {
     async function fetchStripeStatus() {
       setIsLoadingStripeStatus(true);
-      
+
       if (!stripeAccountId) {
         setStripeAccountStatus({
           isEnabled: false,
           needsSetup: true,
           accountId: undefined,
-          details: undefined
+          details: undefined,
         });
         setIsLoadingStripeStatus(false);
         return;
@@ -312,18 +313,18 @@ export default function CommunitySettingsModal({
             capabilities: data.capabilities,
             payoutSchedule: data.payoutSchedule,
             defaultCurrency: data.defaultCurrency,
-            email: data.email
+            email: data.email,
           },
         };
-        
+
         setStripeAccountStatus(newStatus);
       } catch (error) {
-        console.error('Error in fetchStripeStatus:', error);
+        console.error("Error in fetchStripeStatus:", error);
         setStripeAccountStatus({
           isEnabled: false,
           needsSetup: true,
           accountId: stripeAccountId,
-          details: undefined
+          details: undefined,
         });
       } finally {
         setIsLoadingStripeStatus(false);
@@ -338,19 +339,19 @@ export default function CommunitySettingsModal({
   // Add effect to refetch status after Stripe connection
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const setup = urlParams.get('setup');
-    
-    if (setup === 'complete' && stripeAccountId) {
+    const setup = urlParams.get("setup");
+
+    if (setup === "complete" && stripeAccountId) {
       const fetchStatus = async () => {
         setIsLoadingStripeStatus(true);
         try {
           const response = await fetch(
             `/api/stripe/account-status/${stripeAccountId}`
           );
-          if (!response.ok) throw new Error('Failed to fetch status');
-          
+          if (!response.ok) throw new Error("Failed to fetch status");
+
           const data = await response.json();
-          
+
           setStripeAccountStatus({
             isEnabled: data.chargesEnabled && data.payoutsEnabled,
             needsSetup: !data.detailsSubmitted,
@@ -358,12 +359,12 @@ export default function CommunitySettingsModal({
             details: data,
           });
         } catch (error) {
-          console.error('Error refreshing Stripe status:', error);
+          console.error("Error refreshing Stripe status:", error);
         } finally {
           setIsLoadingStripeStatus(false);
         }
       };
-      
+
       fetchStatus();
     }
   }, [stripeAccountId]);
@@ -373,21 +374,21 @@ export default function CommunitySettingsModal({
     async function fetchCommunityStats() {
       if (activeCategory === "dashboard") {
         try {
-          console.log('Fetching community stats for:', communitySlug);
+          console.log("Fetching community stats for:", communitySlug);
           const response = await fetch(`/api/community/${communitySlug}/stats`);
-          
+
           if (!response.ok) {
             const errorData = await response.json();
-            console.error('Error response from stats API:', {
+            console.error("Error response from stats API:", {
               status: response.status,
               statusText: response.statusText,
-              error: errorData
+              error: errorData,
             });
             throw new Error("Failed to fetch community stats");
           }
-          
+
           const data = await response.json();
-          console.log('Received community stats:', data);
+          console.log("Received community stats:", data);
           setLocalCommunityStats(data);
         } catch (error) {
           console.error("Error fetching community stats:", error);
@@ -403,7 +404,7 @@ export default function CommunitySettingsModal({
 
   useEffect(() => {
     if (isOpen) {
-      setRefreshMembersTrigger(prev => prev + 1);
+      setRefreshMembersTrigger((prev) => prev + 1);
     }
   }, [isOpen]);
 
@@ -434,15 +435,15 @@ export default function CommunitySettingsModal({
           }
 
           // Format members data
-          const formattedMembers = membersData.map(member => ({
+          const formattedMembers = membersData.map((member) => ({
             id: member.id,
-            displayName: member.full_name || 'Anonymous',
-            email: member.email || '',
-            imageUrl: member.avatar_url || '',
+            displayName: member.full_name || "Anonymous",
+            email: member.email || "",
+            imageUrl: member.avatar_url || "",
             joinedAt: member.joined_at,
-            status: member.status || 'active',
+            status: member.status || "active",
             lastActive: member.last_active,
-            user_id: member.user_id
+            user_id: member.user_id,
           }));
 
           setMembers(formattedMembers);
@@ -461,7 +462,11 @@ export default function CommunitySettingsModal({
   // Fetch payout data
   useEffect(() => {
     async function fetchPayoutData() {
-      if (activeCategory === "subscriptions" && stripeAccountId && stripeAccountStatus.isEnabled) {
+      if (
+        activeCategory === "subscriptions" &&
+        stripeAccountId &&
+        stripeAccountStatus.isEnabled
+      ) {
         setIsLoadingPayouts(true);
         try {
           const response = await fetch(
@@ -480,12 +485,21 @@ export default function CommunitySettingsModal({
     }
 
     fetchPayoutData();
-  }, [activeCategory, communitySlug, stripeAccountId, stripeAccountStatus.isEnabled]);
+  }, [
+    activeCategory,
+    communitySlug,
+    stripeAccountId,
+    stripeAccountStatus.isEnabled,
+  ]);
 
   // Add effect to fetch bank account details
   useEffect(() => {
     async function fetchBankAccount() {
-      if (activeCategory === "subscriptions" && stripeAccountId && stripeAccountStatus.isEnabled) {
+      if (
+        activeCategory === "subscriptions" &&
+        stripeAccountId &&
+        stripeAccountStatus.isEnabled
+      ) {
         setIsLoadingBank(true);
         try {
           const response = await fetch(
@@ -511,7 +525,7 @@ export default function CommunitySettingsModal({
 
   const handleUpdateIban = async () => {
     if (!stripeAccountId) return;
-    
+
     setIsUpdatingIban(true);
     try {
       const response = await fetch(
@@ -520,7 +534,7 @@ export default function CommunitySettingsModal({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-          }
+          },
         }
       );
 
@@ -573,6 +587,11 @@ export default function CommunitySettingsModal({
         duration: Infinity, // The toast will remain until we dismiss it
       });
 
+      // Generate new slug from name
+      const newSlug = name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+
       const response = await fetch(`/api/community/${communitySlug}/update`, {
         method: "PUT",
         headers: {
@@ -583,6 +602,7 @@ export default function CommunitySettingsModal({
           description,
           imageUrl,
           customLinks: links,
+          slug: newSlug, // Add the new slug to the update
         }),
       });
 
@@ -596,6 +616,7 @@ export default function CommunitySettingsModal({
       onCommunityUpdate({
         name: data.data.name,
         description: data.data.description,
+        slug: data.data.slug,
       });
       onImageUpdate(data.data.imageUrl);
       onCustomLinksUpdate(data.data.customLinks);
@@ -603,9 +624,14 @@ export default function CommunitySettingsModal({
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Your changes have been saved successfully!", {
-        duration: 3000, // Toast will show for 3 seconds
+        duration: 3000,
         icon: "✅",
       });
+
+      // If the slug has changed, redirect to the new URL
+      if (newSlug !== communitySlug) {
+        window.location.href = `/community/${newSlug}`;
+      }
     } catch (error) {
       console.error("Error saving changes:", error);
       toast.error("Failed to save changes. Please try again.", {
@@ -613,16 +639,7 @@ export default function CommunitySettingsModal({
         icon: "❌",
       });
     }
-  }, [
-    name,
-    description,
-    imageUrl,
-    links,
-    communitySlug,
-    onCommunityUpdate,
-    onImageUpdate,
-    onCustomLinksUpdate,
-  ]);
+  }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -715,7 +732,7 @@ export default function CommunitySettingsModal({
         },
         body: JSON.stringify({
           accountId: stripeAccountId,
-          returnUrl: window.location.href
+          returnUrl: window.location.href,
         }),
       });
 
@@ -851,7 +868,7 @@ export default function CommunitySettingsModal({
 
       if (error) throw error;
 
-      setRefreshMembersTrigger(prev => prev + 1);
+      setRefreshMembersTrigger((prev) => prev + 1);
       toast.success("Member removed successfully");
     } catch (error) {
       console.error("Error removing member:", error);
@@ -859,289 +876,243 @@ export default function CommunitySettingsModal({
     }
   };
 
-  const renderSubscriptions = () => {
-    if (isLoadingStripeStatus) {
-      return (
-        <div className="flex items-center justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      );
-    }
+  const renderSubscriptions = () => (
+    <div className="space-y-6">
+      {/* Stripe connection status */}
+      {renderStripeConnectionStatus()}
 
-    // If no Stripe account is connected
-    if (!stripeAccountId) {
-      return (
-        <div className="space-y-4">
-          <div className="text-center">
-            <h3 className="text-lg font-medium">Connect Stripe Account</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              To enable subscriptions, you need to connect a Stripe account
+      {/* Membership settings */}
+      {renderMembershipSettings()}
+
+      {/* Payout management */}
+      {renderPayoutManagement()}
+    </div>
+  );
+
+  const renderStripeConnectionStatus = () => (
+    <div className="space-y-4">
+      <div className="text-center">
+        <h3 className="text-lg font-medium">Connect Stripe Account</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          To enable subscriptions, you need to connect a Stripe account
+        </p>
+      </div>
+      <div className="flex justify-center">
+        <Button
+          onClick={handleStripeConnect}
+          disabled={isConnectingStripe}
+          className="w-full max-w-sm"
+        >
+          {isConnectingStripe ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <CreditCardIcon className="mr-2 h-4 w-4" />
+              Connect Stripe Account
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderMembershipSettings = () => (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Membership Settings</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            window.open("https://dashboard.stripe.com", "_blank")
+          }
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Stripe Dashboard
+        </Button>
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-medium">Paid Membership</h4>
+            <p className="text-sm text-gray-500">
+              Enable paid membership for your community
             </p>
           </div>
-          <div className="flex justify-center">
+          <Switch
+            checked={isMembershipEnabled}
+            onCheckedChange={setIsMembershipEnabled}
+          />
+        </div>
+
+        {isMembershipEnabled && (
+          <div className="space-y-4 pt-4 border-t">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Monthly Membership Price
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">€</span>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  className="pl-7"
+                  placeholder="0.00"
+                />
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Set the monthly price for your community membership
+              </p>
+            </div>
+
+            <Button onClick={handlePriceUpdate} className="w-full">
+              Update Membership Price
+            </Button>
+          </div>
+        )}
+
+        {!isMembershipEnabled && (
+          <div className="bg-gray-100 p-4 rounded-md">
+            <p className="text-sm text-gray-600">
+              Your community is currently free to join. Enable paid membership
+              to start monetizing your community.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderPayoutManagement = () => (
+    <div className="pt-6 border-t">
+      <h3 className="text-lg font-medium mb-4">Payout Management</h3>
+      {payoutData ? (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-500 mb-4">
+              Current Balance
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-2xl font-bold">
+                  €{payoutData.balance.available.toFixed(2)}
+                </p>
+                <p className="text-sm text-gray-500">Available</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  €{payoutData.balance.pending.toFixed(2)}
+                </p>
+                <p className="text-sm text-gray-500">Pending</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-medium text-gray-500 mb-4">
+              Recent Payouts
+            </h4>
+            <div className="space-y-4">
+              {payoutData.payouts.length > 0 ? (
+                payoutData.payouts.map((payout) => (
+                  <div
+                    key={payout.id}
+                    className="bg-white p-4 rounded-lg border border-gray-200"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">
+                          €{payout.amount.toFixed(2)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(
+                            payout.arrivalDate
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          payout.status === "paid"
+                            ? "bg-green-100 text-green-800"
+                            : payout.status === "pending"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {payout.status}
+                      </span>
+                    </div>
+                    {payout.bankAccount && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        To: •••• {payout.bankAccount.last4}
+                      </p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No recent payouts
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 text-center py-4">
+          Failed to load payout information
+        </p>
+      )}
+
+      {/* Add Bank Account Management Section */}
+      <div className="mt-6 pt-6 border-t">
+        <h4 className="text-lg font-medium mb-4">Bank Account Details</h4>
+        {isLoadingBank ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label
+                htmlFor="iban"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Bank Account Management
+              </label>
+              <p className="text-sm text-gray-500">
+                To update your bank account details, you'll be redirected to
+                your Stripe Express dashboard
+              </p>
+            </div>
+
             <Button
-              onClick={handleStripeConnect}
-              disabled={isConnectingStripe}
-              className="w-full max-w-sm"
+              onClick={handleUpdateIban}
+              disabled={isUpdatingIban}
+              className="w-full"
             >
-              {isConnectingStripe ? (
+              {isUpdatingIban ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connecting...
+                  Redirecting...
                 </>
               ) : (
-                <>
-                  <CreditCardIcon className="mr-2 h-4 w-4" />
-                  Connect Stripe Account
-                </>
+                "Manage Bank Account"
               )}
             </Button>
           </div>
-        </div>
-      );
-    }
-
-    // If Stripe account needs setup or verification
-    if (stripeAccountStatus.needsSetup || 
-        !stripeAccountStatus.isEnabled || 
-        (stripeAccountStatus.details?.requirements?.eventuallyDue || []).length > 0) {
-      return (
-        <div className="space-y-6">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <Lock className="h-5 w-5 text-yellow-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">
-                  Account Setup Required
-                </h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p>
-                    Your Stripe account needs additional setup before you can accept payments.
-                  </p>
-                  {(stripeAccountStatus.details?.requirements?.currentlyDue || []).length > 0 && (
-                    <div className="mt-4">
-                      <strong>Required documents:</strong>
-                      <ul className="list-disc list-inside mt-1">
-                        {(stripeAccountStatus.details?.requirements?.currentlyDue || []).map((req) => (
-                          <li key={req.code}>{req.message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {(stripeAccountStatus.details?.requirements?.eventuallyDue || []).length > 0 && (
-                    <div className="mt-4">
-                      <strong>Eventually required:</strong>
-                      <ul className="list-disc list-inside mt-1">
-                        {(stripeAccountStatus.details?.requirements?.eventuallyDue || []).map((req) => (
-                          <li key={req.code}>{req.message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <div className="mt-4">
-                    <Button onClick={handleCompleteVerification}>
-                      Complete Verification
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // If Stripe account is fully set up
-    return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">Membership Settings</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Stripe Dashboard
-          </Button>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium">Paid Membership</h4>
-              <p className="text-sm text-gray-500">
-                Enable paid membership for your community
-              </p>
-            </div>
-            <Switch
-              checked={isMembershipEnabled}
-              onCheckedChange={setIsMembershipEnabled}
-            />
-          </div>
-
-          {isMembershipEnabled && (
-            <div className="space-y-4 pt-4 border-t">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Monthly Membership Price
-                </label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">€</span>
-                  </div>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    className="pl-7"
-                    placeholder="0.00"
-                  />
-                </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  Set the monthly price for your community membership
-                </p>
-              </div>
-
-              <Button onClick={handlePriceUpdate} className="w-full">
-                Update Membership Price
-              </Button>
-            </div>
-          )}
-
-          {!isMembershipEnabled && (
-            <div className="bg-gray-100 p-4 rounded-md">
-              <p className="text-sm text-gray-600">
-                Your community is currently free to join. Enable paid membership to
-                start monetizing your community.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="pt-6 border-t">
-          <h3 className="text-lg font-medium mb-4">Payout Management</h3>
-          {payoutData ? (
-            <div className="space-y-6">
-              <div className="bg-white p-6 rounded-lg border border-gray-200">
-                <h4 className="text-sm font-medium text-gray-500 mb-4">
-                  Current Balance
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl font-bold">
-                      €{payoutData.balance.available.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-gray-500">Available</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">
-                      €{payoutData.balance.pending.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-gray-500">Pending</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-4">
-                  Recent Payouts
-                </h4>
-                <div className="space-y-4">
-                  {payoutData.payouts.length > 0 ? (
-                    payoutData.payouts.map((payout) => (
-                      <div
-                        key={payout.id}
-                        className="bg-white p-4 rounded-lg border border-gray-200"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">
-                              €{payout.amount.toFixed(2)}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {new Date(payout.arrivalDate).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              payout.status === "paid"
-                                ? "bg-green-100 text-green-800"
-                                : payout.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {payout.status}
-                          </span>
-                        </div>
-                        {payout.bankAccount && (
-                          <p className="text-sm text-gray-500 mt-2">
-                            To: •••• {payout.bankAccount.last4}
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No recent payouts
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">
-              Failed to load payout information
-            </p>
-          )}
-
-          {/* Add Bank Account Management Section */}
-          <div className="mt-6 pt-6 border-t">
-            <h4 className="text-lg font-medium mb-4">Bank Account Details</h4>
-            {isLoadingBank ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="iban"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Bank Account Management
-                  </label>
-                  <p className="text-sm text-gray-500">
-                    To update your bank account details, you'll be redirected to your Stripe Express dashboard
-                  </p>
-                </div>
-
-                <Button
-                  onClick={handleUpdateIban}
-                  disabled={isUpdatingIban}
-                  className="w-full"
-                >
-                  {isUpdatingIban ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Redirecting...
-                    </>
-                  ) : (
-                    "Manage Bank Account"
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
   const renderThreadCategories = () => (
     <div className="space-y-6">
@@ -1220,7 +1191,8 @@ export default function CommunitySettingsModal({
           </p>
           <p className="text-sm text-green-600">
             <TrendingUp className="h-4 w-4 inline mr-1" />
-            {(localCommunityStats?.revenueGrowth ?? 0) >= 0 ? '+' : ''}{localCommunityStats?.revenueGrowth ?? 0}% this month
+            {(localCommunityStats?.revenueGrowth ?? 0) >= 0 ? "+" : ""}
+            {localCommunityStats?.revenueGrowth ?? 0}% this month
           </p>
         </Card>
 

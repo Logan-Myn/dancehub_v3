@@ -6,6 +6,7 @@ type CommunityUpdate = {
   description: string;
   image_url: string;
   custom_links: any[];
+  slug: string;
 };
 
 export async function PUT(
@@ -31,6 +32,23 @@ export async function PUT(
       );
     }
 
+    // If slug is being updated, check if it's already taken
+    if (updates.slug && updates.slug !== communitySlug) {
+      const { data: existingCommunity } = await supabase
+        .from('communities')
+        .select('id')
+        .eq('slug', updates.slug)
+        .neq('id', community.id)
+        .single();
+
+      if (existingCommunity) {
+        return NextResponse.json(
+          { error: 'A community with this URL already exists' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update the community
     const { data: updatedCommunity, error: updateError } = await supabase
       .from('communities')
@@ -39,6 +57,7 @@ export async function PUT(
         description: updates.description,
         image_url: updates.imageUrl,
         custom_links: updates.customLinks || [],
+        slug: updates.slug,
         updated_at: new Date().toISOString(),
       })
       .eq('id', community.id)
@@ -60,6 +79,7 @@ export async function PUT(
         description: updatedCommunity.description,
         imageUrl: updatedCommunity.image_url,
         customLinks: updatedCommunity.custom_links || [],
+        slug: updatedCommunity.slug,
       }
     });
   } catch (error) {
