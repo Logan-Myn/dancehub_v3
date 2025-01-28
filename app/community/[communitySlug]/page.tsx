@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, ExternalLink } from "lucide-react";
+import { Users, ExternalLink, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -34,6 +34,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDisplayName } from "@/lib/utils";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
+import { Input } from "@/components/ui/input";
 
 interface CustomLink {
   title: string;
@@ -161,6 +162,7 @@ export default function CommunityPage() {
   const communitySlug = params?.communitySlug as string;
   const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Add SWR for community data
   const {
@@ -728,6 +730,7 @@ export default function CommunityPage() {
   const filteredThreads = useMemo(() => {
     let filtered = [...threads];
 
+    // Apply category filter
     if (selectedCategory) {
       filtered = filtered.filter(
         (thread) => thread.categoryId === selectedCategory

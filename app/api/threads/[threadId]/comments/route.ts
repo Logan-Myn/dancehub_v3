@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: { threadId: string } }
 ) {
   try {
-    const { content, userId } = await request.json();
+    const { content, userId, author } = await request.json();
     const { threadId } = params;
     const supabase = createAdminClient();
 
@@ -22,8 +22,8 @@ export async function POST(
       content,
       user_id: userId,
       author: {
-        name: userData?.full_name || 'Anonymous',
-        image: userData?.avatar_url || '',
+        name: author?.name || userData?.full_name || 'Anonymous',
+        image: author?.avatar_url || userData?.avatar_url || '',
       },
       created_at: new Date().toISOString(),
       likes: [],

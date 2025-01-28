@@ -141,7 +141,29 @@ export default function ThreadModal({
   const isOwner = user?.id === thread.user_id;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [localComments, setLocalComments] = useState(thread.comments || []);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const supabase = createClient();
+
+  // Fetch user profile when modal opens
+  useEffect(() => {
+    async function fetchUserProfile() {
+      if (!user) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (profile) {
+        setUserProfile(profile);
+      }
+    }
+
+    if (isOpen) {
+      fetchUserProfile();
+    }
+  }, [isOpen, user, supabase]);
 
   // Update local state when thread comments change
   useEffect(() => {
@@ -233,6 +255,13 @@ export default function ThreadModal({
         throw new Error("No active session");
       }
 
+      // Get user's profile data to ensure we have the latest avatar URL
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
       const response = await fetch(`/api/threads/${thread.id}/comments`, {
         method: "POST",
         headers: {
@@ -244,8 +273,8 @@ export default function ThreadModal({
           userId: user.id,
           author: {
             id: user.id,
-            name: user.user_metadata?.full_name || "Anonymous",
-            avatar_url: user.user_metadata?.avatar_url,
+            name: profile?.display_name || profile?.full_name || user.user_metadata?.full_name || "Anonymous",
+            avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url,
           },
         }),
       });
@@ -535,8 +564,12 @@ export default function ThreadModal({
   });
 
   const userDisplayName =
-    user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Anonymous";
-  const userAvatarUrl = user?.user_metadata?.avatar_url;
+    userProfile?.display_name || 
+    userProfile?.full_name || 
+    user?.user_metadata?.full_name || 
+    user?.email?.split("@")[0] || 
+    "Anonymous";
+  const userAvatarUrl = userProfile?.avatar_url || user?.user_metadata?.avatar_url;
   const userInitial = userDisplayName[0]?.toUpperCase() || "A";
 
   const handleTogglePin = async () => {

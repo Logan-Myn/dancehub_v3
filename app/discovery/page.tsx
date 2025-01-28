@@ -10,14 +10,16 @@ import { useAuthModal } from "@/contexts/AuthModalContext";
 import Navbar from "@/app/components/Navbar";
 import useSWR from 'swr';
 import { fetcher, type Community } from '@/lib/fetcher';
+import { useState, useMemo } from 'react';
 
 export default function DiscoveryPage() {
   const { user: currentUser } = useAuth();
   const { showAuthModal } = useAuthModal();
-  const { data: communities, error, isLoading, mutate } = useSWR(
+  const { data: communities, error, isLoading } = useSWR(
     currentUser ? `communities:${currentUser.id}` : 'communities',
     fetcher
   );
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!currentUser) {
@@ -25,6 +27,24 @@ export default function DiscoveryPage() {
       showAuthModal("signup");
     }
   };
+
+  const filteredCommunities = useMemo(() => {
+    if (!communities) return [];
+    
+    let filtered = [...communities];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        community =>
+          community.name.toLowerCase().includes(query) ||
+          (community.description?.toLowerCase() || "").includes(query)
+      );
+    }
+
+    return filtered;
+  }, [communities, searchQuery]);
 
   const handleCommunityClick = (e: React.MouseEvent<HTMLButtonElement>, community: Community) => {
     e.preventDefault();
@@ -61,6 +81,8 @@ export default function DiscoveryPage() {
               className="pl-10"
               placeholder="Search dance styles, teachers, and more"
               type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex space-x-4 mb-8 overflow-x-auto">
@@ -80,11 +102,11 @@ export default function DiscoveryPage() {
             <div className="text-center text-red-500">
               Error loading communities. Please try again later.
             </div>
-          ) : !communities?.length ? (
+          ) : !filteredCommunities.length ? (
             <div className="text-center text-gray-500">No communities found</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {communities.map((community: Community) => (
+              {filteredCommunities.map((community: Community) => (
                 <Link
                   href={`/community/${community.slug}`}
                   key={community.id}
