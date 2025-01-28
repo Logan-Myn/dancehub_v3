@@ -322,19 +322,18 @@ export default function CommunityPage() {
             .eq("user_id", currentUser.id)
             .maybeSingle();
 
-          setMembershipChecked(true);
-
           if (!memberData) {
             router.replace(`/community/${communitySlug}/about`);
             return;
           }
 
           setIsMember(true);
+          setMembershipChecked(true);
         }
       } catch (error) {
         console.error("Error checking membership:", error);
         setError(error instanceof Error ? error : new Error("Unknown error"));
-        setMembershipChecked(true);
+        router.replace(`/community/${communitySlug}/about`);
       }
     }
 
@@ -814,13 +813,9 @@ export default function CommunityPage() {
     }
   };
 
-  // Show loading state until membership is checked
-  if (!membershipChecked || isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+  // Return nothing while checking membership or loading
+  if (!membershipChecked || !isMember || isLoading) {
+    return null;
   }
 
   if (error) {
