@@ -52,7 +52,7 @@ export default function LandingPage() {
                     src="/Teachers1-2-removebg-preview.png"
                     alt="Dance teachers performing a dance move"
                     fill
-                    className="object-contain scale-110 hover:scale-105 transition-transform duration-300"
+                    className="object-contain scale-110 transition-transform duration-300"
                     style={{ filter: 'drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1))' }}
                     priority
                   />

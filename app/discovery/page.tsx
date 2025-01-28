@@ -12,15 +12,29 @@ import useSWR from 'swr';
 import { fetcher, type Community } from '@/lib/fetcher';
 
 export default function DiscoveryPage() {
-  const { data: communities, error, isLoading } = useSWR('communities', fetcher);
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const { showAuthModal } = useAuthModal();
+  const { data: communities, error, isLoading, mutate } = useSWR(
+    currentUser ? `communities:${currentUser.id}` : 'communities',
+    fetcher
+  );
 
   const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!user) {
+    if (!currentUser) {
       e.preventDefault();
       showAuthModal("signup");
     }
+  };
+
+  const handleCommunityClick = (e: React.MouseEvent<HTMLButtonElement>, community: Community) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      showAuthModal("signup");
+      return;
+    }
+
+    window.location.href = `/community/${community.slug}`;
   };
 
   return (
@@ -71,9 +85,10 @@ export default function DiscoveryPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {communities.map((community: Community) => (
-                <div
+                <Link
+                  href={`/community/${community.slug}`}
                   key={community.id}
-                  className="border rounded-lg overflow-hidden shadow-lg"
+                  className="block border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
                 >
                   <div className="relative w-full h-48">
                     <Image
@@ -97,12 +112,16 @@ export default function DiscoveryPage() {
                         {community.privacy || "Public"} • {community.membersCount}{" "}
                         Members
                       </span>
-                      <Link href={`/community/${community.slug}`}>
-                        <Button variant="outline">Join</Button>
-                      </Link>
+                      <Button
+                        variant="outline"
+                        onClick={(e) => handleCommunityClick(e, community)}
+                        className="hover:bg-blue-500 hover:text-white"
+                      >
+                        {community.isMember ? "Enter" : "Join"}
+                      </Button>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

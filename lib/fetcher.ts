@@ -111,7 +111,37 @@ export const fetcher = async (key: string) => {
 
     return data.map(community => ({
       ...community,
-      membersCount: community.community_members[0]?.count || 0
+      membersCount: community.community_members[0]?.count || 0,
+      isMember: false
+    }));
+  }
+
+  // Fetch communities with membership status
+  if (key.startsWith('communities:')) {
+    const userId = key.split(':')[1];
+    const { data: memberCommunities, error: memberError } = await supabase
+      .from('community_members')
+      .select('community_id')
+      .eq('user_id', userId);
+
+    if (memberError) throw memberError;
+
+    const memberCommunityIds = new Set((memberCommunities || []).map(mc => mc.community_id));
+
+    const { data, error } = await supabase
+      .from('communities')
+      .select(`
+        *,
+        community_members:community_members(count)
+      `)
+      .throwOnError();
+
+    if (error) throw error;
+
+    return data.map(community => ({
+      ...community,
+      membersCount: community.community_members[0]?.count || 0,
+      isMember: memberCommunityIds.has(community.id)
     }));
   }
 
@@ -231,6 +261,7 @@ export interface Community {
   membershipEnabled?: boolean;
   membershipPrice?: number;
   stripeAccountId?: string | null;
+  isMember?: boolean;
 }
 
 export interface ThreadCategory {
