@@ -31,7 +31,7 @@ import { ThreadCategory } from "@/types/community";
 import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
-import { formatDisplayName } from "@/lib/utils";
+import { cn, formatDisplayName } from "@/lib/utils";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { Input } from "@/components/ui/input";
@@ -1009,7 +1009,7 @@ export default function CommunityPage() {
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                  {member.profile?.full_name || "Anonymous"}
+                                  {member.profile?.display_name || formatDisplayName(member.profile?.full_name) || "Anonymous"}
                                 </div>
                               </div>
                             </div>
