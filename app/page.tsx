@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,43 @@ export default function LandingPage() {
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
 
+  const [isBenefitsVisible, setIsBenefitsVisible] = useState(false);
+  const benefitsSectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const currentRefValue = benefitsSectionRef.current; // Capture ref value for initial check & cleanup logic
+
+    const handleScroll = () => {
+      if (benefitsSectionRef.current) { // Check current ref inside handler
+        const top = benefitsSectionRef.current.getBoundingClientRect().top;
+        const windowHeight = window.innerHeight;
+        // Trigger when the top of the section is within the bottom 85% of the viewport
+        if (top < windowHeight * 0.85) {
+          setIsBenefitsVisible(true);
+          window.removeEventListener('scroll', handleScroll); // Remove listener once visible
+        }
+      }
+    };
+
+    // Initial check: if the section is already in view on mount
+    if (currentRefValue) {
+      const top = currentRefValue.getBoundingClientRect().top;
+      const windowHeight = window.innerHeight;
+      if (top < windowHeight * 0.85) {
+        setIsBenefitsVisible(true);
+        return; // Already visible, no need to add scroll listener
+      }
+    }
+
+    // If not initially visible, add the scroll listener
+    window.addEventListener('scroll', handleScroll);
+
+    // Cleanup function to remove the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []); // Empty dependency array ensures this effect runs only once on mount and cleans up on unmount
+
   const handleTeachingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!user) {
       e.preventDefault();
@@ -137,21 +175,14 @@ export default function LandingPage() {
             >
               <Link href="/community/onboarding" onClick={handleTeachingClick}>Start Your Community</Link>
             </Button>
-            <div className="mt-16 relative w-full max-w-4xl mx-auto aspect-video rounded-xl shadow-2xl overflow-hidden">
-              <Image
-                src="https://placehold.co/1280x720.png"
-                alt="Dance class showcase"
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                data-ai-hint="dance group"
-                priority
-              />
-            </div>
           </div>
         </section>
 
         {/* Key Benefits Showcase */}
-        <section className="py-16 md:py-24">
+        <section
+          ref={benefitsSectionRef}
+          className={`py-16 md:py-24 ${isBenefitsVisible ? 'opacity-100 transition-opacity duration-1000 ease-in' : 'opacity-0 pointer-events-none'}`}
+        >
           <div className="container mx-auto px-4">
             <h2 className="text-4xl font-bold text-center mb-6 text-primary">
               Why DanceHub?
