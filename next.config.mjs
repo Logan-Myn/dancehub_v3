@@ -12,7 +12,12 @@ const nextConfig = {
         protocol: "https",
         hostname: "**.googleusercontent.com",
         pathname: "**",
-      }
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
     ],
   },
   distDir: ".next",

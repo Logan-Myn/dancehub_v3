@@ -1,11 +1,107 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import Image from "next/image";
-import Navbar from "@/app/components/Navbar";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import Navbar from "@/app/components/Navbar"; // Changed Header to Navbar
+import { Footer } from "@/components/landing/footer";
+import {
+  Users,
+  BookOpenText,
+  CircleDollarSign,
+  LayoutList,
+  PlayCircle,
+  Wallet,
+  Star,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
+
+const benefits = [
+  {
+    icon: Users,
+    title: "Community Building",
+    description:
+      "Foster vibrant dance communities with interactive tools and seamless communication features.",
+    image: "https://placehold.co/600x400.png",
+    aiHint: "dance community",
+  },
+  {
+    icon: BookOpenText,
+    title: "Course Creation",
+    description:
+      "Easily design, upload, and manage your dance courses with our intuitive platform.",
+    image: "https://placehold.co/600x400.png",
+    aiHint: "online learning",
+  },
+  {
+    icon: CircleDollarSign,
+    title: "Monetization",
+    description:
+      "Unlock new revenue streams by selling courses, memberships, and exclusive content.",
+    image: "https://placehold.co/600x400.png",
+    aiHint: "earning money",
+  },
+];
+
+const testimonials = [
+  {
+    quote:
+      "DanceHub revolutionized how I connect with my students. The course creation tools are a game-changer!",
+    name: "Elena Petrova",
+    role: "Ballet Instructor",
+    image: "https://placehold.co/100x100.png",
+    aiHint: "woman smiling",
+  },
+  {
+    quote:
+      "Finally, a platform that understands the needs of dance teachers! Monetizing my classes has never been easier.",
+    name: "Marcus Chen",
+    role: "Hip Hop Choreographer",
+    image: "https://placehold.co/100x100.png",
+    aiHint: "man portrait",
+  },
+  {
+    quote:
+      "Building a supportive online community for my students has been incredible. DanceHub made it possible.",
+    name: "Aisha Khan",
+    role: "Contemporary Dance Coach",
+    image: "https://placehold.co/100x100.png",
+    aiHint: "person happy",
+  },
+];
+
+const features = [
+  {
+    icon: Users,
+    name: "Community Creation",
+    description: "Engage members with forums, groups, and direct messaging.",
+  },
+  {
+    icon: LayoutList,
+    name: "Course Management",
+    description:
+      "Organize lessons, track progress, and deliver stunning content.",
+  },
+  {
+    icon: PlayCircle,
+    name: "Video Capabilities",
+    description:
+      "Host high-quality video lessons, live classes, and on-demand content.",
+  },
+  {
+    icon: Wallet,
+    name: "Monetization Tools",
+    description:
+      "Flexible subscription models, one-time payments, and secure processing.",
+  },
+];
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -19,98 +115,156 @@ export default function LandingPage() {
   };
 
   return (
-    <>
-      <Navbar />
-      <div className="min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
+      <Navbar /> {/* Changed Header to Navbar */}
+      <main className="flex-grow">
         {/* Hero Section */}
-        <section className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-20">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="md:w-1/2 mb-10 md:mb-0">
-                <h1 className="text-5xl font-bold mb-6">
-                  Transform Your Dance Teaching Into a Thriving Online Business
-                </h1>
-                <p className="text-xl mb-8">
-                  Join our platform to reach students worldwide, monetize your expertise, and build your dance teaching brand.
-                </p>
-                <div className="space-x-4">
-                  <Link href="/community/onboarding" onClick={handleTeachingClick}>
-                    <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100">
-                      Start Teaching Today
-                    </Button>
-                  </Link>
-                  <Link href="/discovery">
-                    <Button size="lg" className="bg-white text-purple-600 hover:bg-gray-100">
-                      Explore Communities
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-              <div className="md:w-1/2">
-                <div className="relative h-[500px] w-full flex items-center justify-center">
-                  <Image
-                    src="/Teachers1-2-removebg-preview.png"
-                    alt="Dance teachers performing a dance move"
-                    fill
-                    className="object-contain scale-110 transition-transform duration-300"
-                    style={{ filter: 'drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1))' }}
-                    priority
-                  />
-                </div>
-              </div>
+        <section className="py-20 md:py-32 bg-gradient-to-br from-primary/10 via-background to-background">
+          <div className="container mx-auto text-center px-4">
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
+              <span className="block">Empower Your</span>
+              <span className="block text-primary">Dance Community</span>
+            </h1>
+            <p className="text-lg md:text-xl text-foreground/80 max-w-2xl mx-auto mb-10">
+              DanceHub provides the ultimate platform for dance teachers to
+              build, manage, and monetize their online classes and vibrant
+              communities.
+            </p>
+            <Button
+              size="lg"
+              asChild
+              className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-10 py-6 rounded-full shadow-lg transition-transform hover:scale-105"
+            >
+              <Link href="/community/onboarding" onClick={handleTeachingClick}>Start Your Community</Link>
+            </Button>
+            <div className="mt-16 relative w-full max-w-4xl mx-auto aspect-video rounded-xl shadow-2xl overflow-hidden">
+              <Image
+                src="https://placehold.co/1280x720.png"
+                alt="Dance class showcase"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                data-ai-hint="dance group"
+                priority
+              />
             </div>
           </div>
         </section>
 
-        {/* Features Section */}
-        <section className="py-20">
+        {/* Key Benefits Showcase */}
+        <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            <h2 className="text-4xl font-bold text-center mb-16">Why Choose Our Platform?</h2>
-            <div className="grid md:grid-cols-3 gap-12">
-              <div className="text-center">
-                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-semibold mb-4">Monetize Your Expertise</h3>
-                <p className="text-gray-600">Set your own prices and earn from courses and exclusive content.</p>
-              </div>
-              <div className="text-center">
-                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-semibold mb-4">Build Your Community</h3>
-                <p className="text-gray-600">Create and grow your own dance community with dedicated tools and features.</p>
-              </div>
-              <div className="text-center">
-                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-semibold mb-4">Powerful Teaching Tools</h3>
-                <p className="text-gray-600">Access video hosting and student management tools all in one place.</p>
-              </div>
+            <h2 className="text-4xl font-bold text-center mb-6 text-primary">
+              Why DanceHub?
+            </h2>
+            <p className="text-lg text-center text-foreground/80 max-w-2xl mx-auto mb-16">
+              Discover the tools and features designed to help you thrive in the
+              digital dance world.
+            </p>
+            <div className="grid md:grid-cols-3 gap-8">
+              {benefits.map((benefit) => (
+                <Card
+                  key={benefit.title}
+                  className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col"
+                >
+                  <div className="relative w-full h-56">
+                    <Image
+                      src={benefit.image}
+                      alt={benefit.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      data-ai-hint={benefit.aiHint}
+                    />
+                  </div>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3 mb-2">
+                      <benefit.icon className="w-10 h-10 text-primary" />
+                      <CardTitle className="text-2xl font-semibold">
+                        {benefit.title}
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <p className="text-foreground/80">{benefit.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="bg-gray-50 py-20">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-8">Ready to Start Your Teaching Journey?</h2>
-            <p className="text-xl text-gray-600 mb-8">Join dance teachers who are already growing their business online.</p>
-            <Link href="/community/onboarding" onClick={handleTeachingClick}>
-              <Button size="lg" className="bg-purple-600 text-white hover:bg-purple-700">
-                Create Your Community
-              </Button>
-            </Link>
+        {/* Testimonials Section */}
+        <section className="py-16 md:py-24 bg-muted/50">
+          <div className="container mx-auto px-4">
+            <h2 className="text-4xl font-bold text-center mb-16 text-primary">
+              Loved by Dance Teachers
+            </h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              {testimonials.map((testimonial) => (
+                <Card
+                  key={testimonial.name}
+                  className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col p-6 items-center text-center"
+                >
+                  <div className="relative w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-primary/50">
+                    <Image
+                      src={testimonial.image}
+                      alt={testimonial.name}
+                      fill
+                      sizes="96px"
+                      data-ai-hint={testimonial.aiHint}
+                    />
+                  </div>
+                  <blockquote className="text-foreground/80 mb-4 italic flex-grow">
+                    "{testimonial.quote}"
+                  </blockquote>
+                  <div className="flex mt-2 mb-2">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className="w-5 h-5 text-yellow-400 fill-current"
+                      />
+                    ))}
+                  </div>
+                  <p className="font-semibold text-primary">
+                    {testimonial.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {testimonial.role}
+                  </p>
+                </Card>
+              ))}
+            </div>
           </div>
         </section>
-      </div>
-    </>
+
+        {/* Feature Highlights */}
+        <section className="py-16 md:py-24">
+          <div className="container mx-auto px-4">
+            <h2 className="text-4xl font-bold text-center mb-6 text-primary">
+              Powerful Features, Effortlessly Simple
+            </h2>
+            <p className="text-lg text-center text-foreground/80 max-w-2xl mx-auto mb-16">
+              Everything you need to succeed, all in one place.
+            </p>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {features.map((feature) => (
+                <Card
+                  key={feature.name}
+                  className="p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                >
+                  <feature.icon className="w-12 h-12 text-accent mb-4" />
+                  <h3 className="text-xl font-semibold mb-2 text-primary">
+                    {feature.name}
+                  </h3>
+                  <p className="text-foreground/80 text-sm">
+                    {feature.description}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
   );
 }

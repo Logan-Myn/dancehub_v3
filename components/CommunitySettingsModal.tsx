@@ -588,9 +588,10 @@ export default function CommunitySettingsModal({
       });
 
       // Generate new slug from name
-      const newSlug = name.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '');
+      const newSlug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "");
 
       const response = await fetch(`/api/community/${communitySlug}/update`, {
         method: "PUT",
@@ -639,7 +640,16 @@ export default function CommunitySettingsModal({
         icon: "❌",
       });
     }
-  }, [name, description, imageUrl, links, communitySlug, onCommunityUpdate, onImageUpdate, onCustomLinksUpdate]);
+  }, [
+    name,
+    description,
+    imageUrl,
+    links,
+    communitySlug,
+    onCommunityUpdate,
+    onImageUpdate,
+    onCustomLinksUpdate,
+  ]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -926,9 +936,7 @@ export default function CommunitySettingsModal({
         <Button
           variant="outline"
           size="sm"
-          onClick={() =>
-            window.open("https://dashboard.stripe.com", "_blank")
-          }
+          onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
           Stripe Dashboard
@@ -1034,9 +1042,7 @@ export default function CommunitySettingsModal({
                           €{payout.amount.toFixed(2)}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {new Date(
-                            payout.arrivalDate
-                          ).toLocaleDateString()}
+                          {new Date(payout.arrivalDate).toLocaleDateString()}
                         </p>
                       </div>
                       <span

@@ -17,9 +17,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "**.googleusercontent.com",
         pathname: "**",
-      }
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
     ],
   },
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig
