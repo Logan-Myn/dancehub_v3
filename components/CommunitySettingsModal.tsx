@@ -593,22 +593,36 @@ export default function CommunitySettingsModal({
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)+/g, "");
 
+      const requestBody = {
+        name,
+        description,
+        imageUrl,
+        customLinks: links,
+        slug: newSlug, // Add the new slug to the update
+      };
+
+      console.log("Updating community with slug:", communitySlug);
+      console.log("Generated new slug:", newSlug);
+      console.log("Request body being sent:", JSON.stringify(requestBody, null, 2));
+
       const response = await fetch(`/api/community/${communitySlug}/update`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name,
-          description,
-          imageUrl,
-          customLinks: links,
-          slug: newSlug, // Add the new slug to the update
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update community");
+        // Log the server's error response if possible
+        let errorData = { message: "Failed to update community" };
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          // Ignore if response is not JSON
+        }
+        console.error("Server responded with an error:", response.status, errorData);
+        throw new Error(errorData.message || "Failed to update community");
       }
 
       const data = await response.json();
