@@ -612,8 +612,8 @@ export default function ThreadModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[700px] p-0 max-h-[90vh] flex flex-col">
-          <div className="p-6 border-b">
+        <DialogContent className="sm:max-w-[700px] p-0 max-h-[90vh] flex flex-col bg-white">
+          <div className="p-6 border-b bg-white"> {/* Added bg-white here */}
             {/* Author info and metadata */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
@@ -759,7 +759,7 @@ export default function ThreadModal({
           </div>
 
           {/* Comment input - between thread and comments */}
-          <div className="px-6 py-3 border-b">
+          <div className="px-6 py-3 border-b bg-white">
             <div className="flex items-center w-full gap-3">
               <Avatar className="h-8 w-8 flex-shrink-0">
                 <AvatarImage src={userAvatarUrl} alt={userDisplayName} />
