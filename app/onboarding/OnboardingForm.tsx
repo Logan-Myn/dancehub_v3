@@ -150,7 +150,8 @@ export default function OnboardingForm() {
         toast.success('Community created successfully!');
       }
 
-      router.push(`/community/${data.slug}`);
+      // Redirect to the newly created community page
+      router.push(`/${data.slug}`);
     } catch (error) {
       console.error('Error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create community');
@@ -262,4 +263,4 @@ export default function OnboardingForm() {
       </Button>
     </form>
   );
-} 
+}

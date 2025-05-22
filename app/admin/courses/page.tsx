@@ -168,7 +168,7 @@ export default async function CoursesPage({
                   </TableCell>
                   <TableCell>
                     <a
-                      href={`/community/${course.community.slug}`}
+                      href={`/${course.community.slug}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"
@@ -222,4 +222,4 @@ export default async function CoursesPage({
       </div>
     </div>
   );
-} 
+}

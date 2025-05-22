@@ -156,6 +156,23 @@ interface PaymentModalProps {
   communitySlug: string;
 }
 
+const reservedPaths = [
+  'admin',
+  'discovery',
+  'onboarding',
+  'login',
+  'register',
+  'dashboard',
+  'api',
+  'auth',
+  'components',
+  'fonts',
+  'favicon.ico',
+  'globals.css',
+  'robots.txt',
+  'sitemap.xml',
+];
+
 export default function CommunityPage() {
   const params = useParams();
   const router = useRouter();
@@ -163,6 +180,10 @@ export default function CommunityPage() {
   const { user: currentUser, loading: isAuthLoading } = useAuth();
   const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState("");
+
+  if (reservedPaths.includes(communitySlug)) {
+    notFound();
+  }
 
   // Add SWR for community data
   const {
@@ -285,7 +306,7 @@ export default function CommunityPage() {
 
       // Only redirect if user is definitely not logged in
       if (!isAuthLoading && !currentUser) {
-        router.replace(`/community/${communitySlug}/about`);
+        router.replace(`/${communitySlug}/about`);
         return;
       }
 
@@ -325,7 +346,7 @@ export default function CommunityPage() {
             .maybeSingle();
 
           if (!memberData) {
-            router.replace(`/community/${communitySlug}/about`);
+            router.replace(`/${communitySlug}/about`);
             return;
           }
 
@@ -335,7 +356,7 @@ export default function CommunityPage() {
       } catch (error) {
         console.error("Error checking membership:", error);
         setError(error instanceof Error ? error : new Error("Unknown error"));
-        router.replace(`/community/${communitySlug}/about`);
+        router.replace(`/${communitySlug}/about`);
       }
     }
 

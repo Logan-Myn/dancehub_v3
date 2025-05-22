@@ -652,7 +652,7 @@ export default function CommunitySettingsModal({
 
       // If the slug has changed, redirect to the new URL
       if (newSlug !== communitySlug) {
-        window.location.href = `/community/${newSlug}`;
+        window.location.href = `/${newSlug}`;
       }
     } catch (error) {
       console.error("Error saving changes:", error);

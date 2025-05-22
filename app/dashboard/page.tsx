@@ -107,7 +107,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {communities.map((community) => (
-              <Link key={community.id} href={`/community/${community.slug}`}>
+              <Link key={community.id} href={`/${community.slug}`}>
                 <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer h-[300px] flex flex-col hover:-translate-y-1">
                   <div className="aspect-video relative overflow-hidden rounded-t-xl">
                     <img
@@ -134,4 +134,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-} 
+}

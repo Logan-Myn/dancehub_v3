@@ -68,7 +68,7 @@ export default function ClassroomPage() {
 
       // Only redirect if user is definitely not logged in
       if (!isAuthLoading && !currentUser) {
-        router.replace(`/community/${communitySlug}/about`);
+        router.replace(`/${communitySlug}/about`);
         return;
       }
 
@@ -120,7 +120,7 @@ export default function ClassroomPage() {
         setMembershipChecked(true);
 
         if (!memberData) {
-          router.replace(`/community/${communitySlug}/about`);
+          router.replace(`/${communitySlug}/about`);
           return;
         }
 
@@ -249,7 +249,7 @@ export default function ClassroomPage() {
                 {courses.map((course: Course) => (
                   <Link
                     key={course.id}
-                    href={`/community/${communitySlug}/classroom/${course.slug}`}
+                    href={`/${communitySlug}/classroom/${course.slug}`}
                   >
                     <CourseCard
                       course={course}
