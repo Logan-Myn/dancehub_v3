@@ -20,6 +20,17 @@ import ImageSection from "./sections/ImageSection";
 import CTASection from "./sections/CTASection";
 import VideoSection from "./sections/VideoSection";
 import { Card } from "./ui/card";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "./ui/alert-dialog";
 
 const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "hero", label: "Hero Section" },
@@ -55,6 +66,7 @@ export default function PageBuilder({
 }: PageBuilderProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionType, setSelectedSectionType] = useState<SectionType | ''>('');
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   // Template definitions
   const TEMPLATES = [
@@ -237,30 +249,64 @@ export default function PageBuilder({
       )}
 
       {isEditing && (
-        <div className="flex items-center gap-2">
-          <Select
-            value={selectedSectionType}
-            onValueChange={(value) => setSelectedSectionType(value as SectionType)}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Add new section" />
-            </SelectTrigger>
-            <SelectContent>
-              {AVAILABLE_SECTIONS.map((section) => (
-                <SelectItem key={section.type} value={section.type}>
-                  {section.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={handleAddSection}
-            disabled={!selectedSectionType}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Section
-          </Button>
+        <div className="flex items-center gap-2 justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Select
+              value={selectedSectionType}
+              onValueChange={(value) => setSelectedSectionType(value as SectionType)}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Add new section" />
+              </SelectTrigger>
+              <SelectContent>
+                {AVAILABLE_SECTIONS.map((section) => (
+                  <SelectItem key={section.type} value={section.type}>
+                    {section.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleAddSection}
+              disabled={!selectedSectionType}
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Section
+            </Button>
+          </div>
+          {sections.length > 0 && (
+            <div className="flex items-center gap-2">
+              <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" onClick={() => setShowClearDialog(true)} size="sm">
+                    Start Fresh
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear all modules?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove all sections from your about page. This action cannot be undone. Are you sure you want to start fresh?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => {
+                      setSections([]);
+                      onChange([]);
+                      setShowClearDialog(false);
+                    }}>
+                      Yes, clear all
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button onClick={onSave} size="sm">
+                Save Changes
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -328,14 +374,6 @@ export default function PageBuilder({
           </div>
         </SortableContext>
       </DndContext>
-
-      {isEditing && sections.length > 0 && (
-        <div className="flex justify-end">
-          <Button onClick={onSave}>
-            Save Changes
-          </Button>
-        </div>
-      )}
     </div>
   );
 } 
