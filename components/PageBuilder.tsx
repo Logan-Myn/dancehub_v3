@@ -19,6 +19,7 @@ import TextSection from "./sections/TextSection";
 import ImageSection from "./sections/ImageSection";
 import CTASection from "./sections/CTASection";
 import VideoSection from "./sections/VideoSection";
+import { Card } from "./ui/card";
 
 const AVAILABLE_SECTIONS: { type: SectionType; label: string }[] = [
   { type: "hero", label: "Hero Section" },
@@ -54,6 +55,102 @@ export default function PageBuilder({
 }: PageBuilderProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionType, setSelectedSectionType] = useState<SectionType | ''>('');
+
+  // Template definitions
+  const TEMPLATES = [
+    {
+      key: 'classic',
+      name: 'Classic Introduction',
+      description: 'A welcoming hero, your story, a team photo, and a call to action.',
+      sections: [
+        {
+          type: 'hero',
+          content: {
+            title: 'Welcome to Our Community!',
+            subtitle: 'Join us and be part of something special.',
+            buttonType: 'join' as const,
+          },
+        },
+        {
+          type: 'text',
+          content: {
+            title: 'About Us',
+            text: 'We are passionate about dance and building a vibrant community. Our story began...'
+          },
+        },
+        {
+          type: 'image',
+          content: {
+            imageUrl: '',
+            caption: 'Our team or studio',
+            altText: 'Team or studio photo',
+          },
+        },
+        {
+          type: 'cta',
+          content: {
+            title: 'Ready to Join?',
+            ctaText: 'Become a member',
+            ctaLink: '',
+            buttonType: 'join' as const,
+          },
+        },
+      ],
+    },
+    {
+      key: 'media',
+      name: 'Media Welcome',
+      description: 'A big intro, welcome video, short about, and a call to action.',
+      sections: [
+        {
+          type: 'hero',
+          content: {
+            title: 'Welcome to Our Dance Community!',
+            subtitle: 'Watch our story and join the movement.',
+            buttonType: 'join' as const,
+          },
+        },
+        {
+          type: 'video',
+          content: {
+            title: 'Welcome Video',
+            videoId: '',
+            description: 'A quick look at what we do.'
+          },
+        },
+        {
+          type: 'text',
+          content: {
+            title: 'Who We Are',
+            text: 'We bring dancers together to learn, share, and grow.'
+          },
+        },
+        {
+          type: 'cta',
+          content: {
+            title: 'Join Us',
+            ctaText: 'Become a member',
+            ctaLink: '',
+            buttonType: 'join' as const,
+          },
+        },
+      ],
+    },
+  ];
+
+  // Template selection handler
+  const handleTemplateSelect = (templateKey: string) => {
+    const template = TEMPLATES.find(t => t.key === templateKey);
+    if (!template) return;
+    const newSections = template.sections.map((section, idx) => ({
+      id: uuidv4(),
+      type: section.type as SectionType,
+      content: section.content,
+      order: idx,
+    }));
+    setSections(newSections);
+    onChange(newSections);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -120,6 +217,25 @@ export default function PageBuilder({
 
   return (
     <div className="space-y-6">
+      {/* Template selection UI */}
+      {isEditing && sections.length === 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Start with a template</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {TEMPLATES.map((template) => (
+              <Card key={template.key} className="p-4 flex flex-col gap-2 border border-gray-200">
+                <div className="font-bold text-lg">{template.name}</div>
+                <div className="text-gray-600 text-sm mb-2">{template.description}</div>
+                <Button onClick={() => handleTemplateSelect(template.key)} className="w-fit bg-black text-white hover:bg-gray-800">
+                  Use this template
+                </Button>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-6 text-center text-gray-500 text-sm">Or build your page from scratch below.</div>
+        </div>
+      )}
+
       {isEditing && (
         <div className="flex items-center gap-2">
           <Select
