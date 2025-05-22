@@ -177,7 +177,7 @@ export default async function CommunitiesPage() {
                     </Avatar>
                     <div className="flex flex-col">
                       <a
-                        href={`/community/${community.slug}`}
+                        href={`/${community.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-medium hover:underline"

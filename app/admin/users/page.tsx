@@ -142,7 +142,7 @@ export default async function UsersPage() {
                     {user.created_communities.map((community: Community, index: number) => (
                       <a
                         key={index}
-                        href={`/community/${community.slug}`}
+                        href={`/${community.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block text-sm truncate hover:text-primary hover:underline"
@@ -157,7 +157,7 @@ export default async function UsersPage() {
                     {user.joined_communities.map((community: Community, index: number) => (
                       <a
                         key={index}
-                        href={`/community/${community.slug}`}
+                        href={`/${community.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block text-sm truncate hover:text-primary hover:underline"
@@ -180,4 +180,4 @@ export default async function UsersPage() {
       </div>
     </div>
   );
-} 
+}

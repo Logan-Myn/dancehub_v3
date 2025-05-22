@@ -25,6 +25,15 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/community/:slug*',
+        destination: '/:slug*',
+        permanent: true,
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig

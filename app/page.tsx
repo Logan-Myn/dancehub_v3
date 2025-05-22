@@ -173,7 +173,7 @@ export default function LandingPage() {
               asChild
               className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-10 py-6 rounded-full shadow-lg transition-transform hover:scale-105"
             >
-              <Link href="/community/onboarding" onClick={handleTeachingClick}>Start Your Community</Link>
+              <Link href="/onboarding" onClick={handleTeachingClick}>Start Your Community</Link>
             </Button>
           </div>
         </section>

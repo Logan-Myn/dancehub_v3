@@ -64,7 +64,7 @@ function PaymentForm({ clientSecret, communitySlug, price, onSuccess, onClose }:
       const { error } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/community/${communitySlug}?success=true`,
+          return_url: `${window.location.origin}/${communitySlug}?success=true`,
         },
       });
 
@@ -168,4 +168,4 @@ export default function PaymentModal({
       </DialogContent>
     </Dialog>
   );
-} 
+}

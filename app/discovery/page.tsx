@@ -54,7 +54,7 @@ export default function DiscoveryPage() {
       return;
     }
 
-    window.location.href = `/community/${community.slug}`;
+    window.location.href = `/${community.slug}`;
   };
 
   return (
@@ -68,7 +68,7 @@ export default function DiscoveryPage() {
           <p className="text-center mb-8">
             or{" "}
             <Link
-              href="/community/onboarding"
+              href="/onboarding"
               className="text-blue-500 hover:underline"
               onClick={handleCreateCommunity}
             >
@@ -108,7 +108,7 @@ export default function DiscoveryPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredCommunities.map((community: Community) => (
                 <Link
-                  href={`/community/${community.slug}`}
+                  href={`/${community.slug}`}
                   key={community.id}
                   className="block border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
                 >
@@ -151,4 +151,4 @@ export default function DiscoveryPage() {
       </div>
     </>
   );
-} 
+}

@@ -351,7 +351,7 @@ export default function CoursePage() {
     async function checkAccess() {
       // If no user after auth is checked, redirect to about page
       if (!user) {
-        router.push(`/community/${communitySlug}/about`);
+        router.push(`/${communitySlug}/about`);
         return;
       }
 
@@ -378,7 +378,7 @@ export default function CoursePage() {
 
         if (communityError || !communityData) {
           console.error("Error fetching community:", communityError);
-          router.push(`/community/${communitySlug}/about`);
+          router.push(`/${communitySlug}/about`);
           return;
         }
 
@@ -401,20 +401,20 @@ export default function CoursePage() {
 
         if (membershipError) {
           console.error("Error checking membership:", membershipError);
-          router.push(`/community/${communitySlug}/about`);
+          router.push(`/${communitySlug}/about`);
           return;
         }
 
         // If not a member, redirect to about page
         if (!membership) {
-          router.push(`/community/${communitySlug}/about`);
+          router.push(`/${communitySlug}/about`);
           return;
         }
 
         setIsAccessChecked(true);
       } catch (error) {
         console.error("Error checking access:", error);
-        router.push(`/community/${communitySlug}/about`);
+        router.push(`/${communitySlug}/about`);
       }
     }
 

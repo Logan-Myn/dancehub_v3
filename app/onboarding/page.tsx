@@ -3,7 +3,7 @@
 import React from 'react';
 import { Rocket, Heart, Smile, Users, Smartphone, Globe } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import OnboardingForm from '@/app/community/onboarding/OnboardingForm';
+import OnboardingForm from '@/app/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from '@/lib/supabase/client';
 
@@ -70,4 +70,4 @@ export default function OnboardingPage() {
       </div>
     </div>
   );
-} 
+}

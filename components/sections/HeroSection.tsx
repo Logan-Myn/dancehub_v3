@@ -214,7 +214,7 @@ export default function HeroSection({
 
         toast.success("Successfully joined the community!");
         // Redirect to the main community page
-        window.location.href = `/community/${communityData.slug}`;
+        window.location.href = `/${communityData.slug}`;
       }
     } catch (error) {
       console.error("Error joining community:", error);
@@ -528,11 +528,11 @@ export default function HeroSection({
           onSuccess={() => {
             setShowPaymentModal(false);
             // Redirect to the main community page instead of reloading
-            window.location.href = `/community/${communityData.slug}`;
+            window.location.href = `/${communityData.slug}`;
           }}
           communitySlug={communityData.slug}
         />
       )}
     </div>
   );
-} 
+}

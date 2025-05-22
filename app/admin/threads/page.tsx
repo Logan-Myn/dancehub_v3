@@ -171,7 +171,7 @@ export default async function ThreadsPage({
                   </TableCell>
                   <TableCell>
                     <a
-                      href={`/community/${thread.community.slug}`}
+                      href={`/${thread.community.slug}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"
@@ -249,4 +249,4 @@ export default async function ThreadsPage({
       </div>
     </div>
   );
-} 
+}

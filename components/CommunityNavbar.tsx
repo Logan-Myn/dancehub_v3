@@ -10,9 +10,9 @@ interface CommunityNavbarProps {
 
 export default function CommunityNavbar({ communitySlug, activePage, isMember }: CommunityNavbarProps) {
   const navItems = [
-    { label: "Community", href: `/community/${communitySlug}` },
-    { label: "Classroom", href: `/community/${communitySlug}/classroom` },
-    { label: "About", href: `/community/${communitySlug}/about` },
+    { label: "Community", href: `/${communitySlug}` },
+    { label: "Classroom", href: `/${communitySlug}/classroom` },
+    { label: "About", href: `/${communitySlug}/about` },
   ];
 
   if (!isMember) {
@@ -42,4 +42,4 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
       </div>
     </nav>
   );
-} 
+}
