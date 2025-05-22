@@ -1286,18 +1286,6 @@ export default function CommunitySettingsModal({
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <Card className="p-6">
-        <h3 className="text-lg font-medium mb-4">Recent Activity</h3>
-        <div className="space-y-4">
-          {/* We'll implement this later */}
-          <p className="text-sm text-gray-500">
-            Coming soon: Activity feed showing recent joins, posts, and
-            interactions
-          </p>
-        </div>
-      </Card>
-
       {/* Quick Actions */}
       <Card className="p-6">
         <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
