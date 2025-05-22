@@ -224,6 +224,13 @@ export default function CommunitySettingsModal({
   const supabase = createClient();
   const { user } = useAuth();
 
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency,
+    }).format(amount);
+  };
+
   // Fetch revenue data
   useEffect(() => {
     async function fetchRevenueData() {
@@ -947,14 +954,16 @@ export default function CommunitySettingsModal({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Membership Settings</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          Stripe Dashboard
-        </Button>
+        {stripeAccountStatus.isEnabled && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Stripe Dashboard
+          </Button>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -968,6 +977,7 @@ export default function CommunitySettingsModal({
           <Switch
             checked={isMembershipEnabled}
             onCheckedChange={setIsMembershipEnabled}
+            disabled={!stripeAccountStatus.isEnabled}
           />
         </div>
 
@@ -1014,125 +1024,160 @@ export default function CommunitySettingsModal({
     </div>
   );
 
-  const renderPayoutManagement = () => (
-    <div className="pt-6 border-t">
-      <h3 className="text-lg font-medium mb-4">Payout Management</h3>
-      {payoutData ? (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h4 className="text-sm font-medium text-gray-500 mb-4">
-              Current Balance
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-2xl font-bold">
-                  €{payoutData.balance.available.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-500">Available</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  €{payoutData.balance.pending.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-500">Pending</p>
-              </div>
-            </div>
-          </div>
+  const renderPayoutManagement = () => {
+    if (!stripeAccountStatus.isEnabled) {
+      return null; // Don't show payout/bank details if Stripe isn't enabled
+    }
 
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-4">
-              Recent Payouts
-            </h4>
-            <div className="space-y-4">
-              {payoutData.payouts.length > 0 ? (
-                payoutData.payouts.map((payout) => (
-                  <div
-                    key={payout.id}
-                    className="bg-white p-4 rounded-lg border border-gray-200"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">
-                          €{payout.amount.toFixed(2)}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(payout.arrivalDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          payout.status === "paid"
-                            ? "bg-green-100 text-green-800"
-                            : payout.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {payout.status}
-                      </span>
-                    </div>
-                    {payout.bankAccount && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        To: •••• {payout.bankAccount.last4}
-                      </p>
-                    )}
+    return (
+      <div className="pt-6 border-t">
+        {/* Payout Management Section */}
+        <div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+            Payout Management
+          </h3>
+          {isLoadingPayouts ? (
+            <div className="mt-2 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            </div>
+          ) : payoutData ? (
+            <div className="space-y-6">
+              {/* Current Balance */}
+              <div className="bg-white p-6 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                  Current Balance
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(payoutData.balance.available, payoutData.balance.currency)}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Available</p>
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No recent payouts
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500 text-center py-4">
-          Failed to load payout information
-        </p>
-      )}
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(payoutData.balance.pending, payoutData.balance.currency)}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Pending</p>
+                  </div>
+                </div>
+              </div>
 
-      {/* Add Bank Account Management Section */}
-      <div className="mt-6 pt-6 border-t">
-        <h4 className="text-lg font-medium mb-4">Bank Account Details</h4>
-        {isLoadingBank ? (
-          <div className="flex justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label
-                htmlFor="iban"
-                className="block text-sm font-medium text-gray-700"
+              {/* Recent Payouts */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                  Recent Payouts
+                </h4>
+                <div className="space-y-4">
+                  {payoutData.payouts.length > 0 ? (
+                    payoutData.payouts.map((payout) => (
+                      <div
+                        key={payout.id}
+                        className="bg-white p-4 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">
+                              {formatCurrency(payout.amount, payout.currency)}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {new Date(payout.arrivalDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              payout.status === "paid"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : payout.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            {payout.status}
+                          </span>
+                        </div>
+                        {payout.bankAccount && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            To: •••• {payout.bankAccount.last4}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                      No recent payouts
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              No payout information available yet.
+            </p>
+          )}
+        </div>
+
+        {/* Bank Account Details Section */}
+        <div className="mt-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            Bank Account Details
+          </h3>
+          {isLoadingBank ? (
+            <div className="mt-2 flex items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            </div>
+          ) : bankAccount ? (
+            <div className="mt-2 space-y-2">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Bank Name: {bankAccount.bank_name || "N/A"}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Account Ending In: **** {bankAccount.last4 || "N/A"}
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleUpdateIban}
+                disabled={isUpdatingIban}
+                className="mt-2"
               >
-                Bank Account Management
-              </label>
-              <p className="text-sm text-gray-500">
-                To update your bank account details, you'll be redirected to
-                your Stripe Express dashboard
+                {isUpdatingIban ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Manage Bank Account
+              </Button>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                To update your bank account details, you&apos;ll be
+                redirected to your Stripe Express dashboard.
               </p>
             </div>
-
-            <Button
-              onClick={handleUpdateIban}
-              disabled={isUpdatingIban}
-              className="w-full"
-            >
-              {isUpdatingIban ? (
-                <>
+          ) : (
+            <div className="mt-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No bank account information found. Please add your
+                bank account details via Stripe.
+              </p>
+              <Button
+                variant="default"
+                onClick={handleUpdateIban}
+                disabled={isUpdatingIban}
+                className="mt-2"
+              >
+                {isUpdatingIban ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Redirecting...
-                </>
-              ) : (
-                "Manage Bank Account"
-              )}
-            </Button>
-          </div>
-        )}
+                ) : null}
+                Manage Bank Account
+              </Button>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                You&apos;ll be redirected to your Stripe Express
+                dashboard to manage your bank account.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderThreadCategories = () => (
     <div className="space-y-6">
@@ -1280,8 +1325,6 @@ export default function CommunitySettingsModal({
 
   const renderMembers = () => (
     <div>
-      <h3 className="text-lg font-medium">Community Members</h3>
-      <p className="text-sm text-gray-500">Total: {members.length} members</p>
 
       {isLoadingMembers ? (
         <div className="flex justify-center py-8">
