@@ -226,7 +226,7 @@ export default function PageBuilder({
               <Card key={template.key} className="p-4 flex flex-col gap-2 border border-gray-200">
                 <div className="font-bold text-lg">{template.name}</div>
                 <div className="text-gray-600 text-sm mb-2">{template.description}</div>
-                <Button onClick={() => handleTemplateSelect(template.key)} className="w-fit bg-black text-white hover:bg-gray-800">
+                <Button onClick={() => handleTemplateSelect(template.key)}>
                   Use this template
                 </Button>
               </Card>
@@ -331,7 +331,7 @@ export default function PageBuilder({
 
       {isEditing && sections.length > 0 && (
         <div className="flex justify-end">
-          <Button onClick={onSave} className="bg-black text-white hover:bg-gray-800">
+          <Button onClick={onSave}>
             Save Changes
           </Button>
         </div>
