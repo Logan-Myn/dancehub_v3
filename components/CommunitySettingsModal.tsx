@@ -966,6 +966,54 @@ export default function CommunitySettingsModal({
         )}
       </div>
 
+      {/* Stripe Requirements Alert */}
+      {stripeAccountId && !stripeAccountStatus.isEnabled && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Complete Stripe Setup Required
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  You need to complete your Stripe account setup to enable subscriptions and receive payments. 
+                  This includes providing required business information and verification documents.
+                </p>
+                {stripeAccountStatus.details?.requirements && (
+                  <div className="mt-2">
+                    {stripeAccountStatus.details.requirements.currentlyDue.length > 0 && (
+                      <p className="font-medium">
+                        {stripeAccountStatus.details.requirements.currentlyDue.length} requirement(s) currently due
+                      </p>
+                    )}
+                    {stripeAccountStatus.details.requirements.pastDue.length > 0 && (
+                      <p className="font-medium text-red-600">
+                        {stripeAccountStatus.details.requirements.pastDue.length} requirement(s) past due
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCompleteVerification}
+                  className="bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
+                >
+                  Complete Stripe Setup
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
