@@ -58,6 +58,9 @@ import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
+// Import the custom Stripe onboarding wizard
+import { OnboardingWizard } from "./stripe-onboarding/OnboardingWizard";
+
 interface CustomLink {
   title: string;
   url: string;
@@ -221,6 +224,10 @@ export default function CommunitySettingsModal({
   const [ibanInput, setIbanInput] = useState("");
   const [isUpdatingIban, setIsUpdatingIban] = useState(false);
   const [refreshMembersTrigger, setRefreshMembersTrigger] = useState(0);
+  
+  // Custom Stripe onboarding state
+  const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
+  
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -779,6 +786,35 @@ export default function CommunitySettingsModal({
     }
   };
 
+  // Custom Stripe onboarding handlers
+  const handleStartCustomOnboarding = () => {
+    setIsOnboardingWizardOpen(true);
+  };
+
+  const handleOnboardingComplete = async (accountId: string) => {
+    try {
+      // Update the community with the new Stripe account ID
+      onCommunityUpdate({ stripe_account_id: accountId });
+      
+      // Refetch Stripe status to get the latest information
+      const response = await fetch(`/api/stripe/account-status/${accountId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStripeAccountStatus({
+          isEnabled: data.chargesEnabled && data.payoutsEnabled,
+          needsSetup: !data.detailsSubmitted,
+          accountId: accountId,
+          details: data,
+        });
+      }
+      
+      toast.success("Stripe account setup completed successfully!");
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      toast.error("Setup completed but failed to update status");
+    }
+  };
+
   const handlePriceUpdate = async () => {
     try {
       const response = await fetch(
@@ -921,31 +957,31 @@ export default function CommunitySettingsModal({
   );
 
   const renderStripeConnectionStatus = () => (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="text-center">
         <h3 className="text-lg font-medium">Connect Stripe Account</h3>
         <p className="text-sm text-gray-500 mt-1">
           To enable subscriptions, you need to connect a Stripe account
         </p>
       </div>
-      <div className="flex justify-center">
-        <Button
-          onClick={handleStripeConnect}
-          disabled={isConnectingStripe}
-          className="w-full max-w-sm"
-        >
-          {isConnectingStripe ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Connecting...
-            </>
-          ) : (
-            <>
-              <CreditCardIcon className="mr-2 h-4 w-4" />
-              Connect Stripe Account
-            </>
-          )}
-        </Button>
+      
+      {/* Custom Onboarding Option */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div className="text-center space-y-4">
+          <div>
+            <h4 className="font-medium text-blue-900 text-lg">Complete Setup in App</h4>
+            <p className="text-sm text-blue-700 mt-2">
+              Stay in your dance community while setting up payments. We'll guide you through each step with our simple 5-step wizard.
+            </p>
+          </div>
+          <Button
+            onClick={handleStartCustomOnboarding}
+            className="w-full max-w-sm bg-blue-600 hover:bg-blue-700"
+          >
+            <CreditCardIcon className="mr-2 h-4 w-4" />
+            Set Up Payments
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -1456,232 +1492,243 @@ export default function CommunitySettingsModal({
   );
 
   return (
-    <Transition.Root show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-10" onClose={onClose}>
-        <Transition.Child
-          as={React.Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+    <>
+      <Transition.Root show={isOpen} as={React.Fragment}>
+        <Dialog as="div" className="relative z-10" onClose={onClose}>
+          <Transition.Child
+            as={React.Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          </Transition.Child>
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <Transition.Child
-              as={React.Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            >
-              <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-5xl">
-                <div className="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
-                  <button
-                    type="button"
-                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
-                    onClick={onClose}
-                  >
-                    <span className="sr-only">Close</span>
-                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="flex h-[80vh]">
-                  {/* Sidebar */}
-                  <div className="w-1/4 bg-gray-100 border-r border-gray-200 overflow-y-auto">
-                    <div className="py-6 px-4 border-b border-gray-200">
-                      <h2 className="text-xl font-semibold text-gray-800">
-                        {communityName}
-                      </h2>
-                      <h3 className="text-sm text-gray-500 mt-1">
-                        Community settings
-                      </h3>
-                    </div>
-                    <nav className="mt-6 px-2">
-                      {navigationCategories.map((category) => (
-                        <button
-                          key={category.id}
-                          onClick={() => setActiveCategory(category.id)}
-                          className={`flex items-center w-full text-left py-2 px-4 rounded-md mb-1 ${
-                            activeCategory === category.id
-                              ? "bg-gray-200 text-gray-900 font-medium"
-                              : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
-                          }`}
-                        >
-                          <category.icon
-                            className="h-5 w-5 mr-3"
-                            aria-hidden="true"
-                          />
-                          {category.name}
-                        </button>
-                      ))}
-                    </nav>
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <Transition.Child
+                as={React.Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                enterTo="opacity-100 translate-y-0 sm:scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
+                leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              >
+                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-5xl">
+                  <div className="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
+                    <button
+                      type="button"
+                      className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                      onClick={onClose}
+                    >
+                      <span className="sr-only">Close</span>
+                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    </button>
                   </div>
 
-                  {/* Main content */}
-                  <div className="w-3/4 p-6 overflow-y-auto">
-                    <h2 className="text-2xl font-semibold mb-4">
-                      {
-                        navigationCategories.find(
-                          (c) => c.id === activeCategory
-                        )?.name
-                      }
-                    </h2>
+                  <div className="flex h-[80vh]">
+                    {/* Sidebar */}
+                    <div className="w-1/4 bg-gray-100 border-r border-gray-200 overflow-y-auto">
+                      <div className="py-6 px-4 border-b border-gray-200">
+                        <h2 className="text-xl font-semibold text-gray-800">
+                          {communityName}
+                        </h2>
+                        <h3 className="text-sm text-gray-500 mt-1">
+                          Community settings
+                        </h3>
+                      </div>
+                      <nav className="mt-6 px-2">
+                        {navigationCategories.map((category) => (
+                          <button
+                            key={category.id}
+                            onClick={() => setActiveCategory(category.id)}
+                            className={`flex items-center w-full text-left py-2 px-4 rounded-md mb-1 ${
+                              activeCategory === category.id
+                                ? "bg-gray-200 text-gray-900 font-medium"
+                                : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                            }`}
+                          >
+                            <category.icon
+                              className="h-5 w-5 mr-3"
+                              aria-hidden="true"
+                            />
+                            {category.name}
+                          </button>
+                        ))}
+                      </nav>
+                    </div>
 
-                    {activeCategory === "general" && (
-                      <div className="space-y-6">
-                        {/* Community Name */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">
-                            Community name
-                          </label>
-                          <Input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
+                    {/* Main content */}
+                    <div className="w-3/4 p-6 overflow-y-auto">
+                      <h2 className="text-2xl font-semibold mb-4">
+                        {
+                          navigationCategories.find(
+                            (c) => c.id === activeCategory
+                          )?.name
+                        }
+                      </h2>
 
-                        {/* Description */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">
-                            Description
-                          </label>
-                          <Textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={4}
-                            className="mt-1"
-                            placeholder="Tell people what your community is about..."
-                          />
-                        </div>
+                      {activeCategory === "general" && (
+                        <div className="space-y-6">
+                          {/* Community Name */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Community name
+                            </label>
+                            <Input
+                              type="text"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
 
-                        {/* Cover Image */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">
-                            Community Cover Image
-                          </label>
-                          <div className="mt-2">
-                            <div className="w-1/2 mx-auto">
-                              <div className="relative w-full h-40 mb-4">
-                                <img
-                                  src={imageUrl || "/placeholder.svg"}
-                                  alt="Community preview"
-                                  className="w-full h-full object-cover rounded-lg"
-                                />
-                                <label
-                                  htmlFor="community-image"
-                                  className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                                >
-                                  {isUploading ? (
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                  ) : (
-                                    <span>Change Image</span>
-                                  )}
-                                </label>
-                                <input
-                                  type="file"
-                                  id="community-image"
-                                  accept="image/*"
-                                  onChange={handleImageUpload}
-                                  className="hidden"
-                                />
+                          {/* Description */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Description
+                            </label>
+                            <Textarea
+                              value={description}
+                              onChange={(e) => setDescription(e.target.value)}
+                              rows={4}
+                              className="mt-1"
+                              placeholder="Tell people what your community is about..."
+                            />
+                          </div>
+
+                          {/* Cover Image */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Community Cover Image
+                            </label>
+                            <div className="mt-2">
+                              <div className="w-1/2 mx-auto">
+                                <div className="relative w-full h-40 mb-4">
+                                  <img
+                                    src={imageUrl || "/placeholder.svg"}
+                                    alt="Community preview"
+                                    className="w-full h-full object-cover rounded-lg"
+                                  />
+                                  <label
+                                    htmlFor="community-image"
+                                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                                  >
+                                    {isUploading ? (
+                                      <Loader2 className="h-6 w-6 animate-spin" />
+                                    ) : (
+                                      <span>Change Image</span>
+                                    )}
+                                  </label>
+                                  <input
+                                    type="file"
+                                    id="community-image"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Custom Links Section */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Custom Links
-                          </label>
-                          <div className="space-y-3">
-                            {links.map((link, index) => (
-                              <div key={index} className="flex gap-2">
-                                <Input
-                                  placeholder="Link Title (e.g., Instagram)"
-                                  value={link.title}
-                                  onChange={(e) =>
-                                    handleLinkChange(
-                                      index,
-                                      "title",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="flex-1"
-                                />
-                                <Input
-                                  placeholder="URL (e.g., instagram.com/your-profile)"
-                                  value={link.url}
-                                  onChange={(e) =>
-                                    handleLinkChange(
-                                      index,
-                                      "url",
-                                      e.target.value
-                                    )
-                                  }
-                                  className="flex-1"
-                                />
-                                <Button
-                                  variant="destructive"
-                                  size="icon"
-                                  onClick={() => handleRemoveLink(index)}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={handleAddLink}
-                              className="w-full"
-                            >
-                              Add Link
-                            </Button>
+                          {/* Custom Links Section */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Custom Links
+                            </label>
+                            <div className="space-y-3">
+                              {links.map((link, index) => (
+                                <div key={index} className="flex gap-2">
+                                  <Input
+                                    placeholder="Link Title (e.g., Instagram)"
+                                    value={link.title}
+                                    onChange={(e) =>
+                                      handleLinkChange(
+                                        index,
+                                        "title",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="flex-1"
+                                  />
+                                  <Input
+                                    placeholder="URL (e.g., instagram.com/your-profile)"
+                                    value={link.url}
+                                    onChange={(e) =>
+                                      handleLinkChange(
+                                        index,
+                                        "url",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => handleRemoveLink(index)}
+                                  >
+                                    ×
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleAddLink}
+                                className="w-full"
+                              >
+                                Add Link
+                              </Button>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">
+                              Add useful links for your community members (e.g.,
+                              social media profiles, website)
+                            </p>
                           </div>
-                          <p className="mt-1 text-sm text-gray-500">
-                            Add useful links for your community members (e.g.,
-                            social media profiles, website)
-                          </p>
+
+                          <Button
+                            onClick={handleSaveChanges}
+                            className="bg-black text-white hover:bg-gray-800"
+                          >
+                            Save Changes
+                          </Button>
                         </div>
+                      )}
 
-                        <Button
-                          onClick={handleSaveChanges}
-                          className="bg-black text-white hover:bg-gray-800"
-                        >
-                          Save Changes
-                        </Button>
-                      </div>
-                    )}
+                      {activeCategory === "subscriptions" &&
+                        renderSubscriptions()}
 
-                    {activeCategory === "subscriptions" &&
-                      renderSubscriptions()}
+                      {activeCategory === "thread_categories" &&
+                        renderThreadCategories()}
 
-                    {activeCategory === "thread_categories" &&
-                      renderThreadCategories()}
+                      {activeCategory === "dashboard" && renderDashboard()}
 
-                    {activeCategory === "dashboard" && renderDashboard()}
+                      {activeCategory === "members" && renderMembers()}
 
-                    {activeCategory === "members" && renderMembers()}
-
-                    {/* Add other category content here */}
+                      {/* Add other category content here */}
+                    </div>
                   </div>
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
           </div>
-        </div>
-      </Dialog>
-    </Transition.Root>
+        </Dialog>
+      </Transition.Root>
+
+      {/* Custom Stripe Onboarding Wizard */}
+      <OnboardingWizard
+        isOpen={isOnboardingWizardOpen}
+        onClose={() => setIsOnboardingWizardOpen(false)}
+        communityId={communityId}
+        communitySlug={communitySlug}
+        onComplete={handleOnboardingComplete}
+      />
+    </>
   );
 }

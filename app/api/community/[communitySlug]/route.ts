@@ -13,7 +13,20 @@ export async function GET(
     const { data: community, error } = await supabase
       .from('communities')
       .select(`
-        *,
+        id,
+        created_at,
+        name,
+        slug,
+        description,
+        image_url,
+        created_by,
+        price,
+        currency,
+        membership_enabled,
+        membership_price,
+        stripe_account_id,
+        stripe_price_id,
+        stripe_onboarding_type,
         community_members:community_members(count)
       `)
       .eq('slug', communitySlug)
@@ -27,6 +40,9 @@ export async function GET(
       );
     }
 
+    console.log('Raw community data from DB:', community);
+    console.log('stripe_account_id value:', community.stripe_account_id);
+
     // Get the count of members
     const membersCount = community.community_members[0]?.count || 0;
 
@@ -34,6 +50,9 @@ export async function GET(
       ...community,
       membersCount,
     };
+
+    console.log('Final community data being returned:', communityData);
+    console.log('stripe_account_id in final data:', communityData.stripe_account_id);
 
     return NextResponse.json(communityData);
   } catch (error) {

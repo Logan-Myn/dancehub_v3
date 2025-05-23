@@ -43,11 +43,30 @@ export async function POST(request: Request) {
       );
     }
 
+    // If community has a stripe_account_id, verify it's still valid
     if (community.stripe_account_id) {
-      return NextResponse.json(
-        { error: 'Community already has a Stripe account' },
-        { status: 400 }
-      );
+      console.log('Checking if existing Stripe account is valid:', community.stripe_account_id);
+      try {
+        await stripe.accounts.retrieve(community.stripe_account_id);
+        console.log('Existing Stripe account is valid');
+        return NextResponse.json(
+          { error: 'Community already has a Stripe account' },
+          { status: 400 }
+        );
+      } catch (stripeError: any) {
+        console.log('Existing Stripe account is invalid:', stripeError.message);
+        // Account doesn't exist or is invalid, clear it from database and continue
+        const { error: clearError } = await supabase
+          .from('communities')
+          .update({ stripe_account_id: null })
+          .eq('id', communityId);
+        
+        if (clearError) {
+          console.error('Failed to clear invalid stripe_account_id:', clearError);
+        } else {
+          console.log('Cleared invalid stripe_account_id from database');
+        }
+      }
     }
 
     // Create a Stripe Express account for custom onboarding
