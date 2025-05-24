@@ -945,8 +945,8 @@ export default function CommunitySettingsModal({
 
   const renderSubscriptions = () => (
     <div className="space-y-6">
-      {/* Stripe connection status */}
-      {renderStripeConnectionStatus()}
+      {/* Stripe connection status - only show if setup is incomplete */}
+      {(!stripeAccountId || !stripeAccountStatus.isEnabled) && renderStripeConnectionStatus()}
 
       {/* Membership settings */}
       {renderMembershipSettings()}
@@ -958,20 +958,13 @@ export default function CommunitySettingsModal({
 
   const renderStripeConnectionStatus = () => (
     <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="text-lg font-medium">Connect Stripe Account</h3>
-        <p className="text-sm text-gray-500 mt-1">
-          To enable subscriptions, you need to connect a Stripe account
-        </p>
-      </div>
-      
       {/* Custom Onboarding Option */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <div className="text-center space-y-4">
           <div>
-            <h4 className="font-medium text-blue-900 text-lg">Complete Setup in App</h4>
+            <h4 className="font-medium text-blue-900 text-lg">Complete Stripe Setup</h4>
             <p className="text-sm text-blue-700 mt-2">
-              Stay in your dance community while setting up payments. We'll guide you through each step with our simple 5-step wizard.
+              To enable paid memberships, you'll need to complete Stripe onboarding. This secure process requires business information, identity verification, and bank details to comply with financial regulations and anti-fraud requirements. Our guided wizard keeps you in your community throughout the setup.
             </p>
           </div>
           <Button
@@ -979,7 +972,7 @@ export default function CommunitySettingsModal({
             className="w-full max-w-sm bg-blue-600 hover:bg-blue-700"
           >
             <CreditCardIcon className="mr-2 h-4 w-4" />
-            Set Up Payments
+            Start Stripe Setup
           </Button>
         </div>
       </div>
