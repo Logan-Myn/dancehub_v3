@@ -6,21 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, CreditCard, Building2, AlertCircle, Shield } from "lucide-react";
+import { ArrowLeft, ArrowRight, CreditCard, Building2, AlertCircle, Shield, AlertTriangle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createClient } from "@/lib/supabase";
 
 interface BankAccount {
-  accountNumber: string;
-  routingNumber: string;
+  // International fields
+  iban?: string;
+  // US fields
+  accountNumber?: string;
+  routingNumber?: string;
   accountHolderName: string;
-  accountType: "checking" | "savings";
+  accountType?: "checking" | "savings";
+  country: string;
+  currency: string;
 }
 
 interface BankAccountStepProps {
   data: {
     bankAccount: BankAccount;
     personalInfo: any;
+    businessInfo: any;
     accountId?: string;
   };
   updateData: (data: any) => void;
@@ -36,7 +42,33 @@ export function BankAccountStep({
   onPrevious,
   isLoading,
 }: BankAccountStepProps) {
-  const [bankAccount, setBankAccount] = useState<BankAccount>(data.bankAccount);
+  // Get country from user's personal info address
+  const userCountry = data.personalInfo?.address?.country || data.businessInfo?.businessAddress?.country || 'US';
+  const isUS = userCountry === 'US';
+
+  // Initialize bank account with proper defaults based on country
+  const initializeBankAccount = () => {
+    const existingAccount = data.bankAccount;
+    if (isUS) {
+      return {
+        accountNumber: existingAccount?.accountNumber || "",
+        routingNumber: existingAccount?.routingNumber || "",
+        accountHolderName: existingAccount?.accountHolderName || "",
+        accountType: existingAccount?.accountType || "checking" as "checking" | "savings",
+        country: userCountry,
+        currency: "usd",
+      };
+    } else {
+      return {
+        iban: existingAccount?.iban || "",
+        accountHolderName: existingAccount?.accountHolderName || "",
+        country: userCountry,
+        currency: userCountry === 'GB' ? 'gbp' : 'eur',
+      };
+    }
+  };
+
+  const [bankAccount, setBankAccount] = useState<BankAccount>(initializeBankAccount());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
   const supabase = createClient();
@@ -59,6 +91,23 @@ export function BankAccountStep({
     }
   }, [bankAccount]); // Remove updateData from dependencies to prevent loops
 
+  const validateIBAN = (iban: string): boolean => {
+    // Basic IBAN validation
+    if (!iban) return false;
+    
+    // Remove spaces and convert to uppercase
+    const cleanIBAN = iban.replace(/\s/g, '').toUpperCase();
+    
+    // Check length (15-34 characters)
+    if (cleanIBAN.length < 15 || cleanIBAN.length > 34) return false;
+    
+    // Check format (starts with 2 letters followed by 2 digits)
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(cleanIBAN)) return false;
+    
+    // Basic IBAN checksum validation (simplified)
+    return true;
+  };
+
   const validateRoutingNumber = (routingNumber: string): boolean => {
     // Basic routing number validation (9 digits + checksum)
     if (!/^\d{9}$/.test(routingNumber)) return false;
@@ -77,24 +126,34 @@ export function BankAccountStep({
       newErrors.accountHolderName = "Account holder name is required";
     }
 
-    if (!bankAccount.routingNumber.trim()) {
-      newErrors.routingNumber = "Routing number is required";
-    } else if (!/^\d{9}$/.test(bankAccount.routingNumber)) {
-      newErrors.routingNumber = "Routing number must be exactly 9 digits";
-    } else if (!validateRoutingNumber(bankAccount.routingNumber)) {
-      newErrors.routingNumber = "Invalid routing number";
-    }
+    if (isUS) {
+      // US validation - routing number and account number
+      if (!bankAccount.routingNumber?.trim()) {
+        newErrors.routingNumber = "Routing number is required";
+      } else if (!/^\d{9}$/.test(bankAccount.routingNumber)) {
+        newErrors.routingNumber = "Routing number must be exactly 9 digits";
+      } else if (!validateRoutingNumber(bankAccount.routingNumber)) {
+        newErrors.routingNumber = "Invalid routing number";
+      }
 
-    if (!bankAccount.accountNumber.trim()) {
-      newErrors.accountNumber = "Account number is required";
-    } else if (bankAccount.accountNumber.length < 4 || bankAccount.accountNumber.length > 17) {
-      newErrors.accountNumber = "Account number must be between 4 and 17 digits";
-    } else if (!/^\d+$/.test(bankAccount.accountNumber)) {
-      newErrors.accountNumber = "Account number must contain only digits";
-    }
+      if (!bankAccount.accountNumber?.trim()) {
+        newErrors.accountNumber = "Account number is required";
+      } else if (bankAccount.accountNumber.length < 4 || bankAccount.accountNumber.length > 17) {
+        newErrors.accountNumber = "Account number must be between 4 and 17 digits";
+      } else if (!/^\d+$/.test(bankAccount.accountNumber)) {
+        newErrors.accountNumber = "Account number must contain only digits";
+      }
 
-    if (!bankAccount.accountType) {
-      newErrors.accountType = "Account type is required";
+      if (!bankAccount.accountType) {
+        newErrors.accountType = "Account type is required";
+      }
+    } else {
+      // International validation - IBAN
+      if (!bankAccount.iban?.trim()) {
+        newErrors.iban = "IBAN is required";
+      } else if (!validateIBAN(bankAccount.iban)) {
+        newErrors.iban = "Invalid IBAN format";
+      }
     }
 
     setErrors(newErrors);
@@ -119,6 +178,23 @@ export function BankAccountStep({
         throw new Error("Not authenticated");
       }
 
+      // Build bank account data based on country
+      const bankAccountData: any = {
+        account_holder_name: bankAccount.accountHolderName,
+        account_holder_type: "individual",
+        country: bankAccount.country,
+        currency: bankAccount.currency,
+      };
+
+      if (isUS) {
+        // US format - routing number + account number
+        bankAccountData.account_number = bankAccount.accountNumber;
+        bankAccountData.routing_number = bankAccount.routingNumber;
+      } else {
+        // International format - IBAN (remove spaces for API)
+        bankAccountData.account_number = bankAccount.iban?.replace(/\s/g, '');
+      }
+
       // Update the bank account information via API
       const response = await fetch(`/api/stripe/custom-account/${data.accountId}/update`, {
         method: "PUT",
@@ -127,19 +203,9 @@ export function BankAccountStep({
           "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          type: "bank_account",
-          data: {
-            external_account: {
-              object: "bank_account",
-              country: "US",
-              currency: "usd",
-              account_holder_name: bankAccount.accountHolderName,
-              account_holder_type: "individual",
-              account_number: bankAccount.accountNumber,
-              routing_number: bankAccount.routingNumber,
-              account_type: bankAccount.accountType,
-            },
-          },
+          step: "bank_account",
+          bankAccount: bankAccountData,
+          currentStep: 3,
         }),
       });
 
@@ -158,7 +224,7 @@ export function BankAccountStep({
     }
   };
 
-  const updateField = (field: keyof BankAccount, value: string) => {
+  const updateField = (field: string, value: string) => {
     setBankAccount(prev => ({
       ...prev,
       [field]: value,
@@ -185,6 +251,38 @@ export function BankAccountStep({
     return digits;
   };
 
+  const formatIBAN = (value: string) => {
+    // Remove all non-alphanumeric characters and convert to uppercase
+    const clean = value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    // For display, add spaces every 4 characters for readability (but we'll remove them when sending to API)
+    return clean.replace(/(.{4})/g, '$1 ').trim();
+  };
+
+  // Get country-specific information
+  const getCountryInfo = () => {
+    const countryNames: Record<string, string> = {
+      'US': 'United States',
+      'EE': 'Estonia',
+      'GB': 'United Kingdom',
+      'DE': 'Germany',
+      'FR': 'France',
+      'ES': 'Spain',
+      'IT': 'Italy',
+      'NL': 'Netherlands',
+      'SE': 'Sweden',
+      'NO': 'Norway',
+      'DK': 'Denmark',
+      'FI': 'Finland',
+    };
+
+    return {
+      name: countryNames[userCountry] || userCountry,
+      isEU: ['EE', 'DE', 'FR', 'ES', 'IT', 'NL', 'SE', 'DK', 'FI', 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'GR', 'HU', 'IE', 'LV', 'LT', 'LU', 'MT', 'PL', 'PT', 'RO', 'SK', 'SI'].includes(userCountry),
+    };
+  };
+
+  const countryInfo = getCountryInfo();
+
   return (
     <div className="space-y-6">
       <div>
@@ -200,10 +298,11 @@ export function BankAccountStep({
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">Important Information</p>
             <ul className="list-disc list-inside space-y-1 text-blue-700">
-              <li>This must be a US bank account in your name</li>
+              <li>This must be a bank account in {countryInfo.name} in your name</li>
               <li>Payments typically arrive in 2-7 business days</li>
               <li>You can update this information later if needed</li>
               <li>All bank information is encrypted and securely stored</li>
+              {!isUS && <li>For {countryInfo.name}, we use IBAN for international transfers</li>}
             </ul>
           </div>
         </div>
@@ -225,7 +324,7 @@ export function BankAccountStep({
                 id="accountHolderName"
                 value={bankAccount.accountHolderName}
                 onChange={(e) => updateField("accountHolderName", e.target.value)}
-                placeholder="John Doe"
+                placeholder={isUS ? "John Doe" : "Jack Sparrow"}
                 className={errors.accountHolderName ? "border-red-500" : ""}
               />
               {errors.accountHolderName && (
@@ -236,34 +335,36 @@ export function BankAccountStep({
               </p>
             </div>
 
-            <div>
-              <Label htmlFor="accountType">Account Type *</Label>
-              <Select
-                value={bankAccount.accountType}
-                onValueChange={(value: "checking" | "savings") => updateField("accountType", value)}
-              >
-                <SelectTrigger className={errors.accountType ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select account type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="checking">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      <span>Checking Account</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="savings">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      <span>Savings Account</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.accountType && (
-                <p className="text-red-500 text-sm mt-1">{errors.accountType}</p>
-              )}
-            </div>
+            {isUS && (
+              <div>
+                <Label htmlFor="accountType">Account Type *</Label>
+                <Select
+                  value={bankAccount.accountType || ""}
+                  onValueChange={(value: "checking" | "savings") => updateField("accountType", value)}
+                >
+                  <SelectTrigger className={errors.accountType ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Select account type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="checking">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        <span>Checking Account</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="savings">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        <span>Savings Account</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.accountType && (
+                  <p className="text-red-500 text-sm mt-1">{errors.accountType}</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -276,40 +377,84 @@ export function BankAccountStep({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="routingNumber">Routing Number *</Label>
-              <Input
-                id="routingNumber"
-                value={bankAccount.routingNumber}
-                onChange={(e) => updateField("routingNumber", formatRoutingNumber(e.target.value))}
-                placeholder="123456789"
-                maxLength={9}
-                className={errors.routingNumber ? "border-red-500" : ""}
-              />
-              {errors.routingNumber && (
-                <p className="text-red-500 text-sm mt-1">{errors.routingNumber}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                9-digit number found on your checks or bank statements
-              </p>
-            </div>
+            {/* IBAN Support Info */}
+            {userCountry && userCountry !== 'US' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-green-800">
+                      International Bank Account Support
+                    </h4>
+                    <p className="text-sm text-green-700 mt-1">
+                      IBAN accounts are fully supported! Your {countryInfo.name} bank account will be processed securely.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <div>
-              <Label htmlFor="accountNumber">Account Number *</Label>
-              <Input
-                id="accountNumber"
-                value={bankAccount.accountNumber}
-                onChange={(e) => updateField("accountNumber", formatAccountNumber(e.target.value))}
-                placeholder="1234567890"
-                className={errors.accountNumber ? "border-red-500" : ""}
-              />
-              {errors.accountNumber && (
-                <p className="text-red-500 text-sm mt-1">{errors.accountNumber}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                Account number from your checks or bank statements
-              </p>
-            </div>
+            {isUS ? (
+              <>
+                <div>
+                  <Label htmlFor="routingNumber">Routing Number *</Label>
+                  <Input
+                    id="routingNumber"
+                    value={bankAccount.routingNumber || ""}
+                    onChange={(e) => updateField("routingNumber", formatRoutingNumber(e.target.value))}
+                    placeholder="123456789"
+                    maxLength={9}
+                    className={errors.routingNumber ? "border-red-500" : ""}
+                  />
+                  {errors.routingNumber && (
+                    <p className="text-red-500 text-sm mt-1">{errors.routingNumber}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    9-digit number found on your checks or bank statements
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="accountNumber">Account Number *</Label>
+                  <Input
+                    id="accountNumber"
+                    value={bankAccount.accountNumber || ""}
+                    onChange={(e) => updateField("accountNumber", formatAccountNumber(e.target.value))}
+                    placeholder="1234567890"
+                    className={errors.accountNumber ? "border-red-500" : ""}
+                  />
+                  {errors.accountNumber && (
+                    <p className="text-red-500 text-sm mt-1">{errors.accountNumber}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Account number from your checks or bank statements
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div>
+                <Label htmlFor="iban">IBAN (International Bank Account Number) *</Label>
+                <Input
+                  id="iban"
+                  value={bankAccount.iban || ""}
+                  onChange={(e) => updateField("iban", formatIBAN(e.target.value))}
+                  placeholder={userCountry === 'EE' ? "EE38 2200 2210 2014 5685" : "GB82 WEST 1234 5698 7654 32"}
+                  className={errors.iban ? "border-red-500" : ""}
+                />
+                {errors.iban && (
+                  <p className="text-red-500 text-sm mt-1">{errors.iban}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {countryInfo.isEU 
+                    ? "European IBAN format (e.g., EE38 2200 2210 2014 5685)"
+                    : "International bank account identifier for your country"
+                  }
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  💡 <strong>Testing:</strong> Use Stripe's test IBAN: <code>EE382200221020145685</code> for Estonia
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -69,26 +69,21 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create a Stripe Express account for custom onboarding
+    // Create a Stripe Custom account for custom onboarding
     const account = await stripe.accounts.create({
-      type: 'express',
+      type: 'custom',
       country: country,
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
       },
-      settings: {
-        payouts: {
-          schedule: {
-            interval: 'manual'
-          }
-        }
-      },
       business_type: businessType,
+      tos_acceptance: {
+        service_agreement: 'full'
+      },
       metadata: {
         community_id: communityId,
-        onboarding_type: 'custom'
-      }
+      },
     });
 
     // Update the community with the Stripe account ID

@@ -56,10 +56,15 @@ interface OnboardingData {
     ssnLast4: string;
   };
   bankAccount: {
-    accountNumber: string;
-    routingNumber: string;
+    // International fields
+    iban?: string;
+    // US fields  
+    accountNumber?: string;
+    routingNumber?: string;
     accountHolderName: string;
-    accountType: "checking" | "savings";
+    accountType?: "checking" | "savings";
+    country: string;
+    currency: string;
   };
   documents: Array<{
     type: string;
@@ -126,6 +131,8 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
       routingNumber: "",
       accountHolderName: "",
       accountType: "checking",
+      country: "US",
+      currency: "usd",
     },
     documents: [],
   });
@@ -332,6 +339,11 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
       const result = await response.json();
       console.log("New account created:", result);
       setOnboardingData(prev => ({ ...prev, accountId: result.accountId }));
+      
+      // Immediately notify parent component to update community data
+      console.log("Calling onComplete to update community with new account ID:", result.accountId);
+      onComplete(result.accountId);
+      
       toast.success("Stripe account created successfully!");
       return result.accountId;
     } catch (error) {
@@ -389,6 +401,7 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
       isLoading,
       accountId: onboardingData.accountId,
       onCreateAccount: handleCreateAccount,
+      communitySlug,
     };
 
     switch (currentStep) {

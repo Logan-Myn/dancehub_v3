@@ -268,10 +268,13 @@ export function PersonalInfoStep({
       newErrors.email = "Invalid email format";
     }
 
-    if (!personalInfo.ssnLast4.trim()) {
-      newErrors.ssnLast4 = "Last 4 digits of SSN are required";
-    } else if (!/^\d{4}$/.test(personalInfo.ssnLast4)) {
-      newErrors.ssnLast4 = "Must be exactly 4 digits";
+    // Only require SSN for US accounts
+    if (personalInfo.address.country === 'US') {
+      if (!personalInfo.ssnLast4.trim()) {
+        newErrors.ssnLast4 = "Last 4 digits of SSN are required for US accounts";
+      } else if (!/^\d{4}$/.test(personalInfo.ssnLast4)) {
+        newErrors.ssnLast4 = "Must be exactly 4 digits";
+      }
     }
 
     setErrors(newErrors);
@@ -294,6 +297,32 @@ export function PersonalInfoStep({
         throw new Error("Not authenticated");
       }
 
+      // Build personal info object - only include SSN for US accounts
+      const personalInfoData: any = {
+        first_name: personalInfo.firstName,
+        last_name: personalInfo.lastName,
+        email: personalInfo.email,
+        phone: personalInfo.phone,
+        dob: {
+          day: personalInfo.dateOfBirth.day,
+          month: personalInfo.dateOfBirth.month,
+          year: personalInfo.dateOfBirth.year,
+        },
+        address: {
+          line1: personalInfo.address.line1,
+          line2: personalInfo.address.line2 || "",
+          city: personalInfo.address.city,
+          state: personalInfo.address.state,
+          postal_code: personalInfo.address.postalCode,
+          country: personalInfo.address.country,
+        },
+      };
+
+      // Only include SSN for US accounts
+      if (personalInfo.address.country === 'US' && personalInfo.ssnLast4) {
+        personalInfoData.ssn_last_4 = personalInfo.ssnLast4;
+      }
+
       // Update the personal information via API
       const response = await fetch(`/api/stripe/custom-account/${data.accountId}/update`, {
         method: "PUT",
@@ -303,26 +332,7 @@ export function PersonalInfoStep({
         },
         body: JSON.stringify({
           step: "personal_info",
-          personalInfo: {
-            first_name: personalInfo.firstName,
-            last_name: personalInfo.lastName,
-            email: personalInfo.email,
-            phone: personalInfo.phone,
-            dob: {
-              day: personalInfo.dateOfBirth.day,
-              month: personalInfo.dateOfBirth.month,
-              year: personalInfo.dateOfBirth.year,
-            },
-            address: {
-              line1: personalInfo.address.line1,
-              line2: personalInfo.address.line2 || "",
-              city: personalInfo.address.city,
-              state: personalInfo.address.state,
-              postal_code: personalInfo.address.postalCode,
-              country: personalInfo.address.country,
-            },
-            ssn_last_4: personalInfo.ssnLast4,
-          },
+          personalInfo: personalInfoData,
           currentStep: 2,
         }),
       });
@@ -645,34 +655,36 @@ export function PersonalInfoStep({
           </CardContent>
         </Card>
 
-        {/* Identity Verification */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Identity Verification
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="ssnLast4">Last 4 digits of SSN *</Label>
-              <Input
-                id="ssnLast4"
-                value={personalInfo.ssnLast4}
-                onChange={(e) => updateField("ssnLast4", e.target.value)}
-                placeholder="1234"
-                maxLength={4}
-                className={errors.ssnLast4 ? "border-red-500" : ""}
-              />
-              {errors.ssnLast4 && (
-                <p className="text-red-500 text-sm mt-1">{errors.ssnLast4}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                This information is encrypted and used only for identity verification.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Identity Verification - Only for US accounts */}
+        {personalInfo.address.country === 'US' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Identity Verification (US Only)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="ssnLast4">Last 4 digits of SSN *</Label>
+                <Input
+                  id="ssnLast4"
+                  value={personalInfo.ssnLast4}
+                  onChange={(e) => updateField("ssnLast4", e.target.value)}
+                  placeholder="1234"
+                  maxLength={4}
+                  className={errors.ssnLast4 ? "border-red-500" : ""}
+                />
+                {errors.ssnLast4 && (
+                  <p className="text-red-500 text-sm mt-1">{errors.ssnLast4}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  This information is encrypted and used only for identity verification.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="flex justify-between">

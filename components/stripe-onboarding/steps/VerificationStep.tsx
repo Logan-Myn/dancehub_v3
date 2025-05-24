@@ -24,10 +24,10 @@ interface AccountStatus {
   payoutsEnabled: boolean;
   detailsSubmitted: boolean;
   requirements: {
-    currentlyDue: string[];
-    pastDue: string[];
-    eventuallyDue: string[];
-    pendingVerification: string[];
+    currentlyDue: Array<string | { code: string; message: string; category: string }>;
+    pastDue: Array<string | { code: string; message: string; category: string }>;
+    eventuallyDue: Array<string | { code: string; message: string; category: string }>;
+    pendingVerification?: Array<string | { code: string; message: string; category: string }>;
   };
   capabilities: Record<string, any>;
 }
@@ -41,6 +41,16 @@ export function VerificationStep({
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
   const [checking, setChecking] = useState(true);
   const [verificationComplete, setVerificationComplete] = useState(false);
+
+  const formatRequirement = (req: string | { code: string; message: string; category: string }): string => {
+    if (typeof req === 'string') {
+      // Handle legacy string format - convert snake_case to readable text
+      return req.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    } else {
+      // Use the user-friendly message from the API
+      return req.message;
+    }
+  };
 
   useEffect(() => {
     checkAccountStatus();
@@ -84,7 +94,7 @@ export function VerificationStep({
     if (accountStatus?.requirements.currentlyDue.length || accountStatus?.requirements.pastDue.length) {
       return "incomplete";
     }
-    if (accountStatus?.requirements.pendingVerification.length) {
+    if (accountStatus?.requirements.pendingVerification?.length) {
       return "pending";
     }
     return "complete";
@@ -211,14 +221,16 @@ export function VerificationStep({
               <CardContent>
                 <ul className="list-disc list-inside space-y-1 text-red-700">
                   {accountStatus.requirements.currentlyDue.map((req, index) => (
-                    <li key={index}>{req.replace(/_/g, ' ')}</li>
+                    <li key={index}>
+                      {formatRequirement(req)}
+                    </li>
                   ))}
                 </ul>
               </CardContent>
             </Card>
           )}
 
-          {accountStatus.requirements.pendingVerification.length > 0 && (
+          {accountStatus.requirements.pendingVerification && accountStatus.requirements.pendingVerification.length > 0 && (
             <Card className="border-yellow-200 bg-yellow-50">
               <CardHeader>
                 <CardTitle className="text-yellow-800">Pending Verification</CardTitle>
@@ -226,7 +238,9 @@ export function VerificationStep({
               <CardContent>
                 <ul className="list-disc list-inside space-y-1 text-yellow-700">
                   {accountStatus.requirements.pendingVerification.map((req, index) => (
-                    <li key={index}>{req.replace(/_/g, ' ')}</li>
+                    <li key={index}>
+                      {formatRequirement(req)}
+                    </li>
                   ))}
                 </ul>
               </CardContent>

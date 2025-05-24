@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Building, User, Globe, Phone, MapPin } from "lucide-react";
+import { ArrowRight, Building, User, Globe, Phone, MapPin, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createClient } from "@/lib/supabase";
 
@@ -35,6 +35,7 @@ interface BusinessInfoStepProps {
   onNext: () => void;
   onCreateAccount: () => Promise<string>;
   isLoading: boolean;
+  communitySlug?: string;
 }
 
 const STRIPE_COUNTRIES = [
@@ -141,11 +142,16 @@ export function BusinessInfoStep({
   onNext,
   onCreateAccount,
   isLoading,
+  communitySlug,
 }: BusinessInfoStepProps) {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>(data.businessInfo);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tosAccepted, setTosAccepted] = useState(false);
   const supabase = createClient();
   const [session, setSession] = useState<any>(null);
+
+  // Auto-fill website URL with community page
+  const communityWebsiteUrl = `https://dance-hub.io/${communitySlug}`;
 
   // Get session with access token
   useEffect(() => {
@@ -155,6 +161,16 @@ export function BusinessInfoStep({
     };
     getSession();
   }, [supabase]);
+
+  // Auto-fill website URL if not already set
+  useEffect(() => {
+    if (communitySlug && !businessInfo.businessWebsite) {
+      setBusinessInfo(prev => ({
+        ...prev,
+        businessWebsite: communityWebsiteUrl
+      }));
+    }
+  }, [communitySlug, businessInfo.businessWebsite, communityWebsiteUrl]);
 
   // Only update parent when businessInfo actually changes
   useEffect(() => {
@@ -207,15 +223,10 @@ export function BusinessInfoStep({
 
     if (!businessInfo.businessPhone.trim()) {
       newErrors.businessPhone = "Business phone is required";
-    } else if (!/^\+?[\d\s\-\(\)]+$/.test(businessInfo.businessPhone)) {
-      newErrors.businessPhone = "Invalid phone number format";
     }
 
-    if (businessInfo.businessWebsite && businessInfo.businessWebsite.trim()) {
-      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-      if (!urlPattern.test(businessInfo.businessWebsite)) {
-        newErrors.businessWebsite = "Invalid website URL";
-      }
+    if (!tosAccepted) {
+      newErrors.tosAccepted = "You must accept Stripe's Terms of Service to continue";
     }
 
     setErrors(newErrors);
@@ -267,6 +278,7 @@ export function BusinessInfoStep({
           businessInfo: {
             type: businessInfo.businessType,
             name: businessInfo.legalBusinessName,
+            url: businessInfo.businessWebsite,
             address: {
               line1: businessInfo.businessAddress.line1,
               line2: businessInfo.businessAddress.line2 || "",
@@ -276,10 +288,14 @@ export function BusinessInfoStep({
               country: businessInfo.businessAddress.country,
             },
             phone: businessInfo.businessPhone,
-            website: businessInfo.businessWebsite || "",
             mcc: businessInfo.mccCode,
           },
-          currentStep: 1,
+          tosAcceptance: {
+            accepted: tosAccepted,
+            date: new Date().toISOString(),
+            ip: null, // Will be filled by server from request headers
+            userAgent: navigator.userAgent,
+          },
         }),
       });
 
@@ -417,17 +433,17 @@ export function BusinessInfoStep({
               </div>
 
               <div>
-                <Label htmlFor="businessWebsite">Website (Optional)</Label>
+                <Label htmlFor="businessWebsite">Business Website</Label>
                 <Input
                   id="businessWebsite"
                   value={businessInfo.businessWebsite || ""}
-                  onChange={(e) => updateField("businessWebsite", e.target.value)}
-                  placeholder="https://your-dance-studio.com"
-                  className={errors.businessWebsite ? "border-red-500" : ""}
+                  readOnly
+                  disabled
+                  className="bg-gray-50 text-gray-600 cursor-not-allowed"
                 />
-                {errors.businessWebsite && (
-                  <p className="text-red-500 text-sm mt-1">{errors.businessWebsite}</p>
-                )}
+                <p className="text-sm text-gray-600 mt-1">
+                  Your community page URL (automatically set to your community page)
+                </p>
               </div>
             </div>
           </CardContent>
@@ -530,6 +546,53 @@ export function BusinessInfoStep({
               {errors.country && (
                 <p className="text-red-500 text-sm mt-1">{errors.country}</p>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Terms of Service Acceptance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Terms of Service
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start space-x-3">
+              <input
+                type="checkbox"
+                id="tosAccepted"
+                checked={tosAccepted}
+                onChange={(e) => setTosAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div className="flex-1">
+                <label htmlFor="tosAccepted" className="text-sm text-gray-700">
+                  I acknowledge that I understand and agree to Stripe's{" "}
+                  <a
+                    href="https://stripe.com/ssa"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Terms of Service
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="https://stripe.com/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  . I understand that by checking this box and proceeding, I am legally accepting these terms on behalf of my business.
+                </label>
+                {errors.tosAccepted && (
+                  <p className="text-sm text-red-500 mt-1">{errors.tosAccepted}</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

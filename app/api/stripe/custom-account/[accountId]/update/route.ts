@@ -46,6 +46,7 @@ interface BankAccountInfo {
   account_holder_type?: 'individual' | 'company';
   country?: string;
   currency?: string;
+  iban?: string;
 }
 
 export async function PUT(
@@ -61,8 +62,11 @@ export async function PUT(
       businessInfo, 
       personalInfo, 
       bankAccount,
+      tosAcceptance,
       currentStep 
     } = await request.json();
+
+    console.log('Update endpoint received:', { step, businessInfo, personalInfo, bankAccount, tosAcceptance, currentStep });
 
     // Verify the account exists and belongs to a community
     const account = await stripe.accounts.retrieve(accountId);
@@ -90,21 +94,35 @@ export async function PUT(
         if (businessInfo) {
           updateParams = {
             business_type: businessInfo.type,
-            ...(businessInfo.type === 'company' && businessInfo.name && {
-              company: {
-                name: businessInfo.name,
-                ...(businessInfo.address && { address: businessInfo.address }),
-                ...(businessInfo.phone && { phone: businessInfo.phone }),
+            ...(businessInfo.name && { 
+              [businessInfo.type === 'individual' ? 'individual' : 'company']: {
+                ...(businessInfo.type === 'individual' ? { first_name: businessInfo.name.split(' ')[0], last_name: businessInfo.name.split(' ').slice(1).join(' ') } : { name: businessInfo.name })
               }
             }),
+            business_profile: {
+              ...(businessInfo.url && { url: businessInfo.url }),
+              ...(businessInfo.mcc && { mcc: businessInfo.mcc }),
+            },
             ...(businessInfo.address && {
-              business_profile: {
-                name: businessInfo.name,
-                url: businessInfo.website,
-                mcc: businessInfo.mcc || '8299', // Educational services
+              [businessInfo.type === 'individual' ? 'individual' : 'company']: {
+                address: businessInfo.address
               }
             })
           };
+
+          // Handle Terms of Service acceptance for Custom accounts
+          if (tosAcceptance && tosAcceptance.accepted) {
+            const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                           request.headers.get('x-real-ip') || 
+                           request.headers.get('cf-connecting-ip') ||
+                           '127.0.0.1';
+
+            updateParams.tos_acceptance = {
+              date: Math.floor(new Date(tosAcceptance.date).getTime() / 1000),
+              ip: clientIP,
+              user_agent: tosAcceptance.userAgent,
+            };
+          }
         }
         break;
 
@@ -125,26 +143,53 @@ export async function PUT(
         break;
 
       case 'bank_account':
-        if (bankAccount && bankAccount.account_number && bankAccount.routing_number) {
-          // Create external account (bank account) for payouts
+        if (bankAccount) {
+          // Check if bank account was skipped (for international users)
+          if (bankAccount.skipped) {
+            console.log('Bank account setup was skipped for international user');
+            // No action needed, just continue
+            break;
+          }
+
           try {
-            await stripe.accounts.createExternalAccount(accountId, {
-              external_account: {
-                object: 'bank_account',
-                account_number: bankAccount.account_number,
-                routing_number: bankAccount.routing_number,
-                account_holder_name: bankAccount.account_holder_name,
-                account_holder_type: bankAccount.account_holder_type || 'individual',
-                country: bankAccount.country || 'US',
-                currency: bankAccount.currency || 'usd',
-              }
-            });
-          } catch (bankError: any) {
-            console.error('Error adding bank account:', bankError);
-            return NextResponse.json(
-              { error: 'Failed to add bank account: ' + bankError.message },
-              { status: 400 }
-            );
+            // For US accounts using routing/account numbers
+            if (bankAccount.routing_number && bankAccount.account_number) {
+              // Create external account with routing/account numbers
+              await stripe.accounts.createExternalAccount(accountId, {
+                external_account: {
+                  object: 'bank_account',
+                  country: bankAccount.country || 'US',
+                  currency: bankAccount.currency || 'usd',
+                  account_holder_name: bankAccount.account_holder_name,
+                  account_holder_type: bankAccount.account_holder_type || 'individual',
+                  routing_number: bankAccount.routing_number,
+                  account_number: bankAccount.account_number,
+                }
+              } as any);
+            }
+            // For international accounts using IBAN (according to Perplexity solution)
+            else if (bankAccount.iban || (bankAccount.account_number && bankAccount.account_number.startsWith('EE'))) {
+              const ibanValue = bankAccount.iban || bankAccount.account_number;
+              
+              // Create external account with IBAN as account_number (Perplexity solution)
+              await stripe.accounts.createExternalAccount(accountId, {
+                external_account: {
+                  object: 'bank_account',
+                  country: bankAccount.country, // Must be European country
+                  currency: bankAccount.currency, // Must match IBAN country (eur for EE)
+                  account_holder_name: bankAccount.account_holder_name,
+                  account_holder_type: bankAccount.account_holder_type || 'individual',
+                  account_number: ibanValue, // IBAN goes here, NOT in iban field
+                  // NO routing_number for European accounts
+                }
+              } as any);
+            }
+            else {
+              throw new Error('Invalid bank account information. Please provide either routing_number + account_number (US) or IBAN (international).');
+            }
+          } catch (stripeError: any) {
+            console.error('Error creating external account:', stripeError);
+            throw new Error(`Failed to create bank account: ${stripeError.message}`);
           }
         }
         break;

@@ -29,7 +29,7 @@ interface DocumentUploadStepProps {
 const DOCUMENT_TYPES = [
   {
     type: "identity_document",
-    purpose: "identity_verification",
+    purpose: "identity_document",
     title: "Government-issued ID",
     description: "Driver's license, passport, or state ID",
     required: true,
@@ -91,7 +91,7 @@ export function DocumentUploadStep({
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("type", type);
+    formData.append("documentType", type);
     formData.append("purpose", purpose);
 
     const response = await fetch(`/api/stripe/custom-account/${data.accountId}/upload-document`, {
