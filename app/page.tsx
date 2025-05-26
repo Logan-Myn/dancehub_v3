@@ -107,43 +107,25 @@ const features = [
 export default function LandingPage() {
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
-
   const [isBenefitsVisible, setIsBenefitsVisible] = useState(false);
   const benefitsSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const currentRefValue = benefitsSectionRef.current; // Capture ref value for initial check & cleanup logic
-
-    const handleScroll = () => {
-      if (benefitsSectionRef.current) { // Check current ref inside handler
-        const top = benefitsSectionRef.current.getBoundingClientRect().top;
-        const windowHeight = window.innerHeight;
-        // Trigger when the top of the section is within the bottom 85% of the viewport
-        if (top < windowHeight * 0.85) {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
           setIsBenefitsVisible(true);
-          window.removeEventListener('scroll', handleScroll); // Remove listener once visible
         }
-      }
-    };
+      },
+      { threshold: 0.1 }
+    );
 
-    // Initial check: if the section is already in view on mount
-    if (currentRefValue) {
-      const top = currentRefValue.getBoundingClientRect().top;
-      const windowHeight = window.innerHeight;
-      if (top < windowHeight * 0.85) {
-        setIsBenefitsVisible(true);
-        return; // Already visible, no need to add scroll listener
-      }
+    if (benefitsSectionRef.current) {
+      observer.observe(benefitsSectionRef.current);
     }
 
-    // If not initially visible, add the scroll listener
-    window.addEventListener('scroll', handleScroll);
-
-    // Cleanup function to remove the event listener when the component unmounts
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []); // Empty dependency array ensures this effect runs only once on mount and cleans up on unmount
+    return () => observer.disconnect();
+  }, []);
 
   const handleTeachingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!user) {
@@ -187,7 +169,7 @@ export default function LandingPage() {
         {/* Key Benefits Showcase */}
         <section
           ref={benefitsSectionRef}
-          className={`py-16 md:py-24 ${isBenefitsVisible ? 'opacity-100 transition-opacity duration-1000 ease-in' : 'opacity-0 pointer-events-none'}`}
+          className="py-16 md:py-24"
         >
           <div className="container mx-auto px-4">
             <h2 className="text-4xl font-bold text-center mb-6 text-primary">
