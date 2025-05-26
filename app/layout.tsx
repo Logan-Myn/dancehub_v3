@@ -5,6 +5,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthModalProvider } from "@/contexts/AuthModalContext";
 import { Toaster } from "react-hot-toast";
 import { Analytics } from "@vercel/analytics/next";
+import { NextStepProvider } from "nextstepjs";
+import NextStepWrapper from "@/components/NextStepWrapper";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -35,12 +37,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <AuthModalProvider>
-            {children}
-          </AuthModalProvider>
-          <Toaster position="bottom-right" />
-        </AuthProvider>
+        <NextStepProvider>
+          <NextStepWrapper>
+            <AuthProvider>
+              <AuthModalProvider>
+                {children}
+              </AuthModalProvider>
+              <Toaster position="bottom-right" />
+            </AuthProvider>
+          </NextStepWrapper>
+        </NextStepProvider>
         <Analytics />
       </body>
     </html>

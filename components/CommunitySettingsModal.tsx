@@ -1570,6 +1570,7 @@ export default function CommunitySettingsModal({
                                 ? "bg-gray-200 text-gray-900 font-medium"
                                 : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
                             }`}
+                            id={`settings-${category.id}`}
                           >
                             <category.icon
                               className="h-5 w-5 mr-3"

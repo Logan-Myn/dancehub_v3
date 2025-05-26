@@ -20,7 +20,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
   }
 
   return (
-    <nav className="bg-white border-b">
+    <nav className="bg-white border-b" id="navigation-tabs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">
@@ -33,6 +33,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
                     ? "border-black text-gray-900"
                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
                 }`}
+                id={`tab-${item.label.toLowerCase()}`}
               >
                 {item.label}
               </Link>

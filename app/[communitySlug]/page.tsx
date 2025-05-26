@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, ExternalLink, Search } from "lucide-react";
+import { Users, ExternalLink, Search, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import Image from "next/image";
@@ -35,6 +35,7 @@ import { cn, formatDisplayName } from "@/lib/utils";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { Input } from "@/components/ui/input";
+import { useNextStep } from "nextstepjs";
 
 interface CustomLink {
   title: string;
@@ -241,6 +242,38 @@ export default function CommunityPage() {
   const [accessEndDate, setAccessEndDate] = useState<string | null>(null);
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
   const [membershipChecked, setMembershipChecked] = useState(false);
+
+  const { startNextStep, currentTour, isNextStepVisible } = useNextStep();
+
+  // Initialize the onboarding tour for creators
+  useEffect(() => {
+    if (!isCreator) return;
+
+    const tourKey = `onboarding-tour-completed-${communitySlug}`;
+    const hasCompletedTour = localStorage.getItem(tourKey);
+    
+    if (!hasCompletedTour) {
+      // Add a small delay to ensure page is fully loaded
+      const timer = setTimeout(() => {
+        startNextStep('onboarding');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isCreator, communitySlug, startNextStep]);
+
+  // Track when tour is completed or skipped
+  useEffect(() => {
+    if (isCreator && !isNextStepVisible && currentTour === null) {
+      // Tour has ended (completed or skipped)
+      const tourKey = `onboarding-tour-completed-${communitySlug}`;
+      const hasCompletedTour = localStorage.getItem(tourKey);
+      
+      if (!hasCompletedTour) {
+        localStorage.setItem(tourKey, 'true');
+        toast.success('Welcome to your community! 🎉');
+      }
+    }
+  }, [isNextStepVisible, currentTour, isCreator, communitySlug]);
 
   // Update community state when SWR data changes
   useEffect(() => {
@@ -867,7 +900,7 @@ export default function CommunityPage() {
           <div className="flex space-x-8">
             {/* Main Content Area */}
             <div className="w-3/4">
-              <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <div className="bg-white rounded-lg shadow p-4 mb-6" id="write-post">
                 {isWriting ? (
                   <Thread
                     communityId={community.id}
@@ -922,11 +955,13 @@ export default function CommunityPage() {
               {/* Categories filter */}
               {community.threadCategories &&
                 community.threadCategories.length > 0 && (
-                  <ThreadCategories
-                    categories={community.threadCategories}
-                    selectedCategory={selectedCategory}
-                    onSelectCategory={setSelectedCategory}
-                  />
+                  <div id="thread-categories">
+                    <ThreadCategories
+                      categories={community.threadCategories}
+                      selectedCategory={selectedCategory}
+                      onSelectCategory={setSelectedCategory}
+                    />
+                  </div>
                 )}
 
               {/* Threads list */}
@@ -971,24 +1006,37 @@ export default function CommunityPage() {
 
             {/* Right Sidebar */}
             <div className="w-1/4">
-              <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="bg-white shadow rounded-lg overflow-hidden" id="community-header">
                 <img
                   src={community.imageUrl || "/placeholder.svg"}
                   alt={community.name}
                   className="w-full h-40 object-cover"
                 />
                 <div className="p-4">
-                  <h2 className="text-xl font-semibold mb-2">
-                    {community.name}
-                  </h2>
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-xl font-semibold">
+                      {community.name}
+                    </h2>
+                    {isCreator && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSettingsModal(true)}
+                        className="ml-2"
+                        id="settings-button"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm mb-2">{community.description}</p>
 
-                  <div className="flex items-center text-sm text-gray-500 mb-4">
+                  <div className="flex items-center text-sm text-gray-500 mb-4" id="member-count">
                     <Users className="h-4 w-4 mr-1" />
                     <span>{totalMembers - 1} members</span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2" id="community-sharing">
                     {community.customLinks?.map((link, index) => (
                       <Link
                         key={index}
