@@ -120,20 +120,60 @@ export async function POST(request: Request) {
           const { user_id, community_id } = subscription.metadata;
           console.log('🔍 Processing invoice payment for:', { user_id, community_id });
 
-          // Update member status and subscription status
-          const { error: updateError } = await supabase
-            .from('community_members')
-            .update({ 
-              status: 'active',
-              subscription_status: subscription.status,
-              updated_at: new Date().toISOString()
-            })
-            .eq('community_id', community_id)
-            .eq('user_id', user_id);
+          // Check if this member should transition from promotional to standard pricing
+          const { data: community } = await supabase
+            .from('communities')
+            .select('created_at, active_member_count')
+            .eq('id', community_id)
+            .single();
 
-          if (updateError) {
-            console.error('❌ Error updating member status:', updateError);
-            throw updateError;
+          if (community) {
+            const communityAge = Date.now() - new Date(community.created_at).getTime();
+            const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+            const isStillPromotional = communityAge < thirtyDaysInMs;
+
+            let newFeePercentage = 0;
+            if (!isStillPromotional) {
+              // Calculate standard tiered pricing
+              if (community.active_member_count <= 50) {
+                newFeePercentage = 8.0;
+              } else if (community.active_member_count <= 100) {
+                newFeePercentage = 6.0;
+              } else {
+                newFeePercentage = 4.0;
+              }
+
+              // Update the subscription's application fee if it has changed
+              if (subscription.application_fee_percent !== newFeePercentage) {
+                console.log(`🔄 Updating subscription ${subscription.id} fee from ${subscription.application_fee_percent}% to ${newFeePercentage}%`);
+                
+                await connectedStripe.subscriptions.update(subscription.id, {
+                  application_fee_percent: newFeePercentage,
+                  metadata: {
+                    ...subscription.metadata,
+                    fee_updated_at: new Date().toISOString(),
+                    previous_fee: subscription.application_fee_percent?.toString() || '0'
+                  }
+                });
+              }
+            }
+
+            // Update member status and platform fee percentage
+            const { error: updateError } = await supabase
+              .from('community_members')
+              .update({ 
+                status: 'active',
+                subscription_status: subscription.status,
+                platform_fee_percentage: isStillPromotional ? 0 : newFeePercentage,
+                updated_at: new Date().toISOString()
+              })
+              .eq('community_id', community_id)
+              .eq('user_id', user_id);
+
+            if (updateError) {
+              console.error('❌ Error updating member status:', updateError);
+              throw updateError;
+            }
           }
 
           console.log('✅ Successfully updated member status');

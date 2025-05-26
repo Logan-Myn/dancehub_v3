@@ -18,7 +18,7 @@ export async function POST(
     // Get community with its membership price and stripe account
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, membership_price, stripe_account_id, stripe_price_id, active_member_count")
+      .select("id, membership_price, stripe_account_id, stripe_price_id, active_member_count, created_at, promotional_fee_percentage")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -36,11 +36,24 @@ export async function POST(
       );
     }
 
-    // Calculate platform fee percentage based on active member count
-    const { data: feePercentage } = await supabase
-      .rpc('calculate_platform_fee_percentage', {
-        member_count: community.active_member_count
-      });
+    // Check if this member should get promotional pricing (community < 30 days old)
+    const communityAge = Date.now() - new Date(community.created_at).getTime();
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    const isPromotional = communityAge < thirtyDaysInMs;
+
+    // Calculate platform fee percentage
+    let feePercentage = 0; // Default promotional rate
+    
+    if (!isPromotional) {
+      // Use standard tiered pricing if not in promotional period
+      if (community.active_member_count <= 50) {
+        feePercentage = 8.0;
+      } else if (community.active_member_count <= 100) {
+        feePercentage = 6.0;
+      } else {
+        feePercentage = 4.0;
+      }
+    }
 
     // Check if user is already a member
     const { data: existingMember } = await supabase
