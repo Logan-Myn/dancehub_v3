@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthModalProvider } from "@/contexts/AuthModalContext";
 import { Toaster } from "react-hot-toast";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -40,6 +41,7 @@ export default function RootLayout({
           </AuthModalProvider>
           <Toaster position="bottom-right" />
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
