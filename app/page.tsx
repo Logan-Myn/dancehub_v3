@@ -43,9 +43,9 @@ const benefits = [
   },
   {
     icon: CircleDollarSign,
-    title: "Monetization",
+    title: "Smart Monetization",
     description:
-      "Unlock new revenue streams by selling courses, memberships, and exclusive content.",
+      "Start with 0% platform fees for 30 days, then scale with competitive tiered pricing as you grow.",
     image: "https://placehold.co/600x400.png",
     aiHint: "earning money",
   },
@@ -100,7 +100,7 @@ const features = [
     icon: Wallet,
     name: "Monetization Tools",
     description:
-      "Flexible subscription models, one-time payments, and secure processing.",
+      "Launch with zero platform fees, then grow with our fair tiered pricing model and secure payment processing.",
   },
 ];
 
@@ -154,6 +154,12 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      {/* Promotional Banner */}
+      <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 text-center">
+        <p className="text-sm md:text-base font-medium">
+          🎉 <span className="font-bold">Launch Special:</span> Zero platform fees for your first 30 days - Build your community risk-free!
+        </p>
+      </div>
       <Navbar /> {/* Changed Header to Navbar */}
       <main className="flex-grow">
         {/* Hero Section */}
