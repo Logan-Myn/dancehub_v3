@@ -36,6 +36,8 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { Input } from "@/components/ui/input";
 import { useNextStep } from "nextstepjs";
+import { setStepChangeCallback, clearStepChangeCallback } from "@/components/NextStepWrapper";
+import { tourSteps } from "@/lib/tourSteps";
 
 interface CustomLink {
   title: string;
@@ -274,6 +276,74 @@ export default function CommunityPage() {
       }
     }
   }, [isNextStepVisible, currentTour, isCreator, communitySlug]);
+
+  // Modal automation for tour steps using step change callback
+  useEffect(() => {
+    if (isCreator) {
+      const handleStepChange = (stepIndex: number, tourName: string) => {
+        if (tourName === 'onboarding') {
+          // Get the step object from the tour configuration
+          const onboardingTour = tourSteps.find(tour => tour.tour === 'onboarding');
+          if (onboardingTour && onboardingTour.steps[stepIndex]) {
+            const currentStep = onboardingTour.steps[stepIndex];
+            const selector = currentStep.selector;
+            
+            console.log('Tour step changed:', stepIndex, 'Selector:', selector);
+            
+            if (selector) {
+              const settingsStepSelectors = ['#settings-general', '#settings-subscriptions', '#settings-thread_categories'];
+              
+              if (settingsStepSelectors.includes(selector)) {
+                // Open settings modal for settings steps with delay for proper positioning
+                console.log('Opening settings modal for step:', selector);
+                setShowSettingsModal(true);
+                
+                // Wait for modal to render and then ensure proper positioning
+                const waitForModalAndReposition = () => {
+                  setTimeout(() => {
+                    // Check if the target element is visible and accessible
+                    const targetElement = document.querySelector(selector);
+                    if (targetElement && (targetElement as HTMLElement).offsetParent !== null) {
+                      // Element is visible, trigger repositioning
+                      console.log('Modal rendered, triggering reposition for:', selector);
+                      
+                      // Trigger multiple events to ensure tour library recalculates position
+                      window.dispatchEvent(new Event('resize'));
+                      
+                      // Use requestAnimationFrame for better timing with browser rendering
+                      requestAnimationFrame(() => {
+                        window.dispatchEvent(new Event('scroll'));
+                      });
+                    } else {
+                      // If element not ready, wait a bit more and try again
+                      console.log('Element not ready, retrying...', selector);
+                      setTimeout(waitForModalAndReposition, 100);
+                    }
+                  }, 150);
+                };
+                
+                waitForModalAndReposition();
+              } else if (selector === '#member-count') {
+                // Close settings modal when we move to member count
+                console.log('Closing settings modal for step:', selector);
+                setShowSettingsModal(false);
+              } else if (selector === '#manage-community-button') {
+                // Ensure settings modal is closed before the manage community button step
+                console.log('Ensuring settings modal is closed for manage community button step');
+                setShowSettingsModal(false);
+              }
+            }
+          }
+        }
+      };
+
+      setStepChangeCallback(handleStepChange);
+      
+      return () => {
+        clearStepChangeCallback();
+      };
+    }
+  }, [isCreator]);
 
   // Update community state when SWR data changes
   useEffect(() => {
@@ -1013,21 +1083,10 @@ export default function CommunityPage() {
                   className="w-full h-40 object-cover"
                 />
                 <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <h2 className="text-xl font-semibold">
                       {community.name}
                     </h2>
-                    {isCreator && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSettingsModal(true)}
-                        className="ml-2"
-                        id="settings-button"
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                   <p className="text-sm mb-2">{community.description}</p>
 
@@ -1106,6 +1165,7 @@ export default function CommunityPage() {
                     <Button
                       onClick={() => setShowSettingsModal(true)}
                       className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
+                      id="manage-community-button"
                     >
                       Manage Community
                     </Button>

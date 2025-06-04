@@ -23,7 +23,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
     <nav className="bg-white border-b" id="navigation-tabs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex">
+          <div className="flex" id="navigation-tab-buttons">
             {navItems.map((item) => (
               <Link
                 key={item.label}
