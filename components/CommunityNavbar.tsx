@@ -11,20 +11,22 @@ interface CommunityNavbarProps {
 export default function CommunityNavbar({ communitySlug, activePage, isMember }: CommunityNavbarProps) {
   const navItems = [
     { label: "Community", href: `/${communitySlug}` },
-    { label: "Classroom", href: `/${communitySlug}/classroom` },
+    { label: "Classroom", href: `/${communitySlug}/classroom`, memberOnly: true },
+    { label: "Private Lessons", href: `/${communitySlug}/private-lessons`, memberOnly: false },
     { label: "About", href: `/${communitySlug}/about` },
   ];
 
-  if (!isMember) {
-    return null;
-  }
+  // Filter items based on membership status
+  const visibleItems = navItems.filter(item => 
+    !item.memberOnly || isMember
+  );
 
   return (
     <nav className="bg-white border-b" id="navigation-tabs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex" id="navigation-tab-buttons">
-            {navItems.map((item) => (
+            {visibleItems.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}

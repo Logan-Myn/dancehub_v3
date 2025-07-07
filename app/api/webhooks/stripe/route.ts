@@ -50,6 +50,39 @@ export async function POST(request: Request) {
         console.log('💳 Metadata:', paymentIntent.metadata);
         console.log('💳 Is Connect event:', !!event.account);
 
+        // Handle private lesson payments
+        if (event.account && paymentIntent.metadata?.type === 'private_lesson') {
+          console.log('🎓 Processing private lesson payment');
+          const { lesson_id, community_id, student_id } = paymentIntent.metadata;
+
+          if (!lesson_id || !community_id || !student_id) {
+            console.error('Missing metadata for private lesson payment:', paymentIntent.metadata);
+            return NextResponse.json({ error: 'Missing private lesson metadata' }, { status: 400 });
+          }
+
+          try {
+            // Update booking payment status
+            const { error: bookingUpdateError } = await supabase
+              .from('lesson_bookings')
+              .update({ 
+                payment_status: 'succeeded',
+                updated_at: new Date().toISOString()
+              })
+              .eq('stripe_payment_intent_id', paymentIntent.id);
+
+            if (bookingUpdateError) {
+              console.error('❌ Error updating booking payment status:', bookingUpdateError);
+              throw bookingUpdateError;
+            }
+
+            console.log('✅ Successfully updated private lesson booking payment status');
+            return NextResponse.json({ received: true });
+          } catch (error) {
+            console.error('❌ Error in private lesson payment handler:', error);
+            return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+          }
+        }
+
         // For Connect events, metadata is on the subscription
         if (event.account && paymentIntent.invoice) {
           console.log('🔍 Getting subscription details for invoice:', paymentIntent.invoice);
