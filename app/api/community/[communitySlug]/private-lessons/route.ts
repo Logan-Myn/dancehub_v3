@@ -74,8 +74,18 @@ export async function POST(
     }
 
     // Verify the current user is the community creator
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== community.created_by) {
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split("Bearer ")[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user || user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can create private lessons" },
         { status: 403 }

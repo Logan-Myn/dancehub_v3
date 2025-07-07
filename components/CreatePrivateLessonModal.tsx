@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { X, Plus } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createClient } from "@/lib/supabase/client";
 
 interface CreatePrivateLessonModalProps {
   isOpen: boolean;
@@ -32,10 +33,9 @@ export default function CreatePrivateLessonModal({
     regular_price: "",
     member_price: "",
     location_type: "online" as "online" | "in_person" | "both",
-    location_details: "",
     is_active: true,
-    max_participants: 1,
-    preparation_notes: "",
+    max_bookings_per_month: null as number | null,
+    requirements: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,10 +67,20 @@ export default function CreatePrivateLessonModal({
         member_price: formData.member_price ? parseFloat(formData.member_price) : null,
       };
 
+      // Get the user session for authentication
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error("You must be logged in to create private lessons");
+        return;
+      }
+
       const response = await fetch(`/api/community/${communitySlug}/private-lessons`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -92,10 +102,9 @@ export default function CreatePrivateLessonModal({
         regular_price: "",
         member_price: "",
         location_type: "online",
-        location_details: "",
         is_active: true,
-        max_participants: 1,
-        preparation_notes: "",
+        max_bookings_per_month: null,
+        requirements: "",
       });
     } catch (error) {
       console.error("Error creating private lesson:", error);
@@ -168,20 +177,21 @@ export default function CreatePrivateLessonModal({
               </div>
 
               <div>
-                <Label htmlFor="max_participants">Max Participants</Label>
+                <Label htmlFor="max_bookings_per_month">Max Bookings per Month</Label>
                 <Select
-                  value={formData.max_participants.toString()}
-                  onValueChange={(value) => handleInputChange("max_participants", parseInt(value))}
+                  value={formData.max_bookings_per_month?.toString() || "unlimited"}
+                  onValueChange={(value) => handleInputChange("max_bookings_per_month", value === "unlimited" ? null : parseInt(value))}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="No limit" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 (Individual)</SelectItem>
-                    <SelectItem value="2">2 (Couple)</SelectItem>
-                    <SelectItem value="3">3 people</SelectItem>
-                    <SelectItem value="4">4 people</SelectItem>
-                    <SelectItem value="5">5 people</SelectItem>
+                    <SelectItem value="unlimited">No limit</SelectItem>
+                    <SelectItem value="5">5 bookings</SelectItem>
+                    <SelectItem value="10">10 bookings</SelectItem>
+                    <SelectItem value="15">15 bookings</SelectItem>
+                    <SelectItem value="20">20 bookings</SelectItem>
+                    <SelectItem value="30">30 bookings</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -247,31 +257,19 @@ export default function CreatePrivateLessonModal({
             </div>
 
             <div>
-              <Label htmlFor="location_details">Location Details</Label>
+              <Label htmlFor="requirements">Requirements & Notes</Label>
               <Textarea
-                id="location_details"
-                value={formData.location_details}
-                onChange={(e) => handleInputChange("location_details", e.target.value)}
-                placeholder="Specific location, platform, or meeting instructions..."
-                rows={2}
+                id="requirements"
+                value={formData.requirements}
+                onChange={(e) => handleInputChange("requirements", e.target.value)}
+                placeholder="What should students know or prepare? Any specific requirements or location details..."
+                rows={3}
               />
             </div>
           </div>
 
-          {/* Additional Information */}
+          {/* Settings */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Additional Information</h3>
-            <div>
-              <Label htmlFor="preparation_notes">Preparation Notes</Label>
-              <Textarea
-                id="preparation_notes"
-                value={formData.preparation_notes}
-                onChange={(e) => handleInputChange("preparation_notes", e.target.value)}
-                placeholder="What should students bring or prepare for the lesson?"
-                rows={3}
-              />
-            </div>
-
             <div className="flex items-center space-x-2">
               <Switch
                 id="is_active"
