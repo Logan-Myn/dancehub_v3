@@ -12,6 +12,8 @@ import { Clock, MapPin, Percent } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
+import { createClient } from "@/lib/supabase/client";
+import PrivateLessonPaymentModal from "./PrivateLessonPaymentModal";
 
 interface LessonBookingModalProps {
   isOpen: boolean;
@@ -33,6 +35,11 @@ export default function LessonBookingModal({
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
   const [isLoading, setIsLoading] = useState(false);
+  const [paymentData, setPaymentData] = useState<{
+    clientSecret: string;
+    stripeAccountId: string;
+    price: number;
+  } | null>(null);
   const [formData, setFormData] = useState({
     student_email: user?.email || "",
     student_name: "",
@@ -100,11 +107,21 @@ export default function LessonBookingModal({
     setIsLoading(true);
 
     try {
+      // Get the user session for authentication
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error("You must be logged in to book a lesson");
+        return;
+      }
+
       // Create booking and get payment intent
       const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lesson.id}/book`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(formData),
       });
@@ -116,14 +133,14 @@ export default function LessonBookingModal({
 
       const { booking, clientSecret, stripeAccountId } = await response.json();
 
-      // Here you would typically redirect to a payment page or open a payment modal
-      // For now, we'll show a success message and redirect to a payment confirmation
-      toast.success("Booking created! Redirecting to payment...");
+      // Store payment data to open payment modal
+      setPaymentData({
+        clientSecret,
+        stripeAccountId,
+        price: displayPrice,
+      });
       
-      // You can implement the payment flow here using Stripe Elements
-      // For now, we'll just close the modal and call onSuccess
-      onSuccess();
-      onClose();
+      toast.success("Booking created! Please complete payment.");
 
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -131,6 +148,17 @@ export default function LessonBookingModal({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    setPaymentData(null);
+    onSuccess();
+    onClose();
+    toast.success("Payment successful! The teacher will contact you soon.");
+  };
+
+  const handlePaymentClose = () => {
+    setPaymentData(null);
   };
 
   return (
@@ -256,6 +284,19 @@ export default function LessonBookingModal({
           </div>
         </form>
       </DialogContent>
+
+      {/* Payment Modal */}
+      {paymentData && (
+        <PrivateLessonPaymentModal
+          isOpen={!!paymentData}
+          onClose={handlePaymentClose}
+          clientSecret={paymentData.clientSecret}
+          stripeAccountId={paymentData.stripeAccountId}
+          price={paymentData.price}
+          lessonTitle={lesson.title}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </Dialog>
   );
 } 
