@@ -72,9 +72,19 @@ export async function PUT(
       );
     }
 
-    // Verify the current user is the community creator
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== community.created_by) {
+    // Get the current user from authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split("Bearer ")[1];
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user || user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can update private lessons" },
         { status: 403 }
@@ -130,6 +140,81 @@ export async function PUT(
   }
 }
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: { communitySlug: string; lessonId: string } }
+) {
+  try {
+    const { communitySlug, lessonId } = params;
+    const { is_active } = await request.json();
+
+    // Get community and verify ownership
+    const { data: community, error: communityError } = await supabase
+      .from("communities")
+      .select("id, created_by")
+      .eq("slug", communitySlug)
+      .single();
+
+    if (communityError || !community) {
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get the current user from authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split("Bearer ")[1];
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user || user.id !== community.created_by) {
+      return NextResponse.json(
+        { error: "Unauthorized - only community creators can update private lessons" },
+        { status: 403 }
+      );
+    }
+
+    // Update only the is_active status
+    const { data: lesson, error: updateError } = await supabase
+      .from("private_lessons")
+      .update({ is_active })
+      .eq("id", lessonId)
+      .eq("community_id", community.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating lesson status:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update lesson status" },
+        { status: 500 }
+      );
+    }
+
+    if (!lesson) {
+      return NextResponse.json(
+        { error: "Private lesson not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ lesson });
+  } catch (error) {
+    console.error("Error in PATCH /api/community/[communitySlug]/private-lessons/[lessonId]:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: { communitySlug: string; lessonId: string } }
@@ -151,9 +236,19 @@ export async function DELETE(
       );
     }
 
-    // Verify the current user is the community creator
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== community.created_by) {
+    // Get the current user from authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split("Bearer ")[1];
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user || user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can delete private lessons" },
         { status: 403 }

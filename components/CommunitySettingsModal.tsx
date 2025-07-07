@@ -159,6 +159,7 @@ const navigationCategories = [
   { id: "general", name: "General", icon: Cog6ToothIcon },
   { id: "members", name: "Members", icon: UserGroupIcon },
   { id: "subscriptions", name: "Subscriptions", icon: CreditCardIcon },
+  { id: "private_lessons", name: "Private Lessons", icon: CurrencyDollarIcon },
   { id: "thread_categories", name: "Thread Categories", icon: TagIcon },
 ];
 
@@ -227,6 +228,12 @@ export default function CommunitySettingsModal({
   
   // Custom Stripe onboarding state
   const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
+  
+  // Private lessons state
+  const [privateLessons, setPrivateLessons] = useState<any[]>([]);
+  const [isLoadingLessons, setIsLoadingLessons] = useState(false);
+  const [lessonBookings, setLessonBookings] = useState<any[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   
   const supabase = createClient();
   const { user } = useAuth();
@@ -421,6 +428,63 @@ export default function CommunitySettingsModal({
       setRefreshMembersTrigger((prev) => prev + 1);
     }
   }, [isOpen]);
+
+  // Fetch private lessons
+  useEffect(() => {
+    async function fetchPrivateLessons() {
+      if (activeCategory === "private_lessons") {
+        setIsLoadingLessons(true);
+        try {
+          const response = await fetch(`/api/community/${communitySlug}/private-lessons`);
+          if (!response.ok) throw new Error("Failed to fetch private lessons");
+          const data = await response.json();
+          // Ensure data is always an array
+          setPrivateLessons(Array.isArray(data) ? data : []);
+        } catch (error) {
+          console.error("Error fetching private lessons:", error);
+          toast.error("Failed to fetch private lessons");
+        } finally {
+          setIsLoadingLessons(false);
+        }
+      }
+    }
+
+    fetchPrivateLessons();
+  }, [communitySlug, activeCategory]);
+
+  // Fetch lesson bookings
+  useEffect(() => {
+    async function fetchLessonBookings() {
+      if (activeCategory === "private_lessons") {
+        setIsLoadingBookings(true);
+        try {
+          // Get user session for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            setIsLoadingBookings(false);
+            return;
+          }
+
+          const response = await fetch(`/api/community/${communitySlug}/lesson-bookings`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          });
+          if (!response.ok) throw new Error("Failed to fetch lesson bookings");
+          const data = await response.json();
+          // Ensure data is always an array
+          setLessonBookings(Array.isArray(data) ? data : []);
+        } catch (error) {
+          console.error("Error fetching lesson bookings:", error);
+          // Don't show error toast for bookings as the endpoint might not exist yet
+        } finally {
+          setIsLoadingBookings(false);
+        }
+      }
+    }
+
+    fetchLessonBookings();
+  }, [communitySlug, activeCategory]);
 
   useEffect(() => {
     async function fetchMembers() {
@@ -1414,6 +1478,290 @@ export default function CommunitySettingsModal({
     </div>
   );
 
+  const renderPrivateLessons = () => {
+    const formatPrice = (price: number) => {
+      return new Intl.NumberFormat('en-EU', {
+        style: 'currency',
+        currency: 'EUR',
+      }).format(price);
+    };
+
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString();
+    };
+
+    const handleToggleLessonStatus = async (lessonId: string, currentStatus: boolean) => {
+      try {
+        // Get user session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          toast.error("You must be logged in to update lessons");
+          return;
+        }
+
+        const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lessonId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ is_active: !currentStatus }),
+        });
+
+        if (!response.ok) throw new Error('Failed to update lesson status');
+
+        // Refresh lessons
+        setPrivateLessons(prev => 
+          prev.map(lesson => 
+            lesson.id === lessonId 
+              ? { ...lesson, is_active: !currentStatus }
+              : lesson
+          )
+        );
+
+        toast.success(`Lesson ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      } catch (error) {
+        console.error('Error updating lesson status:', error);
+        toast.error('Failed to update lesson status');
+      }
+    };
+
+    const handleDeleteLesson = async (lessonId: string) => {
+      if (!confirm('Are you sure you want to delete this private lesson? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        // Get user session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          toast.error("You must be logged in to delete lessons");
+          return;
+        }
+
+        const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lessonId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error('Failed to delete lesson');
+
+        // Remove from local state
+        setPrivateLessons(prev => prev.filter(lesson => lesson.id !== lessonId));
+        toast.success('Private lesson deleted successfully');
+      } catch (error) {
+        console.error('Error deleting lesson:', error);
+        toast.error('Failed to delete lesson');
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header with stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-500">Total Lessons</h3>
+              <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold">{Array.isArray(privateLessons) ? privateLessons.length : 0}</p>
+          </Card>
+          
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-500">Active Lessons</h3>
+              <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold">
+              {(Array.isArray(privateLessons) ? privateLessons.filter(lesson => lesson.is_active) : []).length}
+            </p>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
+              <UserGroupIcon className="h-4 w-4 text-gray-400" />
+            </div>
+            <p className="text-2xl font-bold">{Array.isArray(lessonBookings) ? lessonBookings.length : 0}</p>
+          </Card>
+        </div>
+
+        {/* Private Lessons List */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">Your Private Lessons</h3>
+            <Button
+              onClick={() => {
+                onClose();
+                // Navigate to private lessons page to create new lesson
+                window.location.href = `/${communitySlug}/private-lessons`;
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add New Lesson
+            </Button>
+          </div>
+
+          {isLoadingLessons ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+            </div>
+          ) : !Array.isArray(privateLessons) || privateLessons.length === 0 ? (
+            <div className="text-center py-8">
+              <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No private lessons</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Get started by creating your first private lesson.
+              </p>
+              <div className="mt-6">
+                <Button
+                  onClick={() => {
+                    onClose();
+                    window.location.href = `/${communitySlug}/private-lessons`;
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Private Lesson
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Array.isArray(privateLessons) ? privateLessons.map((lesson) => (
+                <Card key={lesson.id} className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="font-semibold text-lg">{lesson.title}</h4>
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            lesson.is_active
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {lesson.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      
+                      <p className="text-gray-600 mb-3">{lesson.description}</p>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Duration:</span>
+                          <p className="font-medium">{lesson.duration_minutes} min</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Regular Price:</span>
+                          <p className="font-medium">{formatPrice(lesson.regular_price)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Member Price:</span>
+                          <p className="font-medium">
+                            {lesson.member_price ? formatPrice(lesson.member_price) : 'Same as regular'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Location:</span>
+                          <p className="font-medium capitalize">{lesson.location_type.replace('_', ' ')}</p>
+                        </div>
+                      </div>
+
+                      {lesson.requirements && (
+                        <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-blue-800">
+                            <strong>Requirements:</strong> {lesson.requirements}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToggleLessonStatus(lesson.id, lesson.is_active)}
+                      >
+                        {lesson.is_active ? 'Deactivate' : 'Activate'}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteLesson(lesson.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )) : []}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Bookings */}
+        <div>
+          <h3 className="text-lg font-medium mb-4">Recent Bookings</h3>
+          
+          {isLoadingBookings ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+            </div>
+          ) : !Array.isArray(lessonBookings) || lessonBookings.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No bookings yet</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Bookings will appear here when students book your private lessons.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {Array.isArray(lessonBookings) ? lessonBookings.slice(0, 5).map((booking) => (
+                <Card key={booking.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">{booking.lesson_title}</h4>
+                      <p className="text-sm text-gray-600">
+                        Student: {booking.student_name || booking.student_email}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Booked: {formatDate(booking.created_at)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{formatPrice(booking.price_paid)}</p>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          booking.payment_status === 'succeeded'
+                            ? "bg-green-100 text-green-800"
+                            : booking.payment_status === 'pending'
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {booking.payment_status}
+                      </span>
+                    </div>
+                  </div>
+                  {booking.student_message && (
+                    <div className="mt-3 p-2 bg-gray-50 rounded text-sm">
+                      <strong>Message:</strong> {booking.student_message}
+                    </div>
+                  )}
+                </Card>
+              )) : []}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderMembers = () => (
     <div>
 
@@ -1730,6 +2078,8 @@ export default function CommunitySettingsModal({
                       {activeCategory === "dashboard" && renderDashboard()}
 
                       {activeCategory === "members" && renderMembers()}
+
+                      {activeCategory === "private_lessons" && renderPrivateLessons()}
 
                       {/* Add other category content here */}
                     </div>
