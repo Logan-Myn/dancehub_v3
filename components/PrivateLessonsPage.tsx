@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { PrivateLesson } from "@/types/private-lessons";
 import PrivateLessonCard from "./PrivateLessonCard";
 import LessonBookingModal from "./LessonBookingModal";
+import CreatePrivateLessonModal from "./CreatePrivateLessonModal";
 import { Button } from "@/components/ui/button";
 import { Plus, BookOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ export default function PrivateLessonsPage({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLesson, setSelectedLesson] = useState<PrivateLesson | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     fetchLessons();
@@ -61,6 +63,10 @@ export default function PrivateLessonsPage({
     // Optionally refresh lessons or update UI
   };
 
+  const handleCreateSuccess = () => {
+    fetchLessons(); // Refresh the lessons list
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -82,9 +88,9 @@ export default function PrivateLessonsPage({
           </p>
         </div>
         {isCreator && (
-          <Button onClick={() => {/* TODO: Open create lesson modal */}}>
+          <Button onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Lesson
+            Add Private Lesson
           </Button>
         )}
       </div>
@@ -120,9 +126,9 @@ export default function PrivateLessonsPage({
             }
           </p>
           {isCreator && (
-            <Button onClick={() => {/* TODO: Open create lesson modal */}}>
+            <Button onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Your First Lesson
+              Create Your First Private Lesson
             </Button>
           )}
         </div>
@@ -154,6 +160,14 @@ export default function PrivateLessonsPage({
           onSuccess={handleBookingSuccess}
         />
       )}
+
+      {/* Create Lesson Modal */}
+      <CreatePrivateLessonModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        communitySlug={communitySlug}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 } 
