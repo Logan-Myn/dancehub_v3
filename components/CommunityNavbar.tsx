@@ -35,7 +35,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
                     ? "border-black text-gray-900"
                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
                 }`}
-                id={`tab-${item.label.toLowerCase()}`}
+                id={`tab-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 {item.label}
               </Link>

@@ -1590,19 +1590,8 @@ export default function CommunitySettingsModal({
 
         {/* Private Lessons List */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <h3 className="text-lg font-medium">Your Private Lessons</h3>
-            <Button
-              onClick={() => {
-                onClose();
-                // Navigate to private lessons page to create new lesson
-                window.location.href = `/${communitySlug}/private-lessons`;
-              }}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add New Lesson
-            </Button>
           </div>
 
           {isLoadingLessons ? (
@@ -1614,20 +1603,8 @@ export default function CommunitySettingsModal({
               <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No private lessons</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Get started by creating your first private lesson.
+                Go to the Private Lessons page to create your first lesson.
               </p>
-              <div className="mt-6">
-                <Button
-                  onClick={() => {
-                    onClose();
-                    window.location.href = `/${communitySlug}/private-lessons`;
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Private Lesson
-                </Button>
-              </div>
             </div>
           ) : (
             <div className="space-y-4">
