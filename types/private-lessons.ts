@@ -30,9 +30,23 @@ export interface LessonBooking {
   scheduled_at?: string;
   student_message?: string;
   teacher_notes?: string;
-  contact_info: Record<string, any>;
+  contact_info?: Record<string, any>;
   created_at: string;
   updated_at: string;
+  
+  // Daily.co video room information
+  daily_room_name?: string;
+  daily_room_url?: string;
+  daily_room_created_at?: string;
+  daily_room_expires_at?: string;
+  teacher_daily_token?: string;
+  student_daily_token?: string;
+  teacher_joined_at?: string;
+  student_joined_at?: string;
+  session_started_at?: string;
+  session_ended_at?: string;
+  recording_id?: string;
+  recording_url?: string;
 }
 
 export interface LessonBookingWithDetails extends LessonBooking {
@@ -45,6 +59,15 @@ export interface LessonBookingWithDetails extends LessonBooking {
   community_slug: string;
   student_full_name?: string;
   student_display_name?: string;
+}
+
+// Daily.co utility types
+export interface VideoCallParticipant {
+  user_id: string;
+  user_name: string;
+  user_role: 'teacher' | 'student';
+  joined_at?: string;
+  left_at?: string;
 }
 
 export interface CreatePrivateLessonData {

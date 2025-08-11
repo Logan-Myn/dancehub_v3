@@ -64,6 +64,10 @@
     --input: 270 25% 30%; /* Dark lavender input */
     --ring: 265 65% 60%; /* Primary color for ring */
   }
+  .theme {
+    --animate-meteor: meteor 5s linear infinite;
+    --animate-shine: shine var(--duration) infinite linear;
+  }
 }
 
 @layer base {
@@ -99,4 +103,31 @@
 html {
   scrollbar-width: thin; /* "auto" or "thin" */
   scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted) / 0.5); /* thumb and track */
+}
+
+@theme inline {
+  @keyframes meteor {
+  0% {
+    transform: rotate(var(--angle)) translateX(0);
+    opacity: 1;
+    }
+  70% {
+    opacity: 1;
+    }
+  100% {
+    transform: rotate(var(--angle)) translateX(-500px);
+    opacity: 0;
+    }
+  }
+  @keyframes shine {
+  0% {
+    background-position: 0% 0%;
+    }
+  50% {
+    background-position: 100% 100%;
+    }
+  to {
+    background-position: 0% 0%;
+    }
+  }
 }

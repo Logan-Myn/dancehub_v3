@@ -166,7 +166,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Key Benefits Showcase */}
+        {/* Why DanceHub? */}
         <section
           ref={benefitsSectionRef}
           className="py-16 md:py-24"
@@ -176,42 +176,29 @@ export default function LandingPage() {
               Why DanceHub?
             </h2>
             <p className="text-lg text-center text-foreground/80 max-w-2xl mx-auto mb-16">
-              Discover the tools and features designed to help you thrive in the
-              digital dance world.
+              Everything you need to succeed, all in one place.
             </p>
-            <div className="grid md:grid-cols-3 gap-8">
-              {benefits.map((benefit) => (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {features.map((feature) => (
                 <Card
-                  key={benefit.title}
-                  className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col"
+                  key={feature.name}
+                  className="p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
                 >
-                  <div className="relative w-full h-56">
-                    <Image
-                      src={benefit.image}
-                      alt={benefit.title}
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      data-ai-hint={benefit.aiHint}
-                    />
-                  </div>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3 mb-2">
-                      <benefit.icon className="w-10 h-10 text-primary" />
-                      <CardTitle className="text-2xl font-semibold">
-                        {benefit.title}
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <p className="text-foreground/80">{benefit.description}</p>
-                  </CardContent>
+                  <feature.icon className="w-12 h-12 text-accent mb-4" />
+                  <h3 className="text-xl font-semibold mb-2 text-primary">
+                    {feature.name}
+                  </h3>
+                  <p className="text-foreground/80 text-sm">
+                    {feature.description}
+                  </p>
                 </Card>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* Testimonials Section - Commented out until we have testimonials */}
+        {/* 
         <section className="py-16 md:py-24 bg-muted/50">
           <div className="container mx-auto px-4">
             <h2 className="text-4xl font-bold text-center mb-16 text-primary">
@@ -254,34 +241,27 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        */}
 
-        {/* Feature Highlights */}
-        <section className="py-16 md:py-24">
-          <div className="container mx-auto px-4">
-            <h2 className="text-4xl font-bold text-center mb-6 text-primary">
-              Powerful Features, Effortlessly Simple
+        {/* CTA Section */}
+        <section className="py-16 md:py-24 bg-gradient-to-br from-primary/10 via-background to-background">
+          <div className="container mx-auto text-center px-4">
+            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6 text-primary">
+              Ready to Build Your Dance Community?
             </h2>
-            <p className="text-lg text-center text-foreground/80 max-w-2xl mx-auto mb-16">
-              Everything you need to succeed, all in one place.
+            <p className="text-lg md:text-xl text-foreground/80 max-w-2xl mx-auto mb-10">
+              Join DanceHub today and start connecting with dancers around the world.
             </p>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {features.map((feature) => (
-                <Card
-                  key={feature.name}
-                  className="p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
-                >
-                  <feature.icon className="w-12 h-12 text-accent mb-4" />
-                  <h3 className="text-xl font-semibold mb-2 text-primary">
-                    {feature.name}
-                  </h3>
-                  <p className="text-foreground/80 text-sm">
-                    {feature.description}
-                  </p>
-                </Card>
-              ))}
-            </div>
+            <Button
+              size="lg"
+              asChild
+              className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-10 py-6 rounded-full shadow-lg transition-transform hover:scale-105"
+            >
+              <Link href="/onboarding" onClick={handleTeachingClick}>Start Your Community</Link>
+            </Button>
           </div>
         </section>
+
       </main>
       <Footer />
     </div>

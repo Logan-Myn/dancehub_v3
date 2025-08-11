@@ -8,6 +8,7 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import MyBookedLessons from "@/components/MyBookedLessons";
 
 interface Community {
   id: string;
@@ -82,6 +83,11 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* My Booked Lessons Section */}
+      <div>
+        <MyBookedLessons />
       </div>
 
       <div>
