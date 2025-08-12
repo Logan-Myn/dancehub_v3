@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase';
+import { createVideoRoomForBooking } from '@/lib/video-room-creation';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -53,29 +54,73 @@ export async function POST(request: Request) {
         // Handle private lesson payments
         if (event.account && paymentIntent.metadata?.type === 'private_lesson') {
           console.log('🎓 Processing private lesson payment');
-          const { lesson_id, community_id, student_id } = paymentIntent.metadata;
-
-          if (!lesson_id || !community_id || !student_id) {
-            console.error('Missing metadata for private lesson payment:', paymentIntent.metadata);
-            return NextResponse.json({ error: 'Missing private lesson metadata' }, { status: 400 });
+          const metadata = paymentIntent.metadata;
+          
+          // Validate required metadata
+          const requiredFields = ['lesson_id', 'community_id', 'student_id', 'student_email', 'price_paid'];
+          for (const field of requiredFields) {
+            if (!metadata[field]) {
+              console.error(`Missing required metadata field: ${field}`, metadata);
+              return NextResponse.json({ error: `Missing private lesson metadata: ${field}` }, { status: 400 });
+            }
           }
 
           try {
-            // Update booking payment status
-            const { error: bookingUpdateError } = await supabase
-              .from('lesson_bookings')
-              .update({ 
-                payment_status: 'succeeded',
-                updated_at: new Date().toISOString()
-              })
-              .eq('stripe_payment_intent_id', paymentIntent.id);
-
-            if (bookingUpdateError) {
-              console.error('❌ Error updating booking payment status:', bookingUpdateError);
-              throw bookingUpdateError;
+            // Parse contact_info JSON if it exists
+            let contactInfo = {};
+            try {
+              contactInfo = metadata.contact_info ? JSON.parse(metadata.contact_info) : {};
+            } catch (e) {
+              console.warn('Failed to parse contact_info, using empty object');
             }
 
-            console.log('✅ Successfully updated private lesson booking payment status');
+            // Create the booking record - no more updates, just creation!
+            const { data: newBooking, error: bookingCreateError } = await supabase
+              .from('lesson_bookings')
+              .insert({
+                private_lesson_id: metadata.lesson_id,
+                community_id: metadata.community_id,
+                student_id: metadata.student_id,
+                student_email: metadata.student_email,
+                student_name: metadata.student_name || '',
+                is_community_member: metadata.is_member === 'true',
+                price_paid: parseFloat(metadata.price_paid),
+                stripe_payment_intent_id: paymentIntent.id,
+                payment_status: 'succeeded',
+                lesson_status: 'booked',
+                student_message: metadata.student_message || '',
+                contact_info: contactInfo,
+                // Video room will be created below
+                daily_room_name: null,
+                daily_room_url: null,
+                daily_room_created_at: null,
+                daily_room_expires_at: null,
+                teacher_daily_token: null,
+                student_daily_token: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .select('id')
+              .single();
+
+            if (bookingCreateError || !newBooking) {
+              console.error('❌ Error creating booking record:', bookingCreateError);
+              throw new Error(`Failed to create booking: ${bookingCreateError?.message}`);
+            }
+
+            console.log('✅ Successfully created new booking:', newBooking.id);
+
+            // Create video room after successful booking creation
+            try {
+              console.log('🎬 Creating video room for booking:', newBooking.id);
+              await createVideoRoomForBooking(newBooking.id);
+              console.log('✅ Video room created successfully for booking:', newBooking.id);
+            } catch (videoError) {
+              console.error('❌ Error creating video room (non-critical):', videoError);
+              // Don't fail the webhook for video room creation errors
+              // The video room can be created later if needed
+            }
+
             return NextResponse.json({ received: true });
           } catch (error) {
             console.error('❌ Error in private lesson payment handler:', error);

@@ -31,7 +31,6 @@ export interface DailyMeetingToken {
   exp?: number;
   enable_screenshare?: boolean;
   enable_recording?: boolean;
-  start_cloud_recording?: boolean;
 }
 
 /**
@@ -155,9 +154,9 @@ export async function getDailyRoom(roomName: string) {
  * Generate a unique room name for a private lesson
  */
 export function generateRoomName(bookingId: string, communitySlug: string): string {
-  const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 8);
-  return `${communitySlug}-lesson-${bookingId}-${timestamp}-${randomSuffix}`;
+  const shortBookingId = bookingId.substring(0, 8);
+  return `${communitySlug}-${shortBookingId}-${randomSuffix}`;
 }
 
 /**

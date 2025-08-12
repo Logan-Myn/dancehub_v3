@@ -131,16 +131,16 @@ export default function LessonBookingModal({
         throw new Error(error.error || 'Failed to create booking');
       }
 
-      const { booking, clientSecret, stripeAccountId } = await response.json();
+      const { clientSecret, stripeAccountId, paymentIntentId, lesson: lessonData } = await response.json();
 
       // Store payment data to open payment modal
       setPaymentData({
         clientSecret,
         stripeAccountId,
-        price: displayPrice,
+        price: lessonData.price,
       });
       
-      toast.success("Booking created! Please complete payment.");
+      toast.success("Ready for payment! Complete payment to book your lesson.");
 
     } catch (error) {
       console.error('Error creating booking:', error);
