@@ -122,7 +122,6 @@ export async function POST(
         exp: roomExpiration,
         enable_screenshare: true,
         enable_recording: true,
-        start_cloud_recording: false,
       });
       teacherToken = teacherTokenData.token;
     }
@@ -137,7 +136,6 @@ export async function POST(
         exp: roomExpiration,
         enable_screenshare: true,
         enable_recording: false,
-        start_cloud_recording: false,
       });
       studentToken = studentTokenData.token;
     }

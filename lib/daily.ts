@@ -161,9 +161,21 @@ export function generateRoomName(bookingId: string, communitySlug: string): stri
 
 /**
  * Calculate room expiration time (lesson duration + 30 minutes buffer)
+ * If scheduledAt is provided, calculate from that time, otherwise from now
  */
-export function calculateRoomExpiration(lessonDurationMinutes: number): number {
+export function calculateRoomExpiration(
+  lessonDurationMinutes: number, 
+  scheduledAt?: string | null
+): number {
   const bufferMinutes = 30;
   const totalMinutes = lessonDurationMinutes + bufferMinutes;
-  return Math.floor(Date.now() / 1000) + (totalMinutes * 60);
+  
+  if (scheduledAt) {
+    // Calculate expiration from scheduled time + lesson duration + buffer
+    const scheduledTime = new Date(scheduledAt).getTime() / 1000;
+    return scheduledTime + (totalMinutes * 60);
+  } else {
+    // Fallback to current time (for immediate lessons)
+    return Math.floor(Date.now() / 1000) + (totalMinutes * 60);
+  }
 }

@@ -1,6 +1,7 @@
 export interface PrivateLesson {
   id: string;
   community_id: string;
+  teacher_id: string;
   title: string;
   description?: string;
   duration_minutes: number;
@@ -87,6 +88,8 @@ export interface CreateLessonBookingData {
   student_name?: string;
   student_message?: string;
   contact_info?: Record<string, any>;
+  scheduled_at?: string;
+  availability_slot_id?: string;
 }
 
 export interface PrivateLessonCardProps {
@@ -103,4 +106,24 @@ export interface LessonBookingModalProps {
   communitySlug: string;
   isMember: boolean;
   onSuccess: () => void;
+}
+
+export interface TeacherAvailabilitySlot {
+  id: string;
+  teacher_id: string;
+  community_id: string;
+  availability_date: string; // YYYY-MM-DD format
+  start_time: string; // HH:MM format
+  end_time: string; // HH:MM format
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherAvailabilityWithDetails extends TeacherAvailabilitySlot {
+  teacher_name: string;
+  teacher_avatar?: string;
+  community_name: string;
+  community_slug: string;
+  day_name: string;
 } 

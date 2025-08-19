@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { PrivateLesson } from "@/types/private-lessons";
+import { useState, useEffect } from "react";
+import { PrivateLesson, TeacherAvailabilitySlot } from "@/types/private-lessons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Percent } from "lucide-react";
+import { Clock, MapPin, Percent, Calendar } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
@@ -35,6 +35,9 @@ export default function LessonBookingModal({
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
   const [isLoading, setIsLoading] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<TeacherAvailabilitySlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<TeacherAvailabilitySlot | null>(null);
   const [paymentData, setPaymentData] = useState<{
     clientSecret: string;
     stripeAccountId: string;
@@ -52,6 +55,68 @@ export default function LessonBookingModal({
 
   const displayPrice = isMember && lesson.member_price ? lesson.member_price : lesson.regular_price;
   const hasDiscount = isMember && lesson.member_price && lesson.member_price < lesson.regular_price;
+
+  // Fetch teacher availability when modal opens
+  useEffect(() => {
+    if (isOpen && lesson.teacher_id) {
+      fetchAvailableSlots();
+    }
+  }, [isOpen, lesson.teacher_id]);
+
+  const fetchAvailableSlots = async () => {
+    setAvailabilityLoading(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return;
+      }
+
+      // Get next 30 days of availability
+      const today = new Date();
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(today.getDate() + 30);
+      
+      const response = await fetch(`/api/community/${communitySlug}/teacher-availability?teacher_id=${lesson.teacher_id}&startDate=${today.toISOString().split('T')[0]}&endDate=${thirtyDaysFromNow.toISOString().split('T')[0]}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const slots = await response.json();
+        // Filter out past time slots
+        const now = new Date();
+        const futureSlots = slots.filter((slot: TeacherAvailabilitySlot) => {
+          const slotDateTime = new Date(`${slot.availability_date}T${slot.start_time}`);
+          return slotDateTime > now;
+        });
+        setAvailableSlots(futureSlots);
+      }
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-EU', {
@@ -104,6 +169,11 @@ export default function LessonBookingModal({
       return;
     }
 
+    if (!selectedSlot) {
+      toast.error("Please select a time slot");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -117,13 +187,19 @@ export default function LessonBookingModal({
       }
 
       // Create booking and get payment intent
+      const bookingData = {
+        ...formData,
+        scheduled_at: new Date(`${selectedSlot.availability_date}T${selectedSlot.start_time}`).toISOString(),
+        availability_slot_id: selectedSlot.id,
+      };
+
       const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lesson.id}/book`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(bookingData),
       });
 
       if (!response.ok) {
@@ -217,6 +293,55 @@ export default function LessonBookingModal({
               </p>
             )}
           </div>
+        </div>
+
+        {/* Available Time Slots */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            <Label className="text-base font-medium">Select a Time Slot *</Label>
+          </div>
+          
+          {availabilityLoading ? (
+            <div className="text-center py-4 text-gray-500">
+              Loading available time slots...
+            </div>
+          ) : availableSlots.length === 0 ? (
+            <div className="text-center py-4 text-gray-500 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              No available time slots found. Please contact the teacher directly.
+            </div>
+          ) : (
+            <div className="grid gap-2 max-h-40 overflow-y-auto">
+              {availableSlots.map((slot) => (
+                <button
+                  key={slot.id}
+                  type="button"
+                  onClick={() => setSelectedSlot(slot)}
+                  className={`p-3 text-left rounded-lg border transition-colors ${
+                    selectedSlot?.id === slot.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">
+                        {formatDate(slot.availability_date)}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                      </div>
+                    </div>
+                    {selectedSlot?.id === slot.id && (
+                      <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Booking Form */}

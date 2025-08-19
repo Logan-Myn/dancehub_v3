@@ -119,6 +119,7 @@ export async function POST(
       .from("private_lessons")
       .insert({
         community_id: community.id,
+        teacher_id: user.id, // The current user (community creator) is the teacher
         ...lessonData,
       })
       .select()

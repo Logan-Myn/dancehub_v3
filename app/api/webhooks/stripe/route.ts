@@ -87,25 +87,36 @@ export async function POST(request: Request) {
                 price_paid: parseFloat(metadata.price_paid),
                 stripe_payment_intent_id: paymentIntent.id,
                 payment_status: 'succeeded',
-                lesson_status: 'booked',
+                lesson_status: 'scheduled', // Change from 'booked' to 'scheduled' since we have a time
+                scheduled_at: metadata.scheduled_at || null,
                 student_message: metadata.student_message || '',
                 contact_info: contactInfo,
-                // Video room will be created below
+                // Video room fields (these exist in the database)
                 daily_room_name: null,
                 daily_room_url: null,
-                daily_room_created_at: null,
                 daily_room_expires_at: null,
                 teacher_daily_token: null,
                 student_daily_token: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                video_call_started_at: null,
+                video_call_ended_at: null
               })
               .select('id')
               .single();
 
             if (bookingCreateError || !newBooking) {
-              console.error('❌ Error creating booking record:', bookingCreateError);
-              throw new Error(`Failed to create booking: ${bookingCreateError?.message}`);
+              console.error('❌ Error creating booking record:', {
+                error: bookingCreateError,
+                metadata: metadata,
+                paymentIntentId: paymentIntent.id
+              });
+              // Return detailed error to help with debugging
+              return NextResponse.json({ 
+                error: 'Failed to create booking record',
+                details: bookingCreateError?.message,
+                code: bookingCreateError?.code,
+                hint: bookingCreateError?.hint,
+                payment_intent_id: paymentIntent.id
+              }, { status: 500 });
             }
 
             console.log('✅ Successfully created new booking:', newBooking.id);

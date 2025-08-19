@@ -37,6 +37,8 @@ export default function MyBookedLessons() {
     try {
       const supabase = createClient();
       
+      console.log('🔍 Fetching bookings for student:', user!.id);
+      
       const { data: bookingsData, error } = await supabase
         .from('lesson_bookings')
         .select(`
@@ -59,9 +61,20 @@ export default function MyBookedLessons() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching bookings:', error);
+        console.error('❌ Error fetching bookings:', error);
+        console.log('📊 Student booking query debug:', {
+          userId: user!.id,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorHint: error.hint
+        });
         toast.error('Failed to load your bookings');
         return;
+      }
+
+      console.log('✅ Student bookings fetched:', bookingsData?.length || 0, 'bookings');
+      if (bookingsData && bookingsData.length > 0) {
+        console.log('📝 Sample booking:', bookingsData[0]);
       }
 
       const formattedBookings: LessonBookingWithDetails[] = bookingsData.map((booking: any) => ({
@@ -118,12 +131,22 @@ export default function MyBookedLessons() {
 
   const canJoinVideo = (booking: LessonBookingWithDetails) => {
     if (booking.payment_status !== 'succeeded') return false;
-    if (!booking.daily_room_name || !booking.student_daily_token) return false;
+    if (!booking.daily_room_name) return false;
     
     const now = new Date();
     const expiresAt = booking.daily_room_expires_at ? new Date(booking.daily_room_expires_at) : null;
+    const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at) : null;
     
-    // Can join if room hasn't expired
+    // If lesson has expired, can't join
+    if (expiresAt && now.getTime() > expiresAt.getTime()) return false;
+    
+    // If lesson is scheduled, only allow joining 15 minutes before start time
+    if (scheduledAt) {
+      const fifteenMinutesBefore = new Date(scheduledAt.getTime() - 15 * 60 * 1000);
+      return now.getTime() >= fifteenMinutesBefore.getTime();
+    }
+    
+    // For immediate lessons (no scheduled time), can join if not expired
     return !expiresAt || now.getTime() < expiresAt.getTime();
   };
 
@@ -131,8 +154,26 @@ export default function MyBookedLessons() {
     if (booking.lesson_status === 'completed') {
       return 'Lesson Completed';
     }
-    if (!canJoinVideo(booking)) {
+    
+    const now = new Date();
+    const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at) : null;
+    const expiresAt = booking.daily_room_expires_at ? new Date(booking.daily_room_expires_at) : null;
+    
+    // Check if lesson has expired
+    if (expiresAt && now.getTime() > expiresAt.getTime()) {
       return 'Video Session Expired';
+    }
+    
+    // Check if lesson hasn't started yet (more than 15 minutes before)
+    if (scheduledAt) {
+      const fifteenMinutesBefore = new Date(scheduledAt.getTime() - 15 * 60 * 1000);
+      if (now.getTime() < fifteenMinutesBefore.getTime()) {
+        return 'Lesson Starts Soon';
+      }
+    }
+    
+    if (!canJoinVideo(booking)) {
+      return 'Video Session Unavailable';
     }
     if (booking.session_started_at) {
       return 'Rejoin Lesson';

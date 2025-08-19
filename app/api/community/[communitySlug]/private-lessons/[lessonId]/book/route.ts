@@ -89,6 +89,13 @@ export async function POST(
       );
     }
 
+    if (!bookingData.scheduled_at) {
+      return NextResponse.json(
+        { error: "Scheduled time is required" },
+        { status: 400 }
+      );
+    }
+
     // Check for existing pending booking - REMOVED
     // No more pre-booking! Booking will be created only after payment succeeds
 
@@ -106,6 +113,8 @@ export async function POST(
           student_name: bookingData.student_name || "",
           student_message: bookingData.student_message || "",
           contact_info: JSON.stringify(bookingData.contact_info || {}),
+          scheduled_at: bookingData.scheduled_at,
+          availability_slot_id: bookingData.availability_slot_id || "",
           is_member: isMember.toString(),
           price_paid: price.toString(),
         },

@@ -16,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { createClient } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
+import TeacherCalendarAvailability from './TeacherCalendarAvailability';
 import {
   DollarSign,
   ExternalLink,
@@ -234,6 +235,10 @@ export default function CommunitySettingsModal({
   const [isLoadingLessons, setIsLoadingLessons] = useState(false);
   const [lessonBookings, setLessonBookings] = useState<any[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  
+  // Teacher availability state - using calendar format
+  const [teacherAvailability, setTeacherAvailability] = useState<{date: string, slots: any[]}[]>([]);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   
   const supabase = createClient();
   const { user } = useAuth();
@@ -459,8 +464,15 @@ export default function CommunitySettingsModal({
         setIsLoadingBookings(true);
         try {
           // Get user session for authentication
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.error("Session error:", sessionError);
+            setIsLoadingBookings(false);
+            return;
+          }
+
+          if (!session?.access_token) {
+            console.log("No valid session found");
             setIsLoadingBookings(false);
             return;
           }
@@ -468,14 +480,32 @@ export default function CommunitySettingsModal({
           const response = await fetch(`/api/community/${communitySlug}/lesson-bookings`, {
             headers: {
               'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
             },
           });
-          if (!response.ok) throw new Error("Failed to fetch lesson bookings");
+          
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error(`❌ Lesson bookings API error (${response.status}):`, errorData);
+            
+            // If it's a 401/403, it might be expected for non-creators
+            if (response.status === 401 || response.status === 403) {
+              console.log("User not authorized to view lesson bookings - this is expected for non-creators");
+              setLessonBookings([]);
+              setIsLoadingBookings(false);
+              return;
+            }
+            
+            throw new Error(`Failed to fetch lesson bookings: ${response.status} ${response.statusText}`);
+          }
+          
           const data = await response.json();
+          console.log('✅ Lesson bookings fetched successfully:', data.length, 'bookings');
+          
           // Ensure data is always an array
           setLessonBookings(Array.isArray(data) ? data : []);
         } catch (error) {
-          console.error("Error fetching lesson bookings:", error);
+          console.error("❌ Error fetching lesson bookings:", error);
           // Don't show error toast for bookings as the endpoint might not exist yet
         } finally {
           setIsLoadingBookings(false);
@@ -484,7 +514,77 @@ export default function CommunitySettingsModal({
     }
 
     fetchLessonBookings();
-  }, [communitySlug, activeCategory]);
+  }, [communitySlug, activeCategory, supabase.auth]);
+
+  // Fetch teacher availability
+  useEffect(() => {
+    async function fetchTeacherAvailability() {
+      if (activeCategory === "private_lessons") {
+        setIsLoadingAvailability(true);
+        try {
+          // Get user session for authentication
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) {
+            console.error("Session error:", sessionError);
+            setIsLoadingAvailability(false);
+            return;
+          }
+
+          if (!session?.access_token) {
+            console.log("No valid session found for teacher availability");
+            setIsLoadingAvailability(false);
+            return;
+          }
+
+          const response = await fetch(`/api/community/${communitySlug}/teacher-availability`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error(`❌ Teacher availability API error (${response.status}):`, errorData);
+            
+            // If it's a 401, handle gracefully
+            if (response.status === 401) {
+              console.log("User not authorized to view teacher availability");
+              setTeacherAvailability([]);
+              setIsLoadingAvailability(false);
+              return;
+            }
+            
+            throw new Error("Failed to fetch teacher availability");
+          }
+          
+          const data = await response.json();
+          
+          // Transform flat slots into calendar format grouped by date
+          const slotsArray = Array.isArray(data) ? data : [];
+          const groupedByDate = slotsArray.reduce((acc: {date: string, slots: any[]}[], slot: any) => {
+            const date = slot.availability_date;
+            const existingDay = acc.find((day: {date: string, slots: any[]}) => day.date === date);
+            if (existingDay) {
+              existingDay.slots.push(slot);
+            } else {
+              acc.push({ date, slots: [slot] });
+            }
+            return acc;
+          }, [] as {date: string, slots: any[]}[]);
+
+          setTeacherAvailability(groupedByDate);
+        } catch (error) {
+          console.error("Error fetching teacher availability:", error);
+          // Don't show error toast as this is a new feature
+        } finally {
+          setIsLoadingAvailability(false);
+        }
+      }
+    }
+
+    fetchTeacherAvailability();
+  }, [communitySlug, activeCategory, supabase.auth]);
 
   useEffect(() => {
     async function fetchMembers() {
@@ -1587,6 +1687,13 @@ export default function CommunitySettingsModal({
             <p className="text-2xl font-bold">{Array.isArray(lessonBookings) ? lessonBookings.length : 0}</p>
           </Card>
         </div>
+
+        {/* Teacher Availability Section */}
+        <TeacherCalendarAvailability
+          communitySlug={communitySlug}
+          availability={teacherAvailability}
+          onAvailabilityUpdate={setTeacherAvailability}
+        />
 
         {/* Private Lessons List */}
         <div>

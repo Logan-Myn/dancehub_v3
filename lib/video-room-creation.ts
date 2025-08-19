@@ -19,6 +19,7 @@ export async function createVideoRoomForBooking(bookingId: string) {
         student_id,
         community_id,
         payment_status,
+        scheduled_at,
         daily_room_name,
         daily_room_url,
         private_lessons!inner(
@@ -56,7 +57,10 @@ export async function createVideoRoomForBooking(bookingId: string) {
 
     // Generate room details
     const roomName = generateRoomName(booking.id, lesson.communities.slug);
-    const roomExpiration = calculateRoomExpiration(lesson.duration_minutes);
+    const roomExpiration = calculateRoomExpiration(
+      lesson.duration_minutes, 
+      booking.scheduled_at // Pass the scheduled time for proper expiration
+    );
 
     // Create the Daily.co room with basic configuration
     const roomConfig = {
