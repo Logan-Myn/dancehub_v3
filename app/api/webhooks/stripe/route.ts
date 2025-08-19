@@ -11,10 +11,11 @@ const supabase = createAdminClient();
 
 export async function POST(request: Request) {
   try {
-    console.log('🎯 Webhook endpoint hit');
+    console.log('🎯🎯🎯 WEBHOOK ENDPOINT HIT - TIMESTAMP:', new Date().toISOString());
     const body = await request.text();
     const signature = headers().get('stripe-signature')!;
     console.log('📝 Got signature:', signature ? 'Yes' : 'No');
+    console.log('📝 Request body length:', body.length);
 
     let event: Stripe.Event;
 
@@ -47,11 +48,18 @@ export async function POST(request: Request) {
       case 'payment_intent.succeeded':
         console.log('💳 Payment intent succeeded');
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log('💳 Full payment intent:', JSON.stringify(paymentIntent, null, 2));
+        console.log('💳 Payment Intent ID:', paymentIntent.id);
         console.log('💳 Metadata:', paymentIntent.metadata);
         console.log('💳 Is Connect event:', !!event.account);
+        console.log('💳 Event account:', event.account);
+        console.log('💳 Metadata type:', paymentIntent.metadata?.type);
 
         // Handle private lesson payments
+        console.log('🧪 Checking conditions:');
+        console.log('  - Has event.account:', !!event.account);
+        console.log('  - Metadata type:', paymentIntent.metadata?.type);
+        console.log('  - Type matches:', paymentIntent.metadata?.type === 'private_lesson');
+        
         if (event.account && paymentIntent.metadata?.type === 'private_lesson') {
           console.log('🎓 Processing private lesson payment');
           const metadata = paymentIntent.metadata;
