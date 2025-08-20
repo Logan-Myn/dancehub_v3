@@ -112,6 +112,7 @@ export interface TeacherAvailabilitySlot {
   id: string;
   teacher_id: string;
   community_id: string;
+  day_of_week: number; // 0 = Sunday, 6 = Saturday
   availability_date: string; // YYYY-MM-DD format
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format

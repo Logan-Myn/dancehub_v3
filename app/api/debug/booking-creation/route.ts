@@ -145,7 +145,7 @@ export async function POST(request: Request) {
       console.error('❌ Error creating video room:', videoError);
       videoRoomResult = {
         success: false,
-        error: videoError.message
+        error: videoError instanceof Error ? videoError.message : String(videoError)
       };
     }
 
@@ -162,8 +162,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: error instanceof Error ? error.message : String(error),
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
       }, 
       { status: 500 }
     );
