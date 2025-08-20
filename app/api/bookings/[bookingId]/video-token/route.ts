@@ -10,10 +10,21 @@ export async function POST(
 ) {
   try {
     const { bookingId } = params;
+    console.log("Video token request for booking:", bookingId);
+
+    // Check if Daily API key is available
+    if (!process.env.DAILY_API_KEY) {
+      console.error("DAILY_API_KEY environment variable is not set");
+      return NextResponse.json(
+        { error: "Video service not configured" },
+        { status: 503 }
+      );
+    }
 
     // Get the current user from authorization header
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      console.log("Missing or invalid Authorization header");
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -117,30 +128,42 @@ export async function POST(
 
     // Regenerate teacher token if needed
     if (!teacherToken || isTeacher) {
-      const teacherTokenData = await createMeetingToken({
-        room_name: booking.daily_room_name,
-        user_name: teacherProfile?.display_name || teacherProfile?.full_name || 'Teacher',
-        user_id: booking.private_lessons.communities.created_by,
-        is_owner: true,
-        exp: roomExpiration,
-        enable_screenshare: true,
-        enable_recording: true,
-      });
-      teacherToken = teacherTokenData.token;
+      console.log("Creating teacher token for room:", booking.daily_room_name);
+      try {
+        const teacherTokenData = await createMeetingToken({
+          room_name: booking.daily_room_name,
+          user_name: teacherProfile?.display_name || teacherProfile?.full_name || 'Teacher',
+          user_id: booking.private_lessons.communities.created_by,
+          is_owner: true,
+          exp: roomExpiration,
+          enable_screenshare: true,
+        });
+        teacherToken = teacherTokenData.token;
+        console.log("Teacher token created successfully");
+      } catch (tokenError) {
+        console.error("Failed to create teacher token:", tokenError);
+        throw new Error(`Failed to create teacher token: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`);
+      }
     }
 
     // Regenerate student token if needed
     if (!studentToken || isStudent) {
-      const studentTokenData = await createMeetingToken({
-        room_name: booking.daily_room_name,
-        user_name: studentProfile?.display_name || studentProfile?.full_name || booking.student_name || 'Student',
-        user_id: booking.student_id,
-        is_owner: false,
-        exp: roomExpiration,
-        enable_screenshare: true,
-        enable_recording: false,
-      });
-      studentToken = studentTokenData.token;
+      console.log("Creating student token for room:", booking.daily_room_name);
+      try {
+        const studentTokenData = await createMeetingToken({
+          room_name: booking.daily_room_name,
+          user_name: studentProfile?.display_name || studentProfile?.full_name || booking.student_name || 'Student',
+          user_id: booking.student_id,
+          is_owner: false,
+          exp: roomExpiration,
+          enable_screenshare: true,
+        });
+        studentToken = studentTokenData.token;
+        console.log("Student token created successfully");
+      } catch (tokenError) {
+        console.error("Failed to create student token:", tokenError);
+        throw new Error(`Failed to create student token: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`);
+      }
     }
 
     // Update tokens in database
@@ -168,8 +191,13 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error in POST /api/bookings/[bookingId]/video-token:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      bookingId: params.bookingId,
+    });
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

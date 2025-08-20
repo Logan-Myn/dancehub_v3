@@ -30,7 +30,6 @@ export interface DailyMeetingToken {
   is_owner?: boolean;
   exp?: number;
   enable_screenshare?: boolean;
-  enable_recording?: boolean;
 }
 
 /**
@@ -100,23 +99,31 @@ export async function createMeetingToken(tokenConfig: DailyMeetingToken) {
   }
 
   try {
+    const requestBody = {
+      properties: tokenConfig,
+    };
+    
+    console.log('Creating Daily.co meeting token with config:', JSON.stringify(tokenConfig, null, 2));
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(`${DAILY_API_URL}/meeting-tokens`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${DAILY_API_KEY}`,
       },
-      body: JSON.stringify({
-        properties: tokenConfig,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Daily.co API error: ${error.error || 'Failed to create meeting token'}`);
+      console.error('Daily.co API error response:', error);
+      throw new Error(`Daily.co API error: ${error.error || error.message || 'Failed to create meeting token'}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Daily.co token created successfully');
+    return result;
   } catch (error) {
     console.error('Error creating Daily.co meeting token:', error);
     throw error;
