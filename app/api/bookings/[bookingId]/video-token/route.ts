@@ -97,7 +97,10 @@ export async function POST(
     let teacherToken = booking.teacher_daily_token;
     let studentToken = booking.student_daily_token;
 
-    const roomExpiration = Math.floor(expiresAt!.getTime() / 1000);
+    // Calculate room expiration - default to 2 hours from now if no expiration set
+    const roomExpiration = expiresAt 
+      ? Math.floor(expiresAt.getTime() / 1000)
+      : Math.floor(Date.now() / 1000) + (2 * 60 * 60); // 2 hours from now
 
     // Get user profiles for names
     const { data: teacherProfile } = await supabase

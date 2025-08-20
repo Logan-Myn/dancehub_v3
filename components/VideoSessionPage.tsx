@@ -24,6 +24,128 @@ import {
 import { toast } from "react-hot-toast";
 import { format } from "date-fns";
 
+// Component to handle token fetching and video call rendering
+function VideoCallWithTokens({ 
+  booking, 
+  bookingId, 
+  isTeacher, 
+  onCallStart, 
+  onCallEnd 
+}: {
+  booking: LessonBookingWithDetails;
+  bookingId: string;
+  isTeacher: boolean;
+  onCallStart: () => void;
+  onCallEnd: () => void;
+}) {
+  const [videoData, setVideoData] = useState<{
+    token: string;
+    room_url: string;
+  } | null>(null);
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
+
+  useEffect(() => {
+    // If we already have a token, use it
+    const existingToken = isTeacher ? booking.teacher_daily_token : booking.student_daily_token;
+    if (existingToken && booking.daily_room_url) {
+      setVideoData({
+        token: existingToken,
+        room_url: booking.daily_room_url
+      });
+      return;
+    }
+
+    // Otherwise, fetch tokens
+    fetchVideoTokens();
+  }, [booking, isTeacher]);
+
+  const fetchVideoTokens = async () => {
+    setIsLoadingTokens(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('You must be logged in to join the video session');
+        return;
+      }
+
+      const response = await fetch(`/api/bookings/${bookingId}/video-token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Internal server error');
+      }
+
+      const data = await response.json();
+      setVideoData({
+        token: data.token,
+        room_url: data.room_url
+      });
+
+    } catch (error) {
+      console.error('Error fetching video tokens:', error);
+      toast.error('Failed to set up video session');
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  };
+
+  if (isLoadingTokens) {
+    return (
+      <Card className="h-full flex items-center justify-center">
+        <CardContent className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p>Setting up video session...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!videoData) {
+    return (
+      <Card className="h-full flex items-center justify-center">
+        <CardContent className="text-center space-y-4">
+          <Video className="w-16 h-16 text-gray-400 mx-auto" />
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Video Session Setup Required
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Unable to set up video session. Please refresh the page.
+            </p>
+            <Button onClick={fetchVideoTokens}>
+              Retry Setup
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden" style={{ height: '600px' }}>
+      <VideoCall
+        roomUrl={videoData.room_url}
+        token={videoData.token}
+        bookingId={bookingId}
+        userName={isTeacher ? 'Teacher' : booking.student_name || 'Student'}
+        isTeacher={isTeacher}
+        lessonTitle={booking.lesson_title}
+        duration={booking.duration_minutes}
+        onCallStart={onCallStart}
+        onCallEnd={onCallEnd}
+      />
+    </div>
+  );
+}
+
 export default function VideoSessionPage() {
   const params = useParams();
   const router = useRouter();
@@ -130,11 +252,11 @@ export default function VideoSessionPage() {
 
     // Can join if:
     // 1. Payment is successful
-    // 2. Has Daily.co room info
+    // 2. Has Daily.co room name (tokens can be generated on-demand)
     // 3. Within 15 minutes of scheduled time (or no scheduled time)
     // 4. Room hasn't expired
     const hasValidPayment = data.payment_status === 'succeeded';
-    const hasRoomInfo = data.daily_room_name && (data.teacher_daily_token || data.student_daily_token);
+    const hasRoomInfo = data.daily_room_name; // Remove token requirement - tokens generated on-demand
     const isWithinJoinWindow = !scheduledTime || 
       (now.getTime() >= scheduledTime.getTime() - 15 * 60 * 1000); // 15 minutes before
     const isNotExpired = !expiresAt || now.getTime() < expiresAt.getTime();
@@ -280,19 +402,13 @@ export default function VideoSessionPage() {
           {/* Video Call Section */}
           <div className="lg:col-span-2">
             {canJoin && booking.daily_room_name ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden" style={{ height: '600px' }}>
-                <VideoCall
-                  roomUrl={booking.daily_room_url || `https://${booking.daily_room_name}.daily.co/`}
-                  token={isTeacher ? booking.teacher_daily_token! : booking.student_daily_token!}
-                  bookingId={bookingId}
-                  userName={isTeacher ? 'Teacher' : booking.student_name || 'Student'}
-                  isTeacher={isTeacher}
-                  lessonTitle={booking.lesson_title}
-                  duration={booking.duration_minutes}
-                  onCallStart={handleCallStart}
-                  onCallEnd={handleCallEnd}
-                />
-              </div>
+              <VideoCallWithTokens
+                booking={booking}
+                bookingId={bookingId}
+                isTeacher={isTeacher}
+                onCallStart={handleCallStart}
+                onCallEnd={handleCallEnd}
+              />
             ) : (
               <Card className="h-full flex items-center justify-center">
                 <CardContent className="text-center space-y-4">

@@ -240,6 +240,9 @@ export default function CommunitySettingsModal({
   const [teacherAvailability, setTeacherAvailability] = useState<{date: string, slots: any[]}[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   
+  // Private lessons tab state
+  const [privateLessonsActiveTab, setPrivateLessonsActiveTab] = useState<'availability' | 'bookings'>('availability');
+  
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -1590,6 +1593,42 @@ export default function CommunitySettingsModal({
       return new Date(dateString).toLocaleDateString();
     };
 
+    const formatDateTime = (dateString: string) => {
+      return new Date(dateString).toLocaleString();
+    };
+
+    const handleJoinVideoSession = async (booking: any) => {
+      try {
+        // Get user session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          toast.error("You must be logged in to join video sessions");
+          return;
+        }
+
+        const response = await fetch(`/api/bookings/${booking.id}/video-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get video token');
+        }
+
+        const { token, room_url } = await response.json();
+        
+        // Open video session in new tab or navigate to video page
+        window.open(`/video-session/${booking.id}?token=${token}`, '_blank');
+        
+      } catch (error) {
+        console.error('Error joining video session:', error);
+        toast.error('Failed to join video session');
+      }
+    };
+
     const handleToggleLessonStatus = async (lessonId: string, currentStatus: boolean) => {
       try {
         // Get user session for authentication
@@ -1688,160 +1727,241 @@ export default function CommunitySettingsModal({
           </Card>
         </div>
 
-        {/* Teacher Availability Section */}
-        <TeacherCalendarAvailability
-          communitySlug={communitySlug}
-          availability={teacherAvailability}
-          onAvailabilityUpdate={setTeacherAvailability}
-        />
+        {/* Tabs Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setPrivateLessonsActiveTab('availability')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                privateLessonsActiveTab === 'availability'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Teacher Availability
+            </button>
+            <button
+              onClick={() => setPrivateLessonsActiveTab('bookings')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                privateLessonsActiveTab === 'bookings'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Lesson Bookings & Sessions
+            </button>
+          </nav>
+        </div>
 
-        {/* Private Lessons List */}
-        <div>
-          <div className="mb-4">
-            <h3 className="text-lg font-medium">Your Private Lessons</h3>
+        {/* Tab Content */}
+        {privateLessonsActiveTab === 'availability' && (
+          <div className="space-y-6">
+            {/* Teacher Availability Section */}
+            <TeacherCalendarAvailability
+              communitySlug={communitySlug}
+              availability={teacherAvailability}
+              onAvailabilityUpdate={setTeacherAvailability}
+            />
+
+            {/* Private Lessons List */}
+            <div>
+              <div className="mb-4">
+                <h3 className="text-lg font-medium">Your Private Lessons</h3>
+              </div>
+
+              {isLoadingLessons ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+                </div>
+              ) : !Array.isArray(privateLessons) || privateLessons.length === 0 ? (
+                <div className="text-center py-8">
+                  <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No private lessons</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Go to the Private Lessons page to create your first lesson.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Array.isArray(privateLessons) ? privateLessons.map((lesson) => (
+                    <Card key={lesson.id} className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-semibold text-lg">{lesson.title}</h4>
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                lesson.is_active
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {lesson.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          
+                          <p className="text-gray-600 mb-3">{lesson.description}</p>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Duration:</span>
+                              <p className="font-medium">{lesson.duration_minutes} min</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Regular Price:</span>
+                              <p className="font-medium">{formatPrice(lesson.regular_price)}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Member Price:</span>
+                              <p className="font-medium">
+                                {lesson.member_price ? formatPrice(lesson.member_price) : 'Same as regular'}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Location:</span>
+                              <p className="font-medium capitalize">{lesson.location_type.replace('_', ' ')}</p>
+                            </div>
+                          </div>
+
+                          {lesson.requirements && (
+                            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                              <p className="text-sm text-blue-800">
+                                <strong>Requirements:</strong> {lesson.requirements}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleLessonStatus(lesson.id, lesson.is_active)}
+                          >
+                            {lesson.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteLesson(lesson.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  )) : []}
+                </div>
+              )}
+            </div>
           </div>
+        )}
 
-          {isLoadingLessons ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-            </div>
-          ) : !Array.isArray(privateLessons) || privateLessons.length === 0 ? (
-            <div className="text-center py-8">
-              <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No private lessons</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Go to the Private Lessons page to create your first lesson.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {Array.isArray(privateLessons) ? privateLessons.map((lesson) => (
-                <Card key={lesson.id} className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h4 className="font-semibold text-lg">{lesson.title}</h4>
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            lesson.is_active
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {lesson.is_active ? "Active" : "Inactive"}
-                        </span>
+        {privateLessonsActiveTab === 'bookings' && (
+          <div className="space-y-6">
+            {/* Lesson Bookings */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Lesson Bookings & Sessions</h3>
+              
+              {isLoadingBookings ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+                </div>
+              ) : !Array.isArray(lessonBookings) || lessonBookings.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No bookings yet</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Bookings will appear here when students book your private lessons.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Array.isArray(lessonBookings) ? lessonBookings.map((booking) => (
+                    <Card key={booking.id} className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-semibold text-lg">{booking.lesson_title}</h4>
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                booking.payment_status === 'succeeded'
+                                  ? "bg-green-100 text-green-800"
+                                  : booking.payment_status === 'pending'
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {booking.payment_status}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                              <span className="text-gray-500">Student:</span>
+                              <p className="font-medium">{booking.student_name || booking.student_email}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Price Paid:</span>
+                              <p className="font-medium">{formatPrice(booking.price_paid)}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Booked:</span>
+                              <p className="font-medium">{formatDate(booking.created_at)}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Scheduled:</span>
+                              <p className="font-medium">{booking.scheduled_at ? formatDateTime(booking.scheduled_at) : 'TBD'}</p>
+                            </div>
+                          </div>
+
+                          {booking.student_message && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                              <p className="text-sm">
+                                <strong>Student Message:</strong> {booking.student_message}
+                              </p>
+                            </div>
+                          )}
+
+                          {booking.contact_info && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              {booking.contact_info.phone && (
+                                <p><strong>Phone:</strong> {booking.contact_info.phone}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2 ml-4">
+                          {booking.payment_status === 'succeeded' && booking.scheduled_at && (
+                            <Button
+                              onClick={() => handleJoinVideoSession(booking)}
+                              className="bg-green-600 hover:bg-green-700"
+                              size="sm"
+                            >
+                              Join Video Session
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (booking.student_email) {
+                                window.location.href = `mailto:${booking.student_email}`;
+                              }
+                            }}
+                          >
+                            Contact Student
+                          </Button>
+                        </div>
                       </div>
-                      
-                      <p className="text-gray-600 mb-3">{lesson.description}</p>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Duration:</span>
-                          <p className="font-medium">{lesson.duration_minutes} min</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Regular Price:</span>
-                          <p className="font-medium">{formatPrice(lesson.regular_price)}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Member Price:</span>
-                          <p className="font-medium">
-                            {lesson.member_price ? formatPrice(lesson.member_price) : 'Same as regular'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Location:</span>
-                          <p className="font-medium capitalize">{lesson.location_type.replace('_', ' ')}</p>
-                        </div>
-                      </div>
-
-                      {lesson.requirements && (
-                        <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                          <p className="text-sm text-blue-800">
-                            <strong>Requirements:</strong> {lesson.requirements}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleLessonStatus(lesson.id, lesson.is_active)}
-                      >
-                        {lesson.is_active ? 'Deactivate' : 'Activate'}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteLesson(lesson.id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              )) : []}
+                    </Card>
+                  )) : []}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Recent Bookings */}
-        <div>
-          <h3 className="text-lg font-medium mb-4">Recent Bookings</h3>
-          
-          {isLoadingBookings ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-            </div>
-          ) : !Array.isArray(lessonBookings) || lessonBookings.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No bookings yet</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Bookings will appear here when students book your private lessons.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {Array.isArray(lessonBookings) ? lessonBookings.slice(0, 5).map((booking) => (
-                <Card key={booking.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">{booking.lesson_title}</h4>
-                      <p className="text-sm text-gray-600">
-                        Student: {booking.student_name || booking.student_email}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Booked: {formatDate(booking.created_at)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatPrice(booking.price_paid)}</p>
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          booking.payment_status === 'succeeded'
-                            ? "bg-green-100 text-green-800"
-                            : booking.payment_status === 'pending'
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {booking.payment_status}
-                      </span>
-                    </div>
-                  </div>
-                  {booking.student_message && (
-                    <div className="mt-3 p-2 bg-gray-50 rounded text-sm">
-                      <strong>Message:</strong> {booking.student_message}
-                    </div>
-                  )}
-                </Card>
-              )) : []}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   };
