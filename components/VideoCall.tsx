@@ -102,7 +102,16 @@ export default function VideoCall({
   };
 
   const joinCall = async () => {
-    if (!callFrameRef.current) return;
+    console.log('Join call button clicked');
+    console.log('Call frame ref:', callFrameRef.current);
+    console.log('Room URL:', roomUrl);
+    console.log('Token:', token ? 'Present' : 'Missing');
+    
+    if (!callFrameRef.current) {
+      console.error('Call frame ref is null');
+      toast.error('Video container not ready. Please refresh the page.');
+      return;
+    }
 
     setIsLoading(true);
 
@@ -285,48 +294,62 @@ export default function VideoCall({
     }
   };
 
-  if (!isJoined) {
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Video className="w-5 h-5" />
-            {lessonTitle}
-          </CardTitle>
-          <CardDescription>
-            Duration: {duration} minutes
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              Ready to join your private lesson?
-            </p>
-            <Button 
-              onClick={joinCall} 
-              disabled={isLoading}
-              className="w-full"
-              size="lg"
-            >
-              {isLoading ? 'Joining...' : 'Join Video Lesson'}
-            </Button>
-          </div>
-          
-          <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            <p>Make sure your camera and microphone are working</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
-      {/* Video container */}
+    <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden">
+      {/* Video container - always present */}
       <div ref={callFrameRef} className="w-full h-full" />
       
-      {/* Header overlay */}
-      <div className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Pre-join overlay */}
+      {!isJoined && (
+        <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
+          {/* Pre-join background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20" />
+          
+          {/* Join interface */}
+          <div className="relative z-10 text-center text-white space-y-6 max-w-md mx-auto p-8">
+            <div className="space-y-2">
+              <Video className="w-16 h-16 mx-auto text-purple-400" />
+              <h3 className="text-2xl font-bold">{lessonTitle}</h3>
+              <p className="text-gray-300">Duration: {duration} minutes</p>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-lg text-gray-200">
+                Ready to join your private lesson?
+              </p>
+              
+              <Button 
+                onClick={joinCall} 
+                disabled={isLoading}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 text-lg font-semibold rounded-full shadow-lg transform transition-all duration-200 hover:scale-105"
+                size="lg"
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Joining...
+                  </div>
+                ) : (
+                  'Join Video Lesson'
+                )}
+              </Button>
+            </div>
+            
+            <div className="text-sm text-gray-400 bg-black/20 p-3 rounded-lg">
+              <p>Make sure your camera and microphone are working</p>
+            </div>
+          </div>
+          
+          {/* Decorative elements */}
+          <div className="absolute top-4 left-4 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <div className="absolute top-6 right-8 w-1 h-1 bg-blue-400 rounded-full animate-pulse delay-700"></div>
+          <div className="absolute bottom-8 left-8 w-1.5 h-1.5 bg-purple-400 rounded-full animate-pulse delay-1000"></div>
+        </div>
+      )}
+      
+      {/* Header overlay - only show when joined */}
+      {isJoined && (
+        <div className={`absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
         <div className="flex justify-between items-center text-white">
           <div>
             <h3 className="font-semibold">{lessonTitle}</h3>
@@ -352,10 +375,12 @@ export default function VideoCall({
             </Badge>
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* Controls overlay */}
-      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Controls overlay - only show when joined */}
+      {isJoined && (
+        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
         <div className="flex justify-center items-center gap-2">
           {/* Audio toggle */}
           <Button
@@ -419,10 +444,11 @@ export default function VideoCall({
             <PhoneOff className="w-4 h-4" />
           </Button>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* Click to show controls hint */}
-      {!showControls && (
+      {/* Click to show controls hint - only show when joined */}
+      {isJoined && !showControls && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
           <p className="text-white/70 text-sm">Move mouse to show controls</p>
         </div>
