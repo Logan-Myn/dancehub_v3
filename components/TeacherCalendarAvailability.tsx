@@ -28,15 +28,6 @@ interface TeacherCalendarAvailabilityProps {
   onAvailabilityUpdate: (availability: DayAvailability[]) => void;
 }
 
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const minute = (i % 2) * 30;
-  const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  const ampm = hour < 12 ? 'AM' : 'PM';
-  const displayTime = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-  return { value: time, label: displayTime };
-});
 
 export default function TeacherCalendarAvailability({ 
   communitySlug, 
@@ -337,35 +328,23 @@ export default function TeacherCalendarAvailability({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start-time">Start Time</Label>
-                  <select
+                  <Input
+                    type="time"
                     id="start-time"
                     value={newSlot.start_time}
                     onChange={(e) => setNewSlot({ ...newSlot, start_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select start time</option>
-                    {TIME_OPTIONS.map(time => (
-                      <option key={time.value} value={time.value}>
-                        {time.label}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Start time"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="end-time">End Time</Label>
-                  <select
+                  <Input
+                    type="time"
                     id="end-time"
                     value={newSlot.end_time}
                     onChange={(e) => setNewSlot({ ...newSlot, end_time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select end time</option>
-                    {TIME_OPTIONS.map(time => (
-                      <option key={time.value} value={time.value}>
-                        {time.label}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="End time"
+                  />
                 </div>
               </div>
               <Button onClick={handleAddSlot} disabled={isLoading} className="w-full">

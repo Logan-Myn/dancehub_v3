@@ -143,6 +143,12 @@ export async function POST(
       return NextResponse.json({ error: 'Start time and end time are required' }, { status: 400 });
     }
 
+    // Validate time format (HH:MM)
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
+      return NextResponse.json({ error: 'Invalid time format. Use HH:MM format' }, { status: 400 });
+    }
+
     // Check if end time is after start time
     if (start_time >= end_time) {
       return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 });

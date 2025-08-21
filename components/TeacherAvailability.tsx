@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Plus, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { TeacherAvailabilitySlot } from '@/types/private-lessons';
@@ -15,25 +14,6 @@ interface TeacherAvailabilityProps {
   onSlotsUpdate: (slots: TeacherAvailabilitySlot[]) => void;
 }
 
-const DAYS_OF_WEEK = [
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
-  { value: 0, label: 'Sunday' },
-];
-
-const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const minute = (i % 2) * 30;
-  const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  const ampm = hour < 12 ? 'AM' : 'PM';
-  const displayTime = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-  return { value: time, label: displayTime };
-});
 
 export default function TeacherAvailability({ 
   communitySlug, 
@@ -42,7 +22,7 @@ export default function TeacherAvailability({
 }: TeacherAvailabilityProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [newSlot, setNewSlot] = useState({
-    day_of_week: '',
+    date: '',
     start_time: '',
     end_time: ''
   });
@@ -55,13 +35,9 @@ export default function TeacherAvailability({
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const getDayName = (dayOfWeek: number) => {
-    const day = DAYS_OF_WEEK.find(d => d.value === dayOfWeek);
-    return day ? day.label : 'Unknown';
-  };
 
     const handleAddSlot = async () => {
-    if (!newSlot.day_of_week || !newSlot.start_time || !newSlot.end_time) {
+    if (!newSlot.date || !newSlot.start_time || !newSlot.end_time) {
       toast.error('Please fill all fields');
       return;
     }
@@ -88,7 +64,7 @@ export default function TeacherAvailability({
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          day_of_week: parseInt(newSlot.day_of_week),
+          date: newSlot.date,
           start_time: newSlot.start_time,
           end_time: newSlot.end_time,
         }),
@@ -104,7 +80,7 @@ export default function TeacherAvailability({
       
       // Reset form
       setNewSlot({
-        day_of_week: '',
+        date: '',
         start_time: '',
         end_time: ''
       });
@@ -158,19 +134,30 @@ export default function TeacherAvailability({
     }
   };
 
-  // Group slots by day for better display
-  const slotsByDay = slots.reduce((acc, slot) => {
-    if (!acc[slot.day_of_week]) {
-      acc[slot.day_of_week] = [];
+  // Group slots by date for better display
+  const slotsByDate = slots.reduce((acc, slot) => {
+    if (!acc[slot.availability_date]) {
+      acc[slot.availability_date] = [];
     }
-    acc[slot.day_of_week].push(slot);
+    acc[slot.availability_date].push(slot);
     return acc;
-  }, {} as Record<number, TeacherAvailabilitySlot[]>);
+  }, {} as Record<string, TeacherAvailabilitySlot[]>);
 
-  // Sort slots within each day by start time
-  Object.keys(slotsByDay).forEach(day => {
-    slotsByDay[parseInt(day)].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  // Sort slots within each date by start time
+  Object.keys(slotsByDate).forEach(date => {
+    slotsByDate[date].sort((a, b) => a.start_time.localeCompare(b.start_time));
   });
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -188,66 +175,43 @@ export default function TeacherAvailability({
         <h4 className="font-medium mb-4">Add New Availability Slot</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Label htmlFor="day">Day of Week</Label>
-            <Select
-              value={newSlot.day_of_week}
-              onValueChange={(value) => setNewSlot(prev => ({ ...prev, day_of_week: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select day" />
-              </SelectTrigger>
-              <SelectContent>
-                {DAYS_OF_WEEK.map((day) => (
-                  <SelectItem key={day.value} value={day.value.toString()}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="date">Date</Label>
+            <Input
+              type="date"
+              id="date"
+              value={newSlot.date}
+              min={new Date().toISOString().split('T')[0]} // Prevent past dates
+              onChange={(e) => setNewSlot(prev => ({ ...prev, date: e.target.value }))}
+              placeholder="Select date"
+            />
           </div>
 
           <div>
             <Label htmlFor="start-time">Start Time</Label>
-            <Select
+            <Input
+              type="time"
+              id="start-time"
               value={newSlot.start_time}
-              onValueChange={(value) => setNewSlot(prev => ({ ...prev, start_time: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Start time" />
-              </SelectTrigger>
-              <SelectContent className="max-h-48 overflow-y-auto">
-                {TIME_SLOTS.map((time) => (
-                  <SelectItem key={time.value} value={time.value}>
-                    {time.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => setNewSlot(prev => ({ ...prev, start_time: e.target.value }))}
+              placeholder="Start time"
+            />
           </div>
 
           <div>
             <Label htmlFor="end-time">End Time</Label>
-            <Select
+            <Input
+              type="time"
+              id="end-time"
               value={newSlot.end_time}
-              onValueChange={(value) => setNewSlot(prev => ({ ...prev, end_time: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="End time" />
-              </SelectTrigger>
-              <SelectContent className="max-h-48 overflow-y-auto">
-                {TIME_SLOTS.filter(time => !newSlot.start_time || time.value > newSlot.start_time).map((time) => (
-                  <SelectItem key={time.value} value={time.value}>
-                    {time.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => setNewSlot(prev => ({ ...prev, end_time: e.target.value }))}
+              placeholder="End time"
+            />
           </div>
         </div>
 
         <Button 
           onClick={handleAddSlot} 
-          disabled={isLoading || !newSlot.day_of_week || !newSlot.start_time || !newSlot.end_time}
+          disabled={isLoading || !newSlot.date || !newSlot.start_time || !newSlot.end_time}
           className="mt-4 w-full md:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -271,45 +235,47 @@ export default function TeacherAvailability({
           </Card>
         ) : (
           <div className="space-y-4">
-            {DAYS_OF_WEEK.map((day) => {
-              const daySlots = slotsByDay[day.value] || [];
-              if (daySlots.length === 0) return null;
+            {Object.keys(slotsByDate)
+              .sort() // Sort dates chronologically
+              .map((date) => {
+                const dateSlots = slotsByDate[date] || [];
+                if (dateSlots.length === 0) return null;
 
-              return (
-                <Card key={day.value} className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="font-medium text-gray-900">{day.label}</h5>
-                    <span className="text-sm text-gray-500">
-                      {daySlots.length} slot{daySlots.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {daySlots.map((slot) => (
-                      <div
-                        key={slot.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <Clock className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium">
-                            {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteSlot(slot.id)}
-                          disabled={isLoading}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                return (
+                  <Card key={date} className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-medium text-gray-900">{formatDate(date)}</h5>
+                      <span className="text-sm text-gray-500">
+                        {dateSlots.length} slot{dateSlots.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {dateSlots.map((slot) => (
+                        <div
+                          key={slot.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              );
-            })}
+                          <div className="flex items-center space-x-3">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">
+                              {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteSlot(slot.id)}
+                            disabled={isLoading}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })}
           </div>
         )}
       </div>
