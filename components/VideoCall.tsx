@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import DailyIframe, { DailyCall } from "@daily-co/daily-js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   Mic, 
   MicOff, 
@@ -13,9 +10,6 @@ import {
   Monitor, 
   MonitorOff, 
   PhoneOff, 
-  Settings,
-  MessageCircle,
-  Users,
   Clock
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -43,18 +37,7 @@ export default function VideoCall({
   onCallEnd,
   onCallStart,
 }: VideoCallProps) {
-  const callFrameRef = useRef<HTMLDivElement>(null);
-  const dailyRef = useRef<DailyCall | null>(null);
-  
-  const [isJoined, setIsJoined] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [participants, setParticipants] = useState<any[]>([]);
-  const [localAudio, setLocalAudio] = useState(true);
-  const [localVideo, setLocalVideo] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [callStartTime, setCallStartTime] = useState<Date | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [showControls, setShowControls] = useState(true);
+  const [hasStarted, setHasStarted] = useState(false);
 
   // Cleanup effect
   useEffect(() => {
