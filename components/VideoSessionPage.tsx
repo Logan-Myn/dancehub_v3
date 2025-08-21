@@ -293,16 +293,18 @@ export default function VideoSessionPage() {
     if (!booking) return;
     
     try {
-      const supabase = createClient();
-      await supabase
-        .from('lesson_bookings')
-        .update({ 
-          video_call_started_at: new Date().toISOString(),
-          lesson_status: 'scheduled' 
-        })
-        .eq('id', booking.id);
+      // Use VideoRoomService for proper session tracking
+      const userRole = isTeacher ? 'teacher' : 'student';
+      await fetch('/api/video-session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          bookingId: booking.id,
+          userRole 
+        }),
+      });
     } catch (error) {
-      console.error('Error updating call start:', error);
+      console.error('Error starting video session:', error);
     }
   };
 
@@ -310,19 +312,17 @@ export default function VideoSessionPage() {
     if (!booking) return;
     
     try {
-      const supabase = createClient();
-      await supabase
-        .from('lesson_bookings')
-        .update({ 
-          video_call_ended_at: new Date().toISOString(),
-          lesson_status: 'completed' 
-        })
-        .eq('id', booking.id);
+      // Use VideoRoomService for proper session tracking
+      await fetch('/api/video-session/end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: booking.id }),
+      });
       
       toast.success('Lesson completed!');
       router.push(`/${booking.community_slug}/private-lessons`);
     } catch (error) {
-      console.error('Error updating call end:', error);
+      console.error('Error ending video session:', error);
     }
   };
 

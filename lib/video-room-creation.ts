@@ -1,7 +1,6 @@
 import { createAdminClient } from "@/lib/supabase";
 import { 
   createDailyRoom, 
-  createMeetingToken, 
   generateRoomName, 
   calculateRoomExpiration 
 } from "@/lib/daily";

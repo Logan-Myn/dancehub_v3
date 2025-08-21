@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase';
-import { createVideoRoomForBooking } from '@/lib/video-room-creation';
+import { videoRoomService } from '@/lib/video-room-service';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -132,8 +132,12 @@ export async function POST(request: Request) {
             // Create video room after successful booking creation
             try {
               console.log('🎬 Creating video room for booking:', newBooking.id);
-              await createVideoRoomForBooking(newBooking.id);
-              console.log('✅ Video room created successfully for booking:', newBooking.id);
+              const result = await videoRoomService.createRoomForBooking(newBooking.id);
+              if (result.success) {
+                console.log('✅ Video room created successfully for booking:', newBooking.id);
+              } else {
+                console.error('❌ Video room creation failed:', result.error);
+              }
             } catch (videoError) {
               console.error('❌ Error creating video room (non-critical):', videoError);
               // Don't fail the webhook for video room creation errors

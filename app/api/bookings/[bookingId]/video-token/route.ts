@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { createMeetingToken } from "@/lib/daily";
+import { videoRoomService } from "@/lib/video-room-service";
 
 const supabase = createAdminClient();
 
@@ -104,91 +104,35 @@ export async function POST(
       );
     }
 
-    // Generate new tokens if needed (tokens might expire)
-    let teacherToken = booking.teacher_daily_token;
-    let studentToken = booking.student_daily_token;
+    // Generate fresh tokens using the VideoRoomService
+    console.log("Generating fresh tokens for booking:", bookingId);
+    try {
+      const tokens = await videoRoomService.generateTokensForRoom(bookingId);
+      const teacherToken = tokens.teacherToken;
+      const studentToken = tokens.studentToken;
+      
+      // Track session start when user requests tokens
+      const userRole = isTeacher ? 'teacher' : 'student';
+      await videoRoomService.startSession(bookingId, userRole);
+      
+      console.log("Tokens generated and session started successfully");
 
-    // Calculate room expiration - default to 2 hours from now if no expiration set
-    const roomExpiration = expiresAt 
-      ? Math.floor(expiresAt.getTime() / 1000)
-      : Math.floor(Date.now() / 1000) + (2 * 60 * 60); // 2 hours from now
-
-    // Get user profiles for names
-    const { data: teacherProfile } = await supabase
-      .from("profiles")
-      .select("full_name, display_name")
-      .eq("id", booking.private_lessons.communities.created_by)
-      .single();
-
-    const { data: studentProfile } = await supabase
-      .from("profiles")
-      .select("full_name, display_name")
-      .eq("id", booking.student_id)
-      .single();
-
-    // Regenerate teacher token if needed
-    if (!teacherToken || isTeacher) {
-      console.log("Creating teacher token for room:", booking.daily_room_name);
-      try {
-        const teacherTokenData = await createMeetingToken({
-          room_name: booking.daily_room_name,
-          user_name: teacherProfile?.display_name || teacherProfile?.full_name || 'Teacher',
-          user_id: booking.private_lessons.communities.created_by,
-          is_owner: true,
-          exp: roomExpiration,
-          enable_screenshare: true,
-        });
-        teacherToken = teacherTokenData.token;
-        console.log("Teacher token created successfully");
-      } catch (tokenError) {
-        console.error("Failed to create teacher token:", tokenError);
-        throw new Error(`Failed to create teacher token: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`);
-      }
+      return NextResponse.json({
+        room_name: booking.daily_room_name,
+        room_url: booking.daily_room_url || `https://${booking.daily_room_name}.daily.co/`,
+        token: isTeacher ? teacherToken : studentToken,
+        expires_at: booking.daily_room_expires_at,
+        lesson_title: booking.private_lessons.title,
+        duration_minutes: booking.private_lessons.duration_minutes,
+        is_teacher: isTeacher,
+      });
+    } catch (tokenError) {
+      console.error("Failed to generate tokens:", tokenError);
+      return NextResponse.json(
+        { error: "Failed to generate video tokens" },
+        { status: 500 }
+      );
     }
-
-    // Regenerate student token if needed
-    if (!studentToken || isStudent) {
-      console.log("Creating student token for room:", booking.daily_room_name);
-      try {
-        const studentTokenData = await createMeetingToken({
-          room_name: booking.daily_room_name,
-          user_name: studentProfile?.display_name || studentProfile?.full_name || booking.student_name || 'Student',
-          user_id: booking.student_id,
-          is_owner: false,
-          exp: roomExpiration,
-          enable_screenshare: true,
-        });
-        studentToken = studentTokenData.token;
-        console.log("Student token created successfully");
-      } catch (tokenError) {
-        console.error("Failed to create student token:", tokenError);
-        throw new Error(`Failed to create student token: ${tokenError instanceof Error ? tokenError.message : String(tokenError)}`);
-      }
-    }
-
-    // Update tokens in database
-    const { error: updateError } = await supabase
-      .from("lesson_bookings")
-      .update({
-        teacher_daily_token: teacherToken,
-        student_daily_token: studentToken,
-      })
-      .eq("id", bookingId);
-
-    if (updateError) {
-      console.error("Error updating tokens:", updateError);
-      // Don't fail the request if token update fails
-    }
-
-    return NextResponse.json({
-      room_name: booking.daily_room_name,
-      room_url: booking.daily_room_url || `https://${booking.daily_room_name}.daily.co/`,
-      token: isTeacher ? teacherToken : studentToken,
-      expires_at: booking.daily_room_expires_at,
-      lesson_title: booking.private_lessons.title,
-      duration_minutes: booking.private_lessons.duration_minutes,
-      is_teacher: isTeacher,
-    });
   } catch (error) {
     console.error("Error in POST /api/bookings/[bookingId]/video-token:", error);
     console.error("Error details:", {
