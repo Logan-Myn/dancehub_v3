@@ -56,6 +56,17 @@ export default function VideoCall({
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showControls, setShowControls] = useState(true);
 
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      console.log('🧹 VideoCall component unmounting, cleaning up Daily.co frame');
+      if (dailyRef.current) {
+        dailyRef.current.destroy();
+        dailyRef.current = null;
+      }
+    };
+  }, []);
+
   // Timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -102,20 +113,28 @@ export default function VideoCall({
   };
 
   const joinCall = async () => {
-    console.log('Join call button clicked');
-    console.log('Call frame ref:', callFrameRef.current);
-    console.log('Room URL:', roomUrl);
-    console.log('Token:', token ? 'Present' : 'Missing');
+    console.log('🎬 Join call button clicked');
+    console.log('📍 Call frame ref:', callFrameRef.current);
+    console.log('🔗 Room URL:', roomUrl);
+    console.log('🔑 Token:', token ? 'Present' : 'Missing');
     
     if (!callFrameRef.current) {
-      console.error('Call frame ref is null');
+      console.error('❌ Call frame ref is null');
       toast.error('Video container not ready. Please refresh the page.');
+      return;
+    }
+
+    if (!roomUrl || !token) {
+      console.error('❌ Missing room URL or token');
+      toast.error('Video session not properly configured. Please refresh the page.');
       return;
     }
 
     setIsLoading(true);
 
     try {
+      console.log('🔧 Creating Daily.co iframe...');
+      
       // Create Daily instance
       const daily = DailyIframe.createFrame(callFrameRef.current, {
         iframeStyle: {
@@ -132,28 +151,27 @@ export default function VideoCall({
         activeSpeakerMode: true,
       });
 
+      console.log('✅ Daily.co frame created successfully');
       dailyRef.current = daily;
 
       // Set up event listeners
       daily.on('joined-meeting', async (event) => {
-        console.log('Joined meeting:', event);
+        console.log('🎉 Joined meeting successfully:', event);
+        setIsLoading(false); // Stop the loading state
         setIsJoined(true);
         setCallStartTime(new Date());
         onCallStart?.();
         toast.success('Successfully joined the lesson!');
         
-        // Track join time in the database
+        // Track join time in the database using the correct API endpoint
         try {
-          const updateField = isTeacher ? 'teacher_joined_at' : 'student_joined_at';
-          await fetch(`/api/bookings/${bookingId}/track-session`, {
+          const userRole = isTeacher ? 'teacher' : 'student';
+          await fetch('/api/video-session/start', {
             method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              action: 'join',
-              field: updateField
+              bookingId: bookingId,
+              userRole: userRole
             })
           });
         } catch (error) {
@@ -178,33 +196,48 @@ export default function VideoCall({
         setElapsedTime(0);
         onCallEnd?.();
         
-        // Track leave time in the database
+        // Track end session in the database
         try {
-          const updateField = isTeacher ? 'teacher_joined_at' : 'student_joined_at';
-          await fetch(`/api/bookings/${bookingId}/track-session`, {
+          await fetch('/api/video-session/end', {
             method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              action: 'leave',
-              field: updateField
+              bookingId: bookingId
             })
           });
         } catch (error) {
-          console.error('Error tracking leave:', error);
+          console.error('Error tracking session end:', error);
         }
       });
 
+      daily.on('loading', (event) => {
+        console.log('📡 Daily.co loading:', event);
+      });
+
+      daily.on('loaded', (event) => {
+        console.log('📡 Daily.co loaded:', event);
+      });
+
+      daily.on('joining-meeting', (event) => {
+        console.log('🔄 Joining meeting in progress:', event);
+      });
+
       daily.on('error', (event) => {
-        console.error('Daily error:', event);
+        console.error('❌ Daily error:', event);
+        setIsLoading(false);
         toast.error('Video call error: ' + event.errorMsg);
       });
 
       daily.on('camera-error', (event) => {
-        console.error('Camera error:', event);
+        console.error('📷 Camera error:', event);
+        setIsLoading(false);
         toast.error('Camera access error. Please check your permissions.');
+      });
+
+      daily.on('call-instance-destroyed', (event) => {
+        console.log('🗑️ Daily call instance destroyed:', event);
+        setIsLoading(false);
+        setIsJoined(false);
       });
 
       daily.on('recording-started', () => {
@@ -216,15 +249,24 @@ export default function VideoCall({
       });
 
       // Join the meeting
+      console.log('🚀 Attempting to join Daily.co room...');
+      console.log('📋 Join parameters:', {
+        url: roomUrl,
+        userName: userName,
+        hasToken: !!token
+      });
+      
       await daily.join({
         url: roomUrl,
         token: token,
         userName: userName,
       });
 
+      console.log('✅ Daily.co join request sent successfully');
+
     } catch (error) {
-      console.error('Error joining call:', error);
-      toast.error('Failed to join the video call');
+      console.error('❌ Error joining call:', error);
+      toast.error(`Failed to join the video call: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
     }
   };
