@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   Mic, 
   MicOff, 
@@ -10,9 +11,25 @@ import {
   Monitor, 
   MonitorOff, 
   PhoneOff, 
-  Clock
+  Clock,
+  Users
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+
+// Daily.co types
+declare global {
+  interface Window {
+    DailyIframe: any;
+  }
+}
+
+// Import Daily.co dynamically
+let DailyIframe: any = null;
+if (typeof window !== 'undefined') {
+  import('@daily-co/daily-js').then((Daily) => {
+    DailyIframe = Daily.default;
+  });
+}
 
 interface VideoCallProps {
   roomUrl: string;
@@ -37,7 +54,31 @@ export default function VideoCall({
   onCallEnd,
   onCallStart,
 }: VideoCallProps) {
-  const [hasStarted, setHasStarted] = useState(false);
+  const callFrameRef = useRef<HTMLDivElement>(null);
+  const dailyRef = useRef<any>(null);
+  
+  const [isJoined, setIsJoined] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [localAudio, setLocalAudio] = useState(true);
+  const [localVideo, setLocalVideo] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [callStartTime, setCallStartTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showControls, setShowControls] = useState(true);
+
+  // Load Daily.co script
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.DailyIframe) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@daily-co/daily-js';
+      script.async = true;
+      script.onload = () => {
+        console.log('📡 Daily.co script loaded');
+      };
+      document.head.appendChild(script);
+    }
+  }, []);
 
   // Cleanup effect
   useEffect(() => {
@@ -118,8 +159,15 @@ export default function VideoCall({
     try {
       console.log('🔧 Creating Daily.co iframe...');
       
-      // Create Daily instance
-      const daily = DailyIframe.createFrame(callFrameRef.current, {
+      // Create Daily instance - use window.DailyIframe if available
+      if (!window.DailyIframe && !DailyIframe) {
+        toast.error('Daily.co is still loading. Please try again in a moment.');
+        setIsLoading(false);
+        return;
+      }
+      
+      const DailyLib = window.DailyIframe || DailyIframe;
+      const daily = DailyLib.createFrame(callFrameRef.current, {
         iframeStyle: {
           position: 'relative',
           width: '100%',
@@ -138,7 +186,7 @@ export default function VideoCall({
       dailyRef.current = daily;
 
       // Set up event listeners
-      daily.on('joined-meeting', async (event) => {
+      daily.on('joined-meeting', async (event: any) => {
         console.log('🎉 Joined meeting successfully:', event);
         setIsLoading(false); // Stop the loading state
         setIsJoined(true);
@@ -162,14 +210,14 @@ export default function VideoCall({
         }
       });
 
-      daily.on('participant-joined', (event) => {
+      daily.on('participant-joined', (event: any) => {
         console.log('Participant joined:', event);
-        setParticipants(prev => [...prev, event.participant]);
+        setParticipants((prev: any) => [...prev, event.participant]);
       });
 
-      daily.on('participant-left', (event) => {
+      daily.on('participant-left', (event: any) => {
         console.log('Participant left:', event);
-        setParticipants(prev => prev.filter(p => p.session_id !== event.participant.session_id));
+        setParticipants((prev: any) => prev.filter((p: any) => p.session_id !== event.participant.session_id));
       });
 
       daily.on('left-meeting', async () => {
@@ -193,31 +241,31 @@ export default function VideoCall({
         }
       });
 
-      daily.on('loading', (event) => {
+      daily.on('loading', (event: any) => {
         console.log('📡 Daily.co loading:', event);
       });
 
-      daily.on('loaded', (event) => {
+      daily.on('loaded', (event: any) => {
         console.log('📡 Daily.co loaded:', event);
       });
 
-      daily.on('joining-meeting', (event) => {
+      daily.on('joining-meeting', (event: any) => {
         console.log('🔄 Joining meeting in progress:', event);
       });
 
-      daily.on('error', (event) => {
+      daily.on('error', (event: any) => {
         console.error('❌ Daily error:', event);
         setIsLoading(false);
         toast.error('Video call error: ' + event.errorMsg);
       });
 
-      daily.on('camera-error', (event) => {
+      daily.on('camera-error', (event: any) => {
         console.error('📷 Camera error:', event);
         setIsLoading(false);
         toast.error('Camera access error. Please check your permissions.');
       });
 
-      daily.on('call-instance-destroyed', (event) => {
+      daily.on('call-instance-destroyed', (event: any) => {
         console.log('🗑️ Daily call instance destroyed:', event);
         setIsLoading(false);
         setIsJoined(false);
