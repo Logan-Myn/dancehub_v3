@@ -285,10 +285,14 @@ export class VideoRoomService {
     const lesson = booking.private_lessons;
     const community = lesson.communities;
     
-    // Generate unique room name
+    // Generate unique room name - ensure it meets Daily.co requirements
+    // Room names must be alphanumeric with dashes/underscores, max 128 chars
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const shortBookingId = booking.id.substring(0, 8);
-    const roomName = `${community.slug}-${shortBookingId}-${randomSuffix}`;
+    const sanitizedSlug = community.slug.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
+    const roomName = `${sanitizedSlug}-${shortBookingId}-${randomSuffix}`.toLowerCase();
+
+    console.log('🏠 Generated room name:', roomName);
 
     // Calculate expiration time
     const bufferMinutes = 30;
@@ -302,12 +306,25 @@ export class VideoRoomService {
       roomExpiration = Math.floor(Date.now() / 1000) + (totalMinutes * 60);
     }
 
+    // Ensure expiration is in the future
+    const now = Math.floor(Date.now() / 1000);
+    if (roomExpiration <= now) {
+      roomExpiration = now + (2 * 60 * 60); // 2 hours from now as fallback
+    }
+
+    console.log('⏰ Room expires at:', new Date(roomExpiration * 1000).toISOString());
+
     return { roomName, roomExpiration };
   }
 
   private async createDailyRoom(roomName: string, expiration: number) {
     if (!DAILY_API_KEY) {
       throw new Error('Daily.co API key is not configured');
+    }
+
+    // Validate API key format (should start with a specific pattern)
+    if (!DAILY_API_KEY.match(/^[a-f0-9-]{36,}$/i) && !DAILY_API_KEY.startsWith('sk_')) {
+      console.warn('⚠️ Daily.co API key format might be invalid');
     }
 
     const roomConfig: DailyRoomConfig = {
@@ -322,10 +339,17 @@ export class VideoRoomService {
         enable_recording: 'cloud',
         start_cloud_recording: false,
         owner_only_broadcast: false,
-        enable_knocking: true,
+        enable_knocking: false, // Disable knocking for smoother experience
         lang: 'en',
       },
     };
+
+    console.log('🎬 Creating Daily.co room with config:', {
+      name: roomConfig.name,
+      privacy: roomConfig.privacy,
+      max_participants: roomConfig.properties?.max_participants,
+      expires_at: new Date(expiration * 1000).toISOString(),
+    });
 
     const response = await this.makeApiRequest(`${DAILY_API_URL}/rooms`, 'POST', roomConfig);
     return response;
@@ -403,6 +427,11 @@ export class VideoRoomService {
       throw new Error('Daily.co API key is not configured');
     }
 
+    console.log(`📡 Daily.co API Request: ${method} ${url}`);
+    if (body) {
+      console.log('📡 Request body:', JSON.stringify(body, null, 2));
+    }
+
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const options: RequestInit = {
@@ -415,13 +444,34 @@ export class VideoRoomService {
         };
 
         const response = await fetch(url, options);
+        
+        console.log(`📡 Daily.co API Response: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(`Daily.co API error: ${error.error || error.message || 'Request failed'}`);
+          const errorText = await response.text();
+          let errorDetail;
+          
+          try {
+            errorDetail = JSON.parse(errorText);
+          } catch {
+            errorDetail = { error: errorText };
+          }
+          
+          console.error('📡 Daily.co API Error Response:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorDetail,
+            url,
+            method,
+            body
+          });
+          
+          throw new Error(`Daily.co API error (${response.status}): ${errorDetail.error || errorDetail.message || errorText || 'Request failed'}`);
         }
 
-        return method === 'DELETE' ? {} : await response.json();
+        const result = method === 'DELETE' ? {} : await response.json();
+        console.log('📡 Daily.co API Success:', result);
+        return result;
 
       } catch (error) {
         if (attempt === retries) {

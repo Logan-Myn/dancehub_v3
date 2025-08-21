@@ -336,7 +336,6 @@ export async function POST(request: Request) {
           console.error('❌ Error in invoice.payment_succeeded handler:', error);
           return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
         }
-        break;
 
       case 'customer.subscription.deleted':
       case 'customer.subscription.updated':
