@@ -9,6 +9,17 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET!;
 const supabase = createAdminClient();
 
+// Environment validation
+if (!webhookSecret) {
+  console.error('❌ STRIPE_WEBHOOK_SECRET is not set');
+}
+if (!connectWebhookSecret) {
+  console.error('❌ STRIPE_CONNECT_WEBHOOK_SECRET is not set');
+}
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('❌ STRIPE_SECRET_KEY is not set');
+}
+
 export async function POST(request: Request) {
   try {
     console.log('🎯🎯🎯 WEBHOOK ENDPOINT HIT - TIMESTAMP:', new Date().toISOString());
@@ -20,15 +31,44 @@ export async function POST(request: Request) {
     let event: Stripe.Event;
 
     try {
-      // Check if it's a Connect webhook event
-      const isConnectEvent = body.includes('"account":');
-      const secret = isConnectEvent ? connectWebhookSecret : webhookSecret;
-      console.log('Using webhook secret for:', isConnectEvent ? 'Connect' : 'Platform');
+      // First try platform webhook secret, then Connect if it fails
+      let secret = webhookSecret;
+      let isConnectEvent = false;
       
-      event = stripe.webhooks.constructEvent(body, signature, secret);
-      console.log('✅ Webhook verified, event type:', event.type);
+      try {
+        console.log('🔐 Trying platform webhook secret first');
+        event = stripe.webhooks.constructEvent(body, signature, secret);
+        console.log('✅ Platform webhook verified, event type:', event.type);
+      } catch (platformError) {
+        console.log('⚠️ Platform webhook failed, trying Connect webhook secret');
+        console.log('Platform error:', (platformError as Error).message);
+        
+        if (!connectWebhookSecret) {
+          throw new Error('Connect webhook secret not configured');
+        }
+        
+        secret = connectWebhookSecret;
+        isConnectEvent = true;
+        event = stripe.webhooks.constructEvent(body, signature, secret);
+        console.log('✅ Connect webhook verified, event type:', event.type);
+      }
+      
+      console.log('📋 Event details:', {
+        id: event.id,
+        type: event.type,
+        account: event.account,
+        isConnectEvent,
+        created: event.created
+      });
     } catch (err) {
-      console.error('❌ Webhook signature verification failed:', err);
+      console.error('❌ Webhook signature verification failed with both secrets:', err);
+      console.error('Error details:', {
+        message: (err as Error).message,
+        webhookSecretExists: !!webhookSecret,
+        connectWebhookSecretExists: !!connectWebhookSecret,
+        signatureExists: !!signature,
+        bodyLength: body.length
+      });
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
@@ -64,13 +104,26 @@ export async function POST(request: Request) {
           console.log('🎓 Processing private lesson payment');
           const metadata = paymentIntent.metadata;
           
+          console.log('📋 Full payment intent metadata:', JSON.stringify(metadata, null, 2));
+          
           // Validate required metadata
           const requiredFields = ['lesson_id', 'community_id', 'student_id', 'student_email', 'price_paid'];
+          const missingFields = [];
+          
           for (const field of requiredFields) {
             if (!metadata[field]) {
-              console.error(`Missing required metadata field: ${field}`, metadata);
-              return NextResponse.json({ error: `Missing private lesson metadata: ${field}` }, { status: 400 });
+              missingFields.push(field);
             }
+          }
+          
+          if (missingFields.length > 0) {
+            console.error('❌ Missing required metadata fields:', missingFields);
+            console.error('📋 Available metadata:', Object.keys(metadata || {}));
+            return NextResponse.json({ 
+              error: `Missing private lesson metadata: ${missingFields.join(', ')}`,
+              availableFields: Object.keys(metadata || {}),
+              paymentIntentId: paymentIntent.id
+            }, { status: 400 });
           }
 
           try {
@@ -382,42 +435,7 @@ export async function POST(request: Request) {
         }
         break;
 
-      case 'customer.subscription.updated':
-        console.log('📝 Subscription updated');
-        const updatedSubscription = event.data.object as Stripe.Subscription;
-        console.log('📝 Full subscription:', JSON.stringify(updatedSubscription, null, 2));
-
-        if (!updatedSubscription.metadata?.user_id || !updatedSubscription.metadata?.community_id) {
-          console.error('Missing metadata in subscription:', updatedSubscription.id);
-          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
-        }
-
-        try {
-          const { user_id, community_id } = updatedSubscription.metadata;
-          console.log('🔍 Processing subscription update for:', { user_id, community_id });
-
-          // Update subscription status in community_members
-          const { error: updateError } = await supabase
-            .from('community_members')
-            .update({ 
-              subscription_status: updatedSubscription.status,
-              updated_at: new Date().toISOString()
-            })
-            .eq('community_id', community_id)
-            .eq('user_id', user_id);
-
-          if (updateError) {
-            console.error('❌ Error updating subscription status:', updateError);
-            throw updateError;
-          }
-
-          console.log('✅ Successfully updated subscription status');
-          return NextResponse.json({ received: true });
-        } catch (error) {
-          console.error('❌ Error in subscription.updated handler:', error);
-          return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-        }
-        break;
+      // Note: customer.subscription.updated is already handled above in the combined case
     }
 
     return NextResponse.json({ received: true });
