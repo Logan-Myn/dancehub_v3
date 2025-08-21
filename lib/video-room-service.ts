@@ -29,8 +29,7 @@ export interface DailyRoomConfig {
     eject_at_room_exp?: boolean;
     enable_chat?: boolean;
     enable_screenshare?: boolean;
-    enable_recording?: string;
-    start_cloud_recording?: boolean;
+    enable_recording?: string; // 'cloud' | 'local' | 'raw-tracks'
     owner_only_broadcast?: boolean;
     enable_knocking?: boolean;
     lang?: string;
@@ -336,8 +335,7 @@ export class VideoRoomService {
         eject_at_room_exp: true,
         enable_chat: true,
         enable_screenshare: true,
-        enable_recording: 'cloud',
-        start_cloud_recording: false,
+        enable_recording: 'cloud', // This enables recording capability
         owner_only_broadcast: false,
         enable_knocking: false, // Disable knocking for smoother experience
         lang: 'en',
