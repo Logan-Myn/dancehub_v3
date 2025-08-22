@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
-import SimpleVideoCall from "@/components/SimpleVideoCall";
+import DailyVideoCall from "@/components/DailyVideoCall";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -131,7 +131,7 @@ function VideoCallWithTokens({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden" style={{ height: '600px' }}>
-      <SimpleVideoCall
+      <DailyVideoCall
         roomUrl={videoData.room_url}
         token={videoData.token}
         bookingId={bookingId}
