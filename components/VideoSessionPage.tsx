@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
-import DailyVideoCall from "@/components/DailyVideoCall";
+import SimpleDailyCall from "@/components/SimpleDailyCall";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,18 +129,21 @@ function VideoCallWithTokens({
     );
   }
 
+  // Log the video data for debugging
+  console.log('📹 Video data:', {
+    roomUrl: videoData.room_url,
+    hasToken: !!videoData.token,
+    tokenLength: videoData.token?.length
+  });
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden" style={{ height: '600px' }}>
-      <DailyVideoCall
+      <SimpleDailyCall
         roomUrl={videoData.room_url}
         token={videoData.token}
-        bookingId={bookingId}
         userName={isTeacher ? 'Teacher' : booking.student_name || 'Student'}
-        isTeacher={isTeacher}
         lessonTitle={booking.lesson_title}
         duration={booking.duration_minutes}
-        onCallStart={onCallStart}
-        onCallEnd={onCallEnd}
       />
     </div>
   );

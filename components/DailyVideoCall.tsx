@@ -73,6 +73,8 @@ export default function DailyVideoCall({
 
   const joinCall = async () => {
     console.log('🎬 Attempting to join call...');
+    console.log('📍 Room URL:', roomUrl);
+    console.log('🔑 Token length:', token?.length || 0);
     
     if (!containerRef.current) {
       toast.error('Video container not ready');
@@ -86,6 +88,7 @@ export default function DailyVideoCall({
 
     if (!roomUrl || !token) {
       toast.error('Missing room configuration');
+      console.error('Missing room config:', { roomUrl, hasToken: !!token });
       return;
     }
 
@@ -116,7 +119,11 @@ export default function DailyVideoCall({
 
       callFrameRef.current = callFrame;
 
-      // Set up event listeners
+      // Set up ALL event listeners BEFORE joining
+      callFrame.on('joining-meeting', () => {
+        console.log('🔄 Joining meeting...');
+      });
+
       callFrame.on('joined-meeting', async () => {
         console.log('✅ Successfully joined meeting');
         setIsJoined(true);
@@ -164,17 +171,36 @@ export default function DailyVideoCall({
 
       callFrame.on('error', (error: any) => {
         console.error('❌ Daily error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         setIsLoading(false);
         toast.error(error.errorMsg || 'Video call error');
       });
 
+      callFrame.on('camera-error', (event: any) => {
+        console.error('📷 Camera error:', event);
+        // Don't stop loading - user can still join without camera
+      });
+
+      callFrame.on('mic-error', (event: any) => {
+        console.error('🎤 Microphone error:', event);
+        // Don't stop loading - user can still join without mic
+      });
+
+      // Log the actual values being used
+      console.log('🚀 Join parameters:', {
+        url: roomUrl,
+        tokenLength: token.length,
+        userName: userName
+      });
+
       // Join the meeting with token
-      console.log('🚀 Joining room with token...');
-      await callFrame.join({
+      const joinResult = await callFrame.join({
         url: roomUrl,
         token: token,
         userName: userName,
       });
+
+      console.log('📡 Join result:', joinResult);
 
     } catch (error) {
       console.error('❌ Error joining call:', error);

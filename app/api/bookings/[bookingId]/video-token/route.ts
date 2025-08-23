@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { videoRoomService } from "@/lib/video-room-service";
+import { getDailyDomain } from "@/lib/get-daily-domain";
 
 const supabase = createAdminClient();
 
@@ -117,9 +118,28 @@ export async function POST(
       
       console.log("Tokens generated and session started successfully");
 
+      // Debug logging
+      console.log("Room details:", {
+        roomName: booking.daily_room_name,
+        roomUrl: booking.daily_room_url,
+        hasStoredUrl: !!booking.daily_room_url
+      });
+
+      // If no URL is stored, we need to construct it properly
+      let roomUrl = booking.daily_room_url;
+      
+      if (!roomUrl && booking.daily_room_name) {
+        // Get the actual Daily domain from the API
+        const dailyDomain = await getDailyDomain();
+        roomUrl = `https://${dailyDomain}.daily.co/${booking.daily_room_name}`;
+        console.log(`Constructed room URL using domain '${dailyDomain}':`, roomUrl);
+      }
+
+      console.log("Final room URL:", roomUrl);
+
       return NextResponse.json({
         room_name: booking.daily_room_name,
-        room_url: booking.daily_room_url || `https://${booking.daily_room_name}.daily.co/`,
+        room_url: roomUrl,
         token: isTeacher ? teacherToken : studentToken,
         expires_at: booking.daily_room_expires_at,
         lesson_title: booking.private_lessons.title,
