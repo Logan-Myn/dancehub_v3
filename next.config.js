@@ -34,6 +34,29 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://*.daily.co",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://*.supabase.co https://*.daily.co wss://*.daily.co https://api.daily.co",
+              "frame-src 'self' https://*.daily.co",
+              "media-src 'self' blob: https://*.daily.co",
+              "worker-src 'self' blob:",
+            ].join('; ')
+          }
+        ]
+      }
+    ];
+  },
 }
 
 module.exports = nextConfig
