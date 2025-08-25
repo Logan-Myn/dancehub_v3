@@ -1,6 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { getEmailService } from "@/lib/resend/email-service";
+import { WelcomeEmail } from "@/lib/resend/templates/auth/welcome";
+import React from "react";
 
 const supabase = createAdminClient();
 
@@ -78,6 +81,33 @@ export async function POST(request: Request) {
       .from('signup_verifications')
       .delete()
       .eq('token', token);
+
+    // Get user profile for welcome email
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, full_name')
+      .eq('id', verificationRequest.user_id)
+      .single();
+
+    const userName = profile?.display_name || profile?.full_name || 'there';
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`;
+
+    // Send welcome email
+    try {
+      const emailService = getEmailService();
+      await emailService.sendAuthEmail(
+        verificationRequest.email,
+        'Welcome to DanceHub - Let\'s get started!',
+        React.createElement(WelcomeEmail, {
+          name: userName,
+          dashboardUrl: dashboardUrl,
+        })
+      );
+      console.log('✅ Welcome email sent to:', verificationRequest.email);
+    } catch (emailError) {
+      console.error('❌ Error sending welcome email (non-critical):', emailError);
+      // Don't fail the verification if email sending fails
+    }
 
     // Return the redirect path along with the success message
     return NextResponse.json({

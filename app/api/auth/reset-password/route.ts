@@ -1,10 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { getEmailService } from "@/lib/resend/email-service";
+import { PasswordResetEmail } from "@/lib/resend/templates/auth/password-reset";
+import React from "react";
 
 const supabase = createAdminClient();
-const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
-const MAILERSEND_PASSWORD_RESET_TEMPLATE_ID = process.env.MAILERSEND_PASSWORD_RESET_TEMPLATE_ID;
 
 // Generate a secure token for password reset
 function generateToken(userId: string, email: string): string {
@@ -73,54 +74,22 @@ export async function POST(request: Request) {
     // Reset URL that user will click in the email
     const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password?token=${token}`;
 
-    // Send email using MailerSend API
-    const response = await fetch('https://api.mailersend.com/v1/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MAILERSEND_API_KEY}`,
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify({
-        template_id: MAILERSEND_PASSWORD_RESET_TEMPLATE_ID,
-        from: {
-          email: 'account@dance-hub.io',
-          name: 'DanceHub'
-        },
-        subject: 'Reset your password',
-        to: [{
+    // Send email using Resend
+    try {
+      const emailService = getEmailService();
+      await emailService.sendAuthEmail(
+        email,
+        'Reset your password',
+        React.createElement(PasswordResetEmail, {
+          name: userName,
           email: email,
-          name: userName
-        }],
-        variables: [{
-          email: email,
-          substitutions: [{
-            var: 'name',
-            value: userName
-          }, {
-            var: 'reset_url',
-            value: resetUrl
-          }, {
-            var: 'support_email',
-            value: 'hello@dance-hub.io'
-          }, {
-            var: 'account_name',
-            value: 'DanceHub'
-          }]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('MailerSend API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-        apiKey: MAILERSEND_API_KEY ? 'Present' : 'Missing'
-      });
+          resetUrl: resetUrl,
+        })
+      );
+    } catch (emailError) {
+      console.error('Resend API error:', emailError);
       return NextResponse.json(
-        { error: `Failed to send reset email: ${errorData.message || response.statusText}` },
+        { error: `Failed to send reset email: ${emailError instanceof Error ? emailError.message : 'Unknown error'}` },
         { status: 500 }
       );
     }

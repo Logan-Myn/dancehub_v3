@@ -3,6 +3,10 @@ import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase';
 import { videoRoomService } from '@/lib/video-room-service';
+import { getEmailService } from '@/lib/resend/email-service';
+import { BookingConfirmationEmail } from '@/lib/resend/templates/booking/booking-confirmation';
+import { PaymentReceiptEmail } from '@/lib/resend/templates/booking/payment-receipt';
+import React from 'react';
 import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -182,12 +186,36 @@ export async function POST(request: Request) {
 
             console.log('✅ Successfully created new booking:', newBooking.id);
 
+            // Get lesson and teacher details for emails
+            const { data: lessonDetails } = await supabase
+              .from('private_lessons')
+              .select(`
+                title,
+                duration,
+                teacher_id,
+                teacher:profiles!private_lessons_teacher_id_fkey (
+                  display_name,
+                  full_name,
+                  email
+                )
+              `)
+              .eq('id', metadata.lesson_id)
+              .single();
+
             // Create video room after successful booking creation
+            let videoRoomUrl: string | undefined;
             try {
               console.log('🎬 Creating video room for booking:', newBooking.id);
               const result = await videoRoomService.createRoomForBooking(newBooking.id);
               if (result.success) {
                 console.log('✅ Video room created successfully for booking:', newBooking.id);
+                // Get the updated booking with video room URL
+                const { data: updatedBooking } = await supabase
+                  .from('lesson_bookings')
+                  .select('daily_room_url')
+                  .eq('id', newBooking.id)
+                  .single();
+                videoRoomUrl = updatedBooking?.daily_room_url || undefined;
               } else {
                 console.error('❌ Video room creation failed:', result.error);
               }
@@ -195,6 +223,94 @@ export async function POST(request: Request) {
               console.error('❌ Error creating video room (non-critical):', videoError);
               // Don't fail the webhook for video room creation errors
               // The video room can be created later if needed
+            }
+
+            // Send booking confirmation email to student
+            try {
+              const emailService = getEmailService();
+              const scheduledDate = metadata.scheduled_at ? new Date(metadata.scheduled_at) : new Date();
+              const formattedDate = scheduledDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              });
+              const formattedTime = scheduledDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              const teacherInfo = Array.isArray(lessonDetails?.teacher) ? lessonDetails?.teacher[0] : lessonDetails?.teacher;
+              const teacherName = teacherInfo?.display_name || teacherInfo?.full_name || 'Teacher';
+              const teacherEmail = teacherInfo?.email;
+
+              await emailService.sendNotificationEmail(
+                metadata.student_email,
+                `Booking Confirmed: ${lessonDetails?.title || 'Private Lesson'}`,
+                React.createElement(BookingConfirmationEmail, {
+                  studentName: metadata.student_name || 'Student',
+                  teacherName: teacherName,
+                  lessonTitle: lessonDetails?.title || 'Private Lesson',
+                  lessonDate: formattedDate,
+                  lessonTime: formattedTime,
+                  duration: lessonDetails?.duration || 60,
+                  price: parseFloat(metadata.price_paid),
+                  videoRoomUrl: videoRoomUrl,
+                  bookingId: newBooking.id,
+                  paymentMethod: 'Card',
+                })
+              );
+              console.log('✅ Booking confirmation email sent to student');
+
+              // Send payment receipt email
+              await emailService.sendNotificationEmail(
+                metadata.student_email,
+                `Payment Receipt #${paymentIntent.id.slice(-8).toUpperCase()}`,
+                React.createElement(PaymentReceiptEmail, {
+                  recipientName: metadata.student_name || 'Student',
+                  receiptNumber: paymentIntent.id.slice(-8).toUpperCase(),
+                  paymentDate: new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  }),
+                  paymentMethod: 'Credit Card',
+                  items: [{
+                    description: `${lessonDetails?.title || 'Private Lesson'} with ${teacherName}`,
+                    quantity: 1,
+                    price: parseFloat(metadata.price_paid),
+                    total: parseFloat(metadata.price_paid),
+                  }],
+                  subtotal: parseFloat(metadata.price_paid),
+                  total: parseFloat(metadata.price_paid),
+                })
+              );
+              console.log('✅ Payment receipt email sent to student');
+
+              // Notify teacher about new booking
+              if (teacherEmail) {
+                await emailService.sendNotificationEmail(
+                  teacherEmail,
+                  `New Booking: ${metadata.student_name || 'Student'} booked your lesson`,
+                  React.createElement(BookingConfirmationEmail, {
+                    studentName: teacherName,
+                    teacherName: metadata.student_name || 'Student',
+                    lessonTitle: lessonDetails?.title || 'Private Lesson',
+                    lessonDate: formattedDate,
+                    lessonTime: formattedTime,
+                    duration: lessonDetails?.duration || 60,
+                    price: parseFloat(metadata.price_paid),
+                    videoRoomUrl: videoRoomUrl,
+                    bookingId: newBooking.id,
+                    paymentMethod: 'Card',
+                  })
+                );
+                console.log('✅ Booking notification email sent to teacher');
+              }
+            } catch (emailError) {
+              console.error('❌ Error sending booking emails (non-critical):', emailError);
+              // Don't fail the webhook for email sending errors
             }
 
             return NextResponse.json({ received: true });

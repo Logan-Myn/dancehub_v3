@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
+import { getEmailService } from "@/lib/resend/email-service";
+import { LessonReminderEmail } from "@/lib/resend/templates/video/lesson-reminder";
+import React from "react";
 
 const supabase = createAdminClient();
 
@@ -203,23 +206,81 @@ async function createInAppNotification(notification: VideoSessionNotification) {
  */
 async function sendEmailNotification(notification: VideoSessionNotification) {
   try {
-    const emailData = {
-      to: notification.recipientEmail,
-      subject: getEmailSubject(notification),
-      html: getEmailHtml(notification),
-    };
-
-    // Send via your email service (MailerSend, etc.)
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailData),
-    });
-
-    if (!response.ok) {
-      console.error('Error sending email notification');
+    const emailService = getEmailService();
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://dancehub.com';
+    const videoRoomUrl = notification.videoRoomUrl || `${baseUrl}/video-session/${notification.bookingId}`;
+    
+    // Get recipient name from profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, full_name')
+      .eq('id', notification.recipientId)
+      .single();
+    
+    const recipientName = profile?.display_name || profile?.full_name || 'Student';
+    
+    // Get teacher/student name based on recipient type
+    const { data: booking } = await supabase
+      .from('lesson_bookings')
+      .select('student_id, student_name, lesson:private_lessons!inner(teacher_id)')
+      .eq('id', notification.bookingId)
+      .single();
+    
+    let otherParticipantName = 'Participant';
+    let recipientRole: 'student' | 'teacher' = 'student';
+    
+    if (booking) {
+      // If recipient is the student
+      if (notification.recipientId === booking.student_id) {
+        recipientRole = 'student';
+        // Get teacher name
+        const teacherInfo = Array.isArray(booking.lesson) ? booking.lesson[0] : booking.lesson;
+        const { data: teacher } = await supabase
+          .from('profiles')
+          .select('display_name, full_name')
+          .eq('id', teacherInfo?.teacher_id)
+          .single();
+        otherParticipantName = teacher?.display_name || teacher?.full_name || 'Teacher';
+      } else {
+        recipientRole = 'teacher';
+        otherParticipantName = booking.student_name || 'Student';
+      }
+    }
+    
+    switch (notification.type) {
+      case 'video_room_ready':
+        // Skip email notification for video room ready - only create in-app notification
+        console.log('Video room ready - skipping email, in-app notification created');
+        break;
+        
+      case 'lesson_starting':
+        await emailService.sendNotificationEmail(
+          notification.recipientEmail,
+          getEmailSubject(notification),
+          React.createElement(LessonReminderEmail, {
+            recipientName,
+            recipientRole,
+            otherParticipantName,
+            lessonTitle: notification.lessonTitle,
+            minutesUntilStart: 15,
+            videoRoomUrl,
+          })
+        );
+        break;
+        
+      case 'lesson_completed':
+        // For now, send a simple text email for lesson completed
+        // You could create a dedicated template for this
+        await emailService.sendNotificationEmail(
+          notification.recipientEmail,
+          getEmailSubject(notification),
+          React.createElement('div', {},
+            React.createElement('h2', {}, '✅ Lesson Completed!'),
+            React.createElement('p', {}, `Your lesson "${notification.lessonTitle}" has been completed.`),
+            React.createElement('p', {}, 'Thank you for using DanceHub!')
+          )
+        );
+        break;
     }
   } catch (error) {
     console.error('Error sending email notification:', error);
@@ -274,102 +335,3 @@ function getEmailSubject(notification: VideoSessionNotification): string {
   }
 }
 
-/**
- * Get email HTML content based on notification type
- */
-function getEmailHtml(notification: VideoSessionNotification): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://dancehub.com';
-  const videoSessionUrl = `${baseUrl}/video-session/${notification.bookingId}`;
-  
-  switch (notification.type) {
-    case 'video_room_ready':
-      return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">🎥 Your Video Room is Ready!</h2>
-          <p>Great news! Your video room for the private lesson "<strong>${notification.lessonTitle}</strong>" in ${notification.communityName} is now ready.</p>
-          
-          <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0;">Lesson Details:</h3>
-            <p><strong>Lesson:</strong> ${notification.lessonTitle}</p>
-            <p><strong>Community:</strong> ${notification.communityName}</p>
-            ${notification.scheduledAt ? `<p><strong>Scheduled:</strong> ${new Date(notification.scheduledAt).toLocaleString()}</p>` : ''}
-          </div>
-          
-          <p>You can join the video session when it's time by clicking the button below:</p>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${videoSessionUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Join Video Session
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px;">
-            You can join the session up to 15 minutes before the scheduled time. Make sure your camera and microphone are working properly.
-          </p>
-        </div>
-      `;
-      
-    case 'lesson_starting':
-      return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #dc2626;">⏰ Your Lesson is Starting Soon!</h2>
-          <p>Your private lesson "<strong>${notification.lessonTitle}</strong>" in ${notification.communityName} is starting in 15 minutes.</p>
-          
-          <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #dc2626;">Time to Join!</h3>
-            <p>Click the button below to join your video lesson now:</p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${videoSessionUrl}" style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Join Video Lesson Now
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px;">
-            Don't be late! Your teacher and video room are waiting for you.
-          </p>
-        </div>
-      `;
-      
-    case 'lesson_completed':
-      return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #059669;">✅ Lesson Completed!</h2>
-          <p>Your private lesson "<strong>${notification.lessonTitle}</strong>" in ${notification.communityName} has been successfully completed.</p>
-          
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #059669;">Thank You!</h3>
-            <p>We hope you had a great learning experience. Keep practicing and improving your skills!</p>
-          </div>
-          
-          <p>You can:</p>
-          <ul>
-            <li>Book another lesson with the same teacher</li>
-            <li>Leave a review for the community</li>
-            <li>Explore other lessons and communities</li>
-          </ul>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${baseUrl}/dashboard" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              View Dashboard
-            </a>
-          </div>
-        </div>
-      `;
-      
-    default:
-      return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Lesson Update</h2>
-          <p>There's an update for your lesson "${notification.lessonTitle}" in ${notification.communityName}.</p>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${videoSessionUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              View Lesson
-            </a>
-          </div>
-        </div>
-      `;
-  }
-}

@@ -1,9 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
-
-const MAILERSEND_API_KEY = process.env.MAILERSEND_API_KEY;
-const MAILERSEND_TEMPLATE_ID = process.env.MAILERSEND_EMAIL_CHANGE_TEMPLATE_ID;
+import { getEmailService } from "@/lib/resend/email-service";
+import { EmailChangeVerification } from "@/lib/resend/templates/auth/email-change";
+import React from "react";
 
 // Generate a secure token for email verification
 function generateToken(userId: string, newEmail: string): string {
@@ -14,7 +14,7 @@ function generateToken(userId: string, newEmail: string): string {
 export async function POST(request: Request) {
   try {
     const { userId, currentEmail, newEmail } = await request.json();
-    const supabase = await createAdminClient();
+    const supabase = createAdminClient();
 
     if (!userId || !currentEmail || !newEmail) {
       return NextResponse.json(
@@ -62,57 +62,23 @@ export async function POST(request: Request) {
     // Verification URL that user will click in the email
     const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/verify-email?token=${token}`;
 
-    // Send email using MailerSend API
-    const response = await fetch('https://api.mailersend.com/v1/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MAILERSEND_API_KEY}`,
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify({
-        template_id: MAILERSEND_TEMPLATE_ID,
-        from: {
-          email: 'account@dance-hub.io',
-          name: 'DanceHub'
-        },
-        subject: 'Verify your email change request',
-        to: [{
-          email: newEmail,
-          name: userName
-        }],
-        variables: [{
-          email: newEmail,
-          substitutions: [{
-            var: 'name',
-            value: userName
-          }, {
-            var: 'verification_url',
-            value: verificationUrl
-          }, {
-            var: 'current_email',
-            value: currentEmail
-          }, {
-            var: 'support_email',
-            value: 'hello@dance-hub.io'
-          }, {
-            var: 'account_name',
-            value: 'DanceHub'
-          }]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('MailerSend API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-        apiKey: MAILERSEND_API_KEY ? 'Present' : 'Missing'
-      });
+    // Send email using Resend
+    try {
+      const emailService = getEmailService();
+      await emailService.sendAuthEmail(
+        newEmail,
+        'Verify your email change request',
+        React.createElement(EmailChangeVerification, {
+          name: userName,
+          currentEmail: currentEmail,
+          newEmail: newEmail,
+          verificationUrl: verificationUrl,
+        })
+      );
+    } catch (emailError) {
+      console.error('Resend API error:', emailError);
       return NextResponse.json(
-        { error: `Failed to send verification email: ${errorData.message || response.statusText}` },
+        { error: `Failed to send verification email: ${emailError instanceof Error ? emailError.message : 'Unknown error'}` },
         { status: 500 }
       );
     }
