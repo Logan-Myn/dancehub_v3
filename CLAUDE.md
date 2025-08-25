@@ -91,3 +91,13 @@ npm run test:watch      # Run tests in watch mode
 **Video Session Integration**: Always create Daily.co rooms with proper expiration and security tokens for private lessons
 
 **Payment Flow**: Stripe Connect handles community payouts - ensure proper webhook handling in `/api/webhooks/stripe/`
+
+### Email Testing with Resend
+
+When testing emails, use Resend's official test email addresses (refer to: https://resend.com/docs/dashboard/emails/send-test-emails):
+
+- **Test Delivered**: `delivered@resend.dev` (or with labels like `delivered+signup@resend.dev`)
+- **Test Bounced**: `bounced@resend.dev` 
+- **Test Spam**: `complained@resend.dev`
+
+**Important**: Never use fake email addresses when testing - use these official Resend test addresses to avoid damaging domain reputation and to properly simulate different email scenarios.
