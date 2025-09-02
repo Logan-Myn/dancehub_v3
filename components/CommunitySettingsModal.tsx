@@ -287,16 +287,15 @@ export default function CommunitySettingsModal({
         if (!response.ok) throw new Error("Failed to fetch community data");
 
         const data = await response.json();
+        console.log("Fetched membership state from API:", {
+          membership_enabled: data.membership_enabled,
+          membership_price: data.membership_price,
+          stripeAccountId
+        });
 
-        // Only set membership data if Stripe is connected
-        if (stripeAccountId) {
-          const hasPrice = data.membership_price && data.membership_price > 0;
-          setIsMembershipEnabled(hasPrice || data.membership_enabled || false);
-          setPrice(data.membership_price || 0);
-        } else {
-          setIsMembershipEnabled(false);
-          setPrice(0);
-        }
+        // Set membership data based on database values
+        setIsMembershipEnabled(data.membership_enabled || false);
+        setPrice(data.membership_price || 0);
       } catch (error) {
         console.error("Error fetching membership state:", error);
       }
@@ -1074,14 +1073,14 @@ export default function CommunitySettingsModal({
         throw new Error(data.error || "Failed to update price");
       }
 
-      // Update local state
+      // Update local state in the parent component
       onCommunityUpdate({
         membership_enabled: isMembershipEnabled,
         membership_price: price,
         stripe_price_id: data.stripe_price_id,
       });
 
-      toast.success("Price updated successfully");
+      toast.success("Membership settings updated successfully");
     } catch (error) {
       console.error("Error updating price:", error);
       toast.error(
