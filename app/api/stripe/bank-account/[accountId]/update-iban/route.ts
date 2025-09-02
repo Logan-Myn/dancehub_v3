@@ -99,15 +99,18 @@ export async function POST(
       }
     }
 
+    // Cast the response to BankAccount type for proper property access
+    const bankAccountData = newBankAccount as any;
+    
     return NextResponse.json({
       success: true,
       bankAccount: {
-        id: newBankAccount.id,
-        last4: newBankAccount.last4,
-        country: newBankAccount.country,
-        currency: newBankAccount.currency,
-        account_holder_name: newBankAccount.account_holder_name,
-        default_for_currency: newBankAccount.default_for_currency,
+        id: bankAccountData.id,
+        last4: bankAccountData.last4,
+        country: bankAccountData.country,
+        currency: bankAccountData.currency,
+        account_holder_name: bankAccountData.account_holder_name,
+        default_for_currency: bankAccountData.default_for_currency,
       },
       message: 'Bank account updated successfully'
     });
