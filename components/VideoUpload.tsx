@@ -45,7 +45,9 @@ export default function VideoUpload({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get upload URL");
+        const errorText = await response.text();
+        console.error("Failed to get upload URL:", response.status, errorText);
+        throw new Error(`Failed to get upload URL: ${response.status} ${errorText}`);
       }
 
       const { uploadId, uploadUrl } = await response.json();
@@ -71,7 +73,13 @@ export default function VideoUpload({
         });
 
         xhr.addEventListener("error", () => {
-          reject(new Error("Network error during upload"));
+          console.error("XMLHttpRequest error:", {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            readyState: xhr.readyState,
+            uploadUrl: uploadUrl
+          });
+          reject(new Error(`Network error during upload: ${xhr.status} ${xhr.statusText}`));
         });
 
         xhr.open("PUT", uploadUrl);

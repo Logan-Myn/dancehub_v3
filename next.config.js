@@ -47,7 +47,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co https://*.daily.co wss://*.daily.co https://api.daily.co",
+              "connect-src 'self' https://*.supabase.co https://*.daily.co wss://*.daily.co https://api.daily.co https://*.mux.com",
               "frame-src 'self' https://*.daily.co",
               "media-src 'self' blob: https://*.daily.co",
               "worker-src 'self' blob:",
