@@ -1219,16 +1219,6 @@ export default function CommunitySettingsModal({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Membership Settings</h3>
-        {stripeAccountStatus.isEnabled && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Stripe Dashboard
-          </Button>
-        )}
       </div>
 
       {/* Stripe Requirements Alert */}
