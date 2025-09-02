@@ -154,6 +154,7 @@ export async function POST(request: Request) {
                 payment_status: 'succeeded',
                 lesson_status: 'scheduled', // Change from 'booked' to 'scheduled' since we have a time
                 scheduled_at: metadata.scheduled_at || null,
+                availability_slot_id: metadata.availability_slot_id || null, // Link to availability slot
                 student_message: metadata.student_message || '',
                 contact_info: contactInfo,
                 // Video room fields (these exist in the database)

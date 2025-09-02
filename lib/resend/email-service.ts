@@ -16,6 +16,7 @@ export enum EmailType {
 export interface EmailOptions {
   from?: string;
   replyTo?: string;
+  headers?: Record<string, string>;
   tracking?: {
     open: boolean;
     click: boolean;

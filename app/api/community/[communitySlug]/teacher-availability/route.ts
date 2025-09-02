@@ -49,10 +49,13 @@ export async function GET(
     // Otherwise, get the current user's availability (for teachers managing their own)
     const targetTeacherId = teacherId || user.id;
 
-    // Build query
+    // Build query to get available slots (excluding those with confirmed bookings)
     let query = supabase
       .from('teacher_availability_slots')
-      .select('*')
+      .select(`
+        *,
+        lesson_bookings!left(id, payment_status)
+      `)
       .eq('teacher_id', targetTeacherId)
       .eq('community_id', community.id)
       .eq('is_active', true)
@@ -74,7 +77,27 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch availability' }, { status: 500 });
     }
 
-    return NextResponse.json(slots || []);
+    // Filter out slots that have confirmed bookings (payment_status = 'succeeded')
+    const availableSlots = (slots || []).filter(slot => {
+      // If there are no bookings for this slot, it's available
+      if (!slot.lesson_bookings || slot.lesson_bookings.length === 0) {
+        return true;
+      }
+      
+      // Check if any booking for this slot has succeeded payment status
+      const hasConfirmedBooking = slot.lesson_bookings.some(
+        (booking: any) => booking.payment_status === 'succeeded'
+      );
+      
+      // Slot is available only if it doesn't have any confirmed bookings
+      return !hasConfirmedBooking;
+    }).map(slot => {
+      // Remove the lesson_bookings data from the response to keep it clean
+      const { lesson_bookings, ...cleanSlot } = slot;
+      return cleanSlot;
+    });
+
+    return NextResponse.json(availableSlots);
 
   } catch (error) {
     console.error('Error in teacher availability GET:', error);
