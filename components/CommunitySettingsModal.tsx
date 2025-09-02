@@ -730,11 +730,11 @@ export default function CommunitySettingsModal({
       const { url, requiresOnboarding, accountType, message } = await response.json();
       
       if (requiresOnboarding) {
-        toast.info("Completing Stripe setup first, then you can manage your bank account");
+        toast.success("Completing Stripe setup first, then you can manage your bank account");
       } else if (message) {
-        toast.info(message);
+        toast.success(message);
       } else if (accountType === 'custom') {
-        toast.info("Opening Stripe Dashboard to manage your bank account");
+        toast.success("Opening Stripe Dashboard to manage your bank account");
       }
       
       // Redirect to appropriate Stripe interface
