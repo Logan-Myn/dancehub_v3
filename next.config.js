@@ -43,13 +43,13 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://*.daily.co",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://*.daily.co https://www.gstatic.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co https://*.daily.co wss://*.daily.co https://api.daily.co https://*.mux.com",
+              "connect-src 'self' https://*.supabase.co https://*.daily.co wss://*.daily.co https://api.daily.co https://*.mux.com https://*.litix.io",
               "frame-src 'self' https://*.daily.co",
-              "media-src 'self' blob: https://*.daily.co",
+              "media-src 'self' blob: https://*.daily.co https://*.mux.com",
               "worker-src 'self' blob:",
             ].join('; ')
           }
