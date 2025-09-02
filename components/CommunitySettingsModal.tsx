@@ -225,6 +225,9 @@ export default function CommunitySettingsModal({
   const [isLoadingBank, setIsLoadingBank] = useState(false);
   const [ibanInput, setIbanInput] = useState("");
   const [isUpdatingIban, setIsUpdatingIban] = useState(false);
+  const [showIbanUpdateForm, setShowIbanUpdateForm] = useState(false);
+  const [newIban, setNewIban] = useState('');
+  const [newAccountHolderName, setNewAccountHolderName] = useState('');
   const [refreshMembersTrigger, setRefreshMembersTrigger] = useState(0);
   
   // Custom Stripe onboarding state
@@ -724,12 +727,78 @@ export default function CommunitySettingsModal({
         throw new Error(error.error || "Failed to access Stripe dashboard");
       }
 
-      const { url } = await response.json();
-      // Redirect to Stripe dashboard
+      const { url, requiresOnboarding, accountType, message } = await response.json();
+      
+      if (requiresOnboarding) {
+        toast.info("Completing Stripe setup first, then you can manage your bank account");
+      } else if (message) {
+        toast.info(message);
+      } else if (accountType === 'custom') {
+        toast.info("Opening Stripe Dashboard to manage your bank account");
+      }
+      
+      // Redirect to appropriate Stripe interface
       window.location.href = url;
     } catch (error: any) {
       console.error("Error accessing Stripe dashboard:", error);
       toast.error(error.message || "Failed to access Stripe dashboard");
+    } finally {
+      setIsUpdatingIban(false);
+    }
+  };
+
+  const handleSubmitIbanUpdate = async () => {
+    if (!stripeAccountId || !newIban || !newAccountHolderName) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsUpdatingIban(true);
+    try {
+      // Get user session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("You must be logged in to update bank account");
+        return;
+      }
+
+      const response = await fetch(
+        `/api/stripe/bank-account/${stripeAccountId}/update-iban`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            iban: newIban,
+            accountHolderName: newAccountHolderName,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update bank account");
+      }
+
+      const { bankAccount, message } = await response.json();
+      
+      // Update local state with new bank account info
+      setBankAccount({
+        last4: bankAccount.last4,
+        bank_name: "Updated",
+      });
+      
+      // Clear form and close
+      setShowIbanUpdateForm(false);
+      setNewIban('');
+      setNewAccountHolderName('');
+      
+      toast.success(message || "Bank account updated successfully!");
+    } catch (error: any) {
+      console.error("Error updating IBAN:", error);
+      toast.error(error.message || "Failed to update bank account");
     } finally {
       setIsUpdatingIban(false);
     }
@@ -1398,28 +1467,88 @@ export default function CommunitySettingsModal({
               <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
             </div>
           ) : bankAccount ? (
-            <div className="mt-2 space-y-2">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Bank Name: {bankAccount.bank_name || "N/A"}
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Account Ending In: **** {bankAccount.last4 || "N/A"}
-              </p>
-              <Button
-                variant="outline"
-                onClick={handleUpdateIban}
-                disabled={isUpdatingIban}
-                className="mt-2"
-              >
-                {isUpdatingIban ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Manage Bank Account
-              </Button>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                To update your bank account details, you&apos;ll be
-                redirected to your Stripe Express dashboard.
-              </p>
+            <div className="mt-2 space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Bank Name: {bankAccount.bank_name || "N/A"}
+                </p>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Account Ending In: **** {bankAccount.last4 || "N/A"}
+                </p>
+              </div>
+
+              {/* IBAN Update Form */}
+              {showIbanUpdateForm ? (
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg space-y-4">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100">
+                    Update Bank Account
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        IBAN
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="FR76 1234 5678 9012 3456 7890 123"
+                        value={newIban}
+                        onChange={(e) => setNewIban(e.target.value.toUpperCase())}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Account Holder Name
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Your full name as it appears on the account"
+                        value={newAccountHolderName}
+                        onChange={(e) => setNewAccountHolderName(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSubmitIbanUpdate}
+                        disabled={isUpdatingIban || !newIban || !newAccountHolderName}
+                        className="flex-1"
+                      >
+                        {isUpdatingIban ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Update Bank Account
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowIbanUpdateForm(false);
+                          setNewIban('');
+                          setNewAccountHolderName('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Note: This will replace your current bank account with the new one.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowIbanUpdateForm(true)}
+                    className="w-full"
+                  >
+                    Update Bank Account
+                  </Button>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    Update your IBAN or account holder details directly in the app
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="mt-2">
