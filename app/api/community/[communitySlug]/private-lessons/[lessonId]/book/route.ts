@@ -100,10 +100,13 @@ export async function POST(
     // No more pre-booking! Booking will be created only after payment succeeds
 
     // Store booking data in PaymentIntent metadata for webhook processing
+    const privateLessonFeePercentage = 5.0; // 5% platform fee for private lessons
+    
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: Math.round(price * 100), // Convert to cents
         currency: "eur", // You might want to make this configurable
+        application_fee_amount: Math.round((price * privateLessonFeePercentage / 100) * 100), // 5% platform fee in cents
         metadata: {
           type: "private_lesson",
           lesson_id: lessonId,
@@ -117,6 +120,8 @@ export async function POST(
           availability_slot_id: bookingData.availability_slot_id || "",
           is_member: isMember.toString(),
           price_paid: price.toString(),
+          platform_fee_percentage: privateLessonFeePercentage.toString(),
+          platform_fee_amount: (price * privateLessonFeePercentage / 100).toString(),
         },
         description: `Private Lesson: ${lesson.title} - ${community.name}`,
         receipt_email: bookingData.student_email,
