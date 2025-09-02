@@ -40,11 +40,12 @@ export async function POST(request: Request) {
     // Generate email confirmation URL using Supabase's method
     const { data: urlData, error: urlError } = await supabase.auth.admin.generateLink({
       type: 'signup',
-      email: email,
+      email,
+      password,
       options: {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}${redirectTo || '/dashboard'}`,
       }
-    });
+    } as any);
 
     if (urlError || !urlData.properties?.action_link) {
       console.error('Error generating confirmation URL:', urlError);
