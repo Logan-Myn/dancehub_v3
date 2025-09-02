@@ -76,7 +76,7 @@ export async function POST(
         account_holder_name: accountHolderName,
         account_holder_type: 'individual',
         iban: iban,
-      },
+      } as any, // Type assertion needed for IBAN field
     });
 
     // If the old bank account was default, make the new one default
