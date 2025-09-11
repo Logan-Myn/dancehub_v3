@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ interface CreatePrivateLessonModalProps {
   onClose: () => void;
   communitySlug: string;
   onSuccess: () => void;
+  editingLesson?: any; // Pass lesson data when editing
 }
 
 export default function CreatePrivateLessonModal({
@@ -24,6 +25,7 @@ export default function CreatePrivateLessonModal({
   onClose,
   communitySlug,
   onSuccess,
+  editingLesson,
 }: CreatePrivateLessonModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -37,6 +39,36 @@ export default function CreatePrivateLessonModal({
     max_bookings_per_month: null as number | null,
     requirements: "",
   });
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editingLesson && isOpen) {
+      setFormData({
+        title: editingLesson.title || "",
+        description: editingLesson.description || "",
+        duration_minutes: editingLesson.duration_minutes || 60,
+        regular_price: editingLesson.regular_price ? (editingLesson.regular_price / 100).toString() : "",
+        member_price: editingLesson.member_price ? (editingLesson.member_price / 100).toString() : "",
+        location_type: editingLesson.location_type || "online",
+        is_active: editingLesson.is_active !== undefined ? editingLesson.is_active : true,
+        max_bookings_per_month: editingLesson.max_bookings_per_month || null,
+        requirements: editingLesson.requirements || "",
+      });
+    } else if (!editingLesson && isOpen) {
+      // Reset to default values when creating new
+      setFormData({
+        title: "",
+        description: "",
+        duration_minutes: 60,
+        regular_price: "",
+        member_price: "",
+        location_type: "online",
+        is_active: true,
+        max_bookings_per_month: null,
+        requirements: "",
+      });
+    }
+  }, [editingLesson, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,12 +104,18 @@ export default function CreatePrivateLessonModal({
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        toast.error("You must be logged in to create private lessons");
+        toast.error(`You must be logged in to ${editingLesson ? 'update' : 'create'} private lessons`);
         return;
       }
 
-      const response = await fetch(`/api/community/${communitySlug}/private-lessons`, {
-        method: "POST",
+      const url = editingLesson 
+        ? `/api/community/${communitySlug}/private-lessons/${editingLesson.id}`
+        : `/api/community/${communitySlug}/private-lessons`;
+      
+      const method = editingLesson ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
@@ -87,10 +125,10 @@ export default function CreatePrivateLessonModal({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to create private lesson");
+        throw new Error(error.error || `Failed to ${editingLesson ? 'update' : 'create'} private lesson`);
       }
 
-      toast.success("Private lesson created successfully!");
+      toast.success(`Private lesson ${editingLesson ? 'updated' : 'created'} successfully!`);
       onSuccess();
       onClose();
       
@@ -126,7 +164,7 @@ export default function CreatePrivateLessonModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Create Private Lesson
+            {editingLesson ? 'Edit Private Lesson' : 'Create Private Lesson'}
           </DialogTitle>
         </DialogHeader>
 
@@ -294,12 +332,12 @@ export default function CreatePrivateLessonModal({
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Creating...
+                  {editingLesson ? 'Updating...' : 'Creating...'}
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Private Lesson
+                  {editingLesson ? 'Update Private Lesson' : 'Create Private Lesson'}
                 </>
               )}
             </Button>

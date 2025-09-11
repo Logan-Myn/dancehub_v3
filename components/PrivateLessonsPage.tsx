@@ -5,8 +5,9 @@ import { PrivateLesson } from "@/types/private-lessons";
 import PrivateLessonCard from "./PrivateLessonCard";
 import LessonBookingModal from "./LessonBookingModal";
 import CreatePrivateLessonModal from "./CreatePrivateLessonModal";
+import PrivateLessonManagementModal from "./PrivateLessonManagementModal";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen } from "lucide-react";
+import { Plus, BookOpen, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -29,6 +30,7 @@ export default function PrivateLessonsPage({
   const [selectedLesson, setSelectedLesson] = useState<PrivateLesson | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
 
   useEffect(() => {
     fetchLessons();
@@ -88,10 +90,19 @@ export default function PrivateLessonsPage({
           </p>
         </div>
         {isCreator && (
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Private Lesson
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsManagementModalOpen(true)}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Manage Lessons
+            </Button>
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Private Lesson
+            </Button>
+          </div>
         )}
       </div>
 
@@ -168,6 +179,16 @@ export default function PrivateLessonsPage({
         communitySlug={communitySlug}
         onSuccess={handleCreateSuccess}
       />
+
+      {/* Management Modal */}
+      {isCreator && (
+        <PrivateLessonManagementModal
+          isOpen={isManagementModalOpen}
+          onClose={() => setIsManagementModalOpen(false)}
+          communityId={communityId}
+          communitySlug={communitySlug}
+        />
+      )}
     </div>
   );
 } 
