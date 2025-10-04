@@ -481,6 +481,160 @@ export class VideoRoomService {
       }
     }
   }
+
+  // Live Class Methods
+
+  /**
+   * Create a Daily.co room for a live class
+   */
+  async createRoomForLiveClass(classId: string): Promise<VideoRoomResult> {
+    try {
+      console.log(`🎬 Creating video room for live class ${classId}...`);
+
+      const liveClass = await this.getLiveClassDetails(classId);
+      if (!liveClass) {
+        return { success: false, error: 'Live class not found' };
+      }
+
+      const { roomName, roomExpiration } = await this.generateLiveClassRoom(liveClass);
+      
+      console.log(`🎬 Generated room name: ${roomName}`);
+
+      const dailyRoom = await this.createDailyRoomForLiveClass(roomName, roomExpiration);
+      
+      await this.updateLiveClassWithRoomDetails(classId, dailyRoom, roomExpiration);
+
+      console.log(`✅ Successfully created video room for live class ${classId}`);
+      return { 
+        success: true, 
+        roomName: dailyRoom.name, 
+        roomUrl: dailyRoom.url 
+      };
+    } catch (error) {
+      console.error(`❌ Failed to create video room for live class ${classId}:`, error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  /**
+   * Generate tokens for a live class room
+   */
+  async generateTokensForLiveClass(
+    classId: string, 
+    userId: string, 
+    isTeacher: boolean = false
+  ): Promise<{ token: string; expires: number } | null> {
+    try {
+      const liveClass = await this.getLiveClassDetails(classId);
+      if (!liveClass || !liveClass.daily_room_name) {
+        console.error('Live class or room not found');
+        return null;
+      }
+
+      const expiration = Math.floor(Date.now() / 1000) + (4 * 60 * 60); // 4 hours
+
+      const tokenConfig: DailyMeetingToken = {
+        room_name: liveClass.daily_room_name,
+        user_name: isTeacher ? 'Teacher' : 'Student',
+        user_id: userId,
+        is_owner: isTeacher,
+        exp: expiration,
+        enable_screenshare: isTeacher,
+      };
+
+      const response = await this.createMeetingToken(tokenConfig);
+      return {
+        token: response.token,
+        expires: expiration,
+      };
+    } catch (error) {
+      console.error('Error generating live class tokens:', error);
+      return null;
+    }
+  }
+
+  private async getLiveClassDetails(classId: string) {
+    const { data: liveClass, error } = await supabase
+      .from("live_classes")
+      .select("*")
+      .eq("id", classId)
+      .single();
+
+    if (error || !liveClass) {
+      console.error(`Live class ${classId} not found:`, error);
+      return null;
+    }
+
+    return liveClass;
+  }
+
+  private async generateLiveClassRoom(liveClass: any) {
+    const roomName = `live-class-${liveClass.id.replace(/-/g, '')}`;
+    
+    // Calculate room expiration (class time + duration + 30 minute buffer)
+    const classStart = new Date(liveClass.scheduled_start_time).getTime() / 1000;
+    const bufferMinutes = 30;
+    const totalMinutes = liveClass.duration_minutes + bufferMinutes;
+    const roomExpiration = classStart + (totalMinutes * 60);
+
+    // Ensure expiration is in the future
+    const now = Math.floor(Date.now() / 1000);
+    const finalExpiration = Math.max(roomExpiration, now + (2 * 60 * 60)); // At least 2 hours from now
+
+    console.log('⏰ Live class room expires at:', new Date(finalExpiration * 1000).toISOString());
+
+    return { roomName, roomExpiration: finalExpiration };
+  }
+
+  private async createDailyRoomForLiveClass(roomName: string, expiration: number) {
+    const roomConfig: DailyRoomConfig = {
+      name: roomName,
+      privacy: 'private',
+      properties: {
+        max_participants: 50, // Support larger groups for live classes
+        exp: expiration,
+        eject_at_room_exp: true,
+        enable_chat: true,
+        enable_screenshare: true,
+        enable_recording: 'cloud',
+        owner_only_broadcast: false,
+        enable_knocking: false,
+        lang: 'en',
+      },
+    };
+
+    console.log('🎬 Creating Daily.co live class room with config:', {
+      name: roomConfig.name,
+      privacy: roomConfig.privacy,
+      max_participants: roomConfig.properties?.max_participants,
+      expires_at: new Date(expiration * 1000).toISOString(),
+    });
+
+    return this.makeApiRequest(`${DAILY_API_URL}/rooms`, 'POST', roomConfig);
+  }
+
+  private async updateLiveClassWithRoomDetails(
+    classId: string,
+    dailyRoom: any,
+    expiration: number
+  ) {
+    const { error } = await supabase
+      .from("live_classes")
+      .update({
+        daily_room_name: dailyRoom.name,
+        daily_room_url: dailyRoom.url,
+        daily_room_expires_at: new Date(expiration * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", classId);
+
+    if (error) {
+      throw new Error(`Failed to update live class with room details: ${error.message}`);
+    }
+  }
 }
 
 // Export singleton instance

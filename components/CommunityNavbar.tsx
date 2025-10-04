@@ -13,6 +13,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
     { label: "Community", href: `/${communitySlug}` },
     { label: "Classroom", href: `/${communitySlug}/classroom`, memberOnly: true },
     { label: "Private Lessons", href: `/${communitySlug}/private-lessons`, memberOnly: false },
+    { label: "Calendar", href: `/${communitySlug}/calendar`, memberOnly: true },
     { label: "About", href: `/${communitySlug}/about` },
   ];
 
