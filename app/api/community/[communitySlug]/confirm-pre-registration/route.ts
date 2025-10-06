@@ -29,7 +29,7 @@ export async function POST(
       );
     }
 
-    // Retrieve the SetupIntent to get the payment method
+    // Retrieve the SetupIntent to get the payment method and metadata
     const setupIntent = await stripe.setupIntents.retrieve(
       setupIntentId,
       {
@@ -45,38 +45,53 @@ export async function POST(
     }
 
     const paymentMethodId = setupIntent.payment_method as string;
+    const customerId = setupIntent.metadata?.stripe_customer_id;
+    const platformFeePercentage = parseFloat(setupIntent.metadata?.platform_fee_percentage || '0');
 
-    // Get member record
-    const { data: member, error: memberError } = await supabase
+    if (!customerId) {
+      return NextResponse.json(
+        { error: "Customer ID not found in setup intent" },
+        { status: 400 }
+      );
+    }
+
+    // Check if user is already a member or pre-registered
+    const { data: existingMember } = await supabase
       .from("community_members")
       .select()
       .eq("community_id", community.id)
       .eq("user_id", userId)
       .single();
 
-    if (memberError || !member) {
+    if (existingMember) {
       return NextResponse.json(
-        { error: "Pre-registration not found" },
-        { status: 404 }
+        { error: "User is already a member or pre-registered" },
+        { status: 400 }
       );
     }
 
-    // Create a scheduled invoice that will automatically finalize on opening date
+    // Create a subscription that starts on the opening date
     // Convert opening_date to Unix timestamp
     const openingTimestamp = Math.floor(new Date(community.opening_date).getTime() / 1000);
 
-    const invoice = await stripe.invoices.create(
+    // Create subscription with billing_cycle_anchor set to opening date
+    const subscription = await stripe.subscriptions.create(
       {
-        customer: member.stripe_customer_id!,
-        auto_advance: true,
-        collection_method: 'charge_automatically',
+        customer: customerId,
+        items: [
+          {
+            price: community.stripe_price_id,
+          },
+        ],
         default_payment_method: paymentMethodId,
-        subscription: undefined, // Not a subscription invoice
+        billing_cycle_anchor: openingTimestamp,
+        proration_behavior: 'none',
+        payment_behavior: 'default_incomplete', // Don't charge immediately
         metadata: {
           user_id: userId,
           community_id: community.id,
-          platform_fee_percentage: member.platform_fee_percentage?.toString() || '0',
-          is_pre_registration_charge: 'true'
+          platform_fee_percentage: platformFeePercentage.toString(),
+          is_pre_registration: 'true',
         },
       },
       {
@@ -84,46 +99,37 @@ export async function POST(
       }
     );
 
-    // Add invoice item for membership
-    await stripe.invoiceItems.create(
-      {
-        customer: member.stripe_customer_id!,
-        invoice: invoice.id,
-        price: community.stripe_price_id,
-        metadata: {
-          type: 'pre_registration_membership'
-        }
-      },
-      {
-        stripeAccount: community.stripe_account_id,
-      }
-    );
-
-    // Schedule the invoice to be finalized on opening date
-    const scheduledInvoice = await stripe.invoices.update(
-      invoice.id,
-      {
-        auto_advance: true,
-        automatically_finalizes_at: openingTimestamp,
-      },
-      {
-        stripeAccount: community.stripe_account_id,
-      }
-    );
-
-    // Update member record with payment method and invoice ID
-    const { error: updateError } = await supabase
+    // Create member record now that payment method is saved
+    const { error: memberError } = await supabase
       .from("community_members")
-      .update({
-        pre_registration_payment_method_id: paymentMethodId,
-        stripe_invoice_id: scheduledInvoice.id,
+      .insert({
+        community_id: community.id,
+        user_id: userId,
+        joined_at: new Date().toISOString(),
+        pre_registration_date: new Date().toISOString(),
+        role: "member",
         status: "pre_registered",
-      })
-      .eq("community_id", community.id)
-      .eq("user_id", userId);
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subscription.id,
+        platform_fee_percentage: platformFeePercentage,
+        pre_registration_payment_method_id: paymentMethodId,
+      });
 
-    if (updateError) {
-      console.error("Error updating member:", updateError);
+    if (memberError) {
+      console.error("Error creating member record:", memberError);
+
+      // Try to cancel the subscription if member creation fails
+      try {
+        await stripe.subscriptions.cancel(
+          subscription.id,
+          {
+            stripeAccount: community.stripe_account_id,
+          }
+        );
+      } catch (cancelError) {
+        console.error("Error canceling subscription:", cancelError);
+      }
+
       return NextResponse.json(
         { error: "Failed to confirm pre-registration" },
         { status: 500 }

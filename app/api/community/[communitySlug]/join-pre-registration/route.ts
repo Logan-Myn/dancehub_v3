@@ -116,6 +116,7 @@ export async function POST(
           community_id: community.id,
           platform_fee_percentage: feePercentage.toString(),
           opening_date: community.opening_date,
+          stripe_customer_id: customer.id,
         },
       },
       {
@@ -123,44 +124,15 @@ export async function POST(
       }
     );
 
-    // Add member to community_members with pre_registration status
-    const { error: memberError } = await supabase
-      .from("community_members")
-      .insert({
-        community_id: community.id,
-        user_id: userId,
-        joined_at: new Date().toISOString(),
-        pre_registration_date: new Date().toISOString(),
-        role: "member",
-        status: "pending_pre_registration",
-        stripe_customer_id: customer.id,
-        platform_fee_percentage: feePercentage,
-      });
-
-    if (memberError) {
-      console.error("Error adding pre-registered member:", memberError);
-      // Cancel the setup intent if member creation fails
-      try {
-        await stripe.setupIntents.cancel(
-          setupIntent.id,
-          {
-            stripeAccount: community.stripe_account_id,
-          }
-        );
-      } catch (cancelError) {
-        console.error("Error canceling setup intent:", cancelError);
-      }
-      return NextResponse.json(
-        { error: "Failed to pre-register" },
-        { status: 500 }
-      );
-    }
-
+    // Return setup intent details for payment method collection
+    // Member record will be created after payment method is successfully saved
     return NextResponse.json({
       clientSecret: setupIntent.client_secret,
       stripeAccountId: community.stripe_account_id,
       setupIntentId: setupIntent.id,
       openingDate: community.opening_date,
+      customerId: customer.id,
+      platformFeePercentage: feePercentage,
     });
   } catch (error) {
     console.error("Error creating pre-registration:", error);
