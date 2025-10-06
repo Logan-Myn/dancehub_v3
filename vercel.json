@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/cron/process-community-openings",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 } 
