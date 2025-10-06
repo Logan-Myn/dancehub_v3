@@ -111,7 +111,7 @@ function PaymentForm({
               {formatDate(openingDate)}
             </p>
             <p className="text-sm text-blue-600 mt-2">
-              Amount: €{(price / 100).toFixed(2)}/month
+              Amount: €{price.toFixed(2)}/month
             </p>
           </div>
         </div>
