@@ -468,8 +468,7 @@ export async function POST(request: Request) {
           .from('community_members')
           .update({
             subscription_status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            updated_at: new Date().toISOString()
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
           })
           .eq('community_id', subscription.metadata.community_id)
           .eq('user_id', subscription.metadata.user_id);
