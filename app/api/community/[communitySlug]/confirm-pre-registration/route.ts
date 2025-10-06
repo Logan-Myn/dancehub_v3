@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import Stripe from "stripe";
+import React from "react";
+import { getEmailService } from "@/lib/resend/email-service";
+import { PreRegistrationConfirmationEmail } from "@/lib/resend/templates/community/pre-registration-confirmation";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
 const supabase = createAdminClient();
+const emailService = getEmailService();
 
 export async function POST(
   request: Request,
@@ -18,7 +22,7 @@ export async function POST(
     // Get community details
     const { data: community, error: communityError } = await supabase
       .from("communities")
-      .select("id, membership_price, stripe_account_id, stripe_price_id, opening_date")
+      .select("id, name, membership_price, stripe_account_id, stripe_price_id, opening_date")
       .eq("slug", params.communitySlug)
       .single();
 
@@ -136,7 +140,35 @@ export async function POST(
       );
     }
 
-    // TODO: Send pre-registration confirmation email
+    // Get user profile for email
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', userId)
+      .single();
+
+    // Send pre-registration confirmation email
+    try {
+      const communityUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${params.communitySlug}`;
+
+      await emailService.sendTransactionalEmail(
+        userProfile?.email || '',
+        `Pre-Registration Confirmed for ${community.name}`,
+        React.createElement(PreRegistrationConfirmationEmail, {
+          memberName: userProfile?.full_name || 'there',
+          communityName: community.name,
+          communityUrl: communityUrl,
+          openingDate: community.opening_date,
+          membershipPrice: (community.membership_price || 0) * 100, // Convert to cents for email template
+          currency: 'EUR',
+        })
+      );
+
+      console.log('Pre-registration confirmation email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send pre-registration confirmation email:', emailError);
+      // Don't fail the request if email fails
+    }
 
     return NextResponse.json({
       success: true,
