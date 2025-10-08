@@ -12,7 +12,6 @@ interface CustomDailyRoomProps {
   onLeave: () => void;
   className?: string;
   classTitle?: string;
-  userName?: string;
 }
 
 function CallInterface({ onLeave, classTitle }: { onLeave: () => void; classTitle?: string }) {
@@ -128,8 +127,7 @@ export default function CustomDailyRoom({
   roomUrl,
   token,
   onLeave,
-  classTitle,
-  userName
+  classTitle
 }: CustomDailyRoomProps) {
   const callObjectRef = useRef<any>(null);
   const [isCallObjectReady, setIsCallObjectReady] = useState(false);
@@ -176,7 +174,6 @@ export default function CustomDailyRoom({
         await callObject.join({
           url: roomUrl,
           token: token,
-          userName: userName || 'Guest',
         });
 
         console.log("✅ Successfully joined call");
@@ -202,7 +199,7 @@ export default function CustomDailyRoom({
         hasJoinedRef.current = false;
       }
     };
-  }, [roomUrl, token, userName]);
+  }, [roomUrl, token]);
 
   if (!isCallObjectReady) {
     return (

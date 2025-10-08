@@ -523,9 +523,10 @@ export class VideoRoomService {
    * Generate tokens for a live class room
    */
   async generateTokensForLiveClass(
-    classId: string, 
-    userId: string, 
-    isTeacher: boolean = false
+    classId: string,
+    userId: string,
+    isTeacher: boolean = false,
+    userName?: string
   ): Promise<{ token: string; expires: number } | null> {
     try {
       const liveClass = await this.getLiveClassDetails(classId);
@@ -538,7 +539,7 @@ export class VideoRoomService {
 
       const tokenConfig: DailyMeetingToken = {
         room_name: liveClass.daily_room_name,
-        user_name: isTeacher ? 'Teacher' : 'Student',
+        user_name: userName || (isTeacher ? 'Teacher' : 'Student'),
         user_id: userId,
         is_owner: isTeacher,
         exp: expiration,

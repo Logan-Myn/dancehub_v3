@@ -43,10 +43,19 @@ export async function GET(
       );
     }
 
+    // Get user profile for display name
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("display_name, full_name")
+      .eq("id", user.id)
+      .single();
+
+    const userName = profile?.display_name || profile?.full_name || user.email?.split('@')[0] || 'Guest';
+
     // Check if user is authorized to join (community member, teacher, or creator)
     const isTeacher = liveClass.teacher_id === user.id;
     const isCreator = liveClass.community_created_by === user.id;
-    
+
     if (!isTeacher && !isCreator) {
       // Check if user is a community member
       const { data: membership } = await adminSupabase
@@ -111,7 +120,8 @@ export async function GET(
     const tokens = await videoRoomService.generateTokensForLiveClass(
       params.classId,
       user.id,
-      isTeacher
+      isTeacher,
+      userName
     );
 
     if (!tokens) {
