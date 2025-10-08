@@ -28,7 +28,7 @@ interface WeekCalendarProps {
   isTeacher: boolean;
 }
 
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 6 AM to 8 PM
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function WeekCalendar({ communityId, communitySlug, isTeacher }: WeekCalendarProps) {

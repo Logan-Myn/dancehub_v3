@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/client";
 import { cookies } from "next/headers";
+import { videoRoomService } from "@/lib/video-room-service";
 
 export async function GET(
   request: NextRequest,
@@ -54,8 +55,8 @@ export async function PUT(
   { params }: { params: { communitySlug: string; classId: string } }
 ) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const cookieStore = await cookies();
+    const supabase = createClient();
     const adminSupabase = createAdminClient();
 
     // Check authentication
@@ -84,7 +85,7 @@ export async function PUT(
     // Get the live class to check ownership
     const { data: liveClass, error: classError } = await adminSupabase
       .from("live_classes")
-      .select("teacher_id")
+      .select("teacher_id, daily_room_name")
       .eq("id", params.classId)
       .eq("community_id", community.id)
       .single();
@@ -129,6 +130,14 @@ export async function PUT(
       );
     }
 
+    // If the class doesn't have a Daily.co room, create one
+    if (!liveClass.daily_room_name) {
+      const videoRoomResult = await videoRoomService.createRoomForLiveClass(params.classId);
+      if (!videoRoomResult.success) {
+        console.error("Warning: Failed to create video room for live class:", videoRoomResult.error);
+      }
+    }
+
     return NextResponse.json(updatedClass);
   } catch (error) {
     console.error("Error in live class PUT:", error);
@@ -144,8 +153,8 @@ export async function DELETE(
   { params }: { params: { communitySlug: string; classId: string } }
 ) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const cookieStore = await cookies();
+    const supabase = createClient();
     const adminSupabase = createAdminClient();
 
     // Check authentication

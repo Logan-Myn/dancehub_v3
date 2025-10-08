@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { videoRoomService } from "@/lib/video-room-service";
 
 export async function GET(
   request: NextRequest,
@@ -140,6 +141,15 @@ export async function POST(
         { error: "Failed to create live class" },
         { status: 500 }
       );
+    }
+
+    // Create Daily.co video room for the live class
+    const videoRoomResult = await videoRoomService.createRoomForLiveClass(liveClass.id);
+
+    if (!videoRoomResult.success) {
+      console.error("Warning: Failed to create video room for live class:", videoRoomResult.error);
+      // Don't fail the entire request - the class is created, just without a video room
+      // The room can be created later or manually
     }
 
     return NextResponse.json(liveClass, { status: 201 });
