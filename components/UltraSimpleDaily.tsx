@@ -11,9 +11,10 @@ declare global {
 interface UltraSimpleDailyProps {
   roomUrl: string;
   token: string;
+  onLeave?: () => void;
 }
 
-export default function UltraSimpleDaily({ roomUrl, token }: UltraSimpleDailyProps) {
+export default function UltraSimpleDaily({ roomUrl, token, onLeave }: UltraSimpleDailyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<any>(null);
 
@@ -52,12 +53,18 @@ export default function UltraSimpleDaily({ roomUrl, token }: UltraSimpleDailyPro
 
         // Join immediately with token
         console.log('Joining with URL:', roomUrl);
-        await frame.join({ 
+        await frame.join({
           url: roomUrl,
-          token: token 
+          token: token
         });
-        
+
         console.log('Join command sent');
+
+        // Listen for when user leaves the call
+        frame.on('left-meeting', () => {
+          console.log('User left the meeting');
+          onLeave?.();
+        });
       } catch (error) {
         console.error('Failed to create/join Daily frame:', error);
       }

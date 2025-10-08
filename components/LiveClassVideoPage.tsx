@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { ClockIcon, UsersIcon, VideoCameraIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ interface VideoToken {
 }
 
 export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVideoPageProps) {
+  const router = useRouter();
   const [videoToken, setVideoToken] = useState<VideoToken | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -89,6 +91,11 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
   const handleJoinClick = () => {
     setHasJoined(true);
     fetchVideoToken();
+  };
+
+  const handleLeave = () => {
+    // Redirect to community page when user leaves the call
+    router.push(`/${liveClass.community_slug}`);
   };
 
   const getStatusDisplay = () => {
@@ -248,9 +255,10 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
       ) : (
         // Video session
         <div className="h-screen">
-          <UltraSimpleDaily 
+          <UltraSimpleDaily
             roomUrl={videoToken.roomUrl}
             token={videoToken.token}
+            onLeave={handleLeave}
           />
         </div>
       )}
