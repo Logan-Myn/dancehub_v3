@@ -2,7 +2,6 @@
 
 import { format, parseISO } from "date-fns";
 import { PlayIcon, ClockIcon } from "@heroicons/react/24/solid";
-import Link from "next/link";
 import { useState } from "react";
 
 interface LiveClass {
@@ -21,9 +20,10 @@ interface LiveClass {
 interface LiveClassCardProps {
   liveClass: LiveClass;
   communitySlug: string;
+  onClick?: () => void;
 }
 
-export default function LiveClassCard({ liveClass, communitySlug }: LiveClassCardProps) {
+export default function LiveClassCard({ liveClass, communitySlug, onClick }: LiveClassCardProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const startTime = parseISO(liveClass.scheduled_start_time);
   const endTime = new Date(startTime.getTime() + liveClass.duration_minutes * 60000);
@@ -41,19 +41,19 @@ export default function LiveClassCard({ liveClass, communitySlug }: LiveClassCar
     return 'bg-blue-500 hover:bg-blue-600 text-white border-blue-600';
   };
 
-  const canJoin = liveClass.is_currently_active || liveClass.is_starting_soon;
-  const linkHref = canJoin ? `/${communitySlug}/live-class/${liveClass.id}` : '#';
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent event bubbling to parent time slot
+    onClick?.();
+  };
 
   return (
     <div className="relative w-full">
-      <Link
-        href={linkHref}
-        onClick={(e) => !canJoin && e.preventDefault()}
+      <div
+        onClick={handleClick}
         className={`
           block w-full rounded-md border-l-4 px-2 py-1.5 mb-1
           transition-all duration-150 cursor-pointer
           ${getBackgroundColor()}
-          ${!canJoin ? 'cursor-default' : ''}
         `}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
@@ -74,7 +74,7 @@ export default function LiveClassCard({ liveClass, communitySlug }: LiveClassCar
             </div>
           )}
         </div>
-      </Link>
+      </div>
 
       {/* Tooltip on hover */}
       {showTooltip && (
@@ -111,13 +111,12 @@ export default function LiveClassCard({ liveClass, communitySlug }: LiveClassCar
             </p>
           )}
 
-          {canJoin && (
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs font-medium text-blue-600">
-                {liveClass.is_currently_active ? '🔴 Click to join now' : '⏰ Starting soon - Click to join'}
-              </p>
-            </div>
-          )}
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-medium text-blue-600">
+              Click to view details
+              {liveClass.is_currently_active && ' and join'}
+            </p>
+          </div>
         </div>
       )}
     </div>

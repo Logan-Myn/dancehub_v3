@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import LiveClassModal from "./LiveClassModal";
 import LiveClassCard from "./LiveClassCard";
+import LiveClassDetailsModal from "./LiveClassDetailsModal";
 import { createClient } from "@/lib/supabase/client";
 
 interface LiveClass {
@@ -37,6 +38,7 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedDateTime, setSelectedDateTime] = useState<Date | null>(null);
+  const [selectedClass, setSelectedClass] = useState<LiveClass | null>(null);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -213,6 +215,7 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
                             key={liveClass.id}
                             liveClass={liveClass}
                             communitySlug={communitySlug}
+                            onClick={() => setSelectedClass(liveClass)}
                           />
                         ))}
 
@@ -243,6 +246,15 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
             setSelectedDateTime(null);
           }}
           onClassCreated={handleClassCreated}
+        />
+      )}
+
+      {/* Live Class Details Modal */}
+      {selectedClass && (
+        <LiveClassDetailsModal
+          liveClass={selectedClass}
+          communitySlug={communitySlug}
+          onClose={() => setSelectedClass(null)}
         />
       )}
     </div>
