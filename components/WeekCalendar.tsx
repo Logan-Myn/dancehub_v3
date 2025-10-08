@@ -148,70 +148,86 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
       </div>
 
       {/* Calendar Grid */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="grid grid-cols-8 border-b border-gray-200">
-            {/* Time header */}
-            <div className="p-4 text-sm font-medium text-gray-500 border-r border-gray-200">
-              Time
-            </div>
-            
+      <Card className="shadow-sm">
+        <CardContent className="p-0 overflow-x-auto">
+          <div className="min-w-[800px]">
             {/* Day headers */}
-            {weekDays.map((day) => (
-              <div key={day.toISOString()} className="p-4 text-sm font-medium text-gray-900 border-r border-gray-200 last:border-r-0">
-                <div>{DAYS[day.getDay()]}</div>
-                <div className="text-lg font-bold text-gray-900 mt-1">
-                  {format(day, 'd')}
-                </div>
+            <div className="grid grid-cols-8 bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+              <div className="px-3 py-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50">
+                <div className="h-10 flex items-center">Time</div>
               </div>
-            ))}
-          </div>
 
-          {/* Time slots */}
-          <div className="divide-y divide-gray-200">
-            {HOURS.map((hour) => (
-              <div key={hour} className="grid grid-cols-8 min-h-[80px]">
-                {/* Time label */}
-                <div className="p-4 text-sm text-gray-500 border-r border-gray-200 flex items-center">
-                  {format(new Date().setHours(hour, 0, 0, 0), 'h:mm a')}
-                </div>
-
-                {/* Day slots */}
-                {weekDays.map((day) => {
-                  const classes = getClassesForTimeSlot(day, hour);
-                  const isPast = new Date(day.setHours(hour)) < new Date();
-                  
-                  return (
-                    <div
-                      key={`${day.toISOString()}-${hour}`}
-                      className={`border-r border-gray-200 last:border-r-0 p-2 relative ${
-                        isTeacher && !isPast
-                          ? 'hover:bg-blue-50 cursor-pointer'
-                          : isPast
-                          ? 'bg-gray-50'
-                          : ''
-                      }`}
-                      onClick={() => handleTimeSlotClick(day, hour)}
-                    >
-                      {classes.map((liveClass) => (
-                        <LiveClassCard
-                          key={liveClass.id}
-                          liveClass={liveClass}
-                          communitySlug={communitySlug}
-                        />
-                      ))}
-                      
-                      {/* Add class hint for teachers */}
-                      {isTeacher && !isPast && classes.length === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <PlusIcon className="h-6 w-6 text-blue-500" />
-                        </div>
-                      )}
+              {weekDays.map((day) => {
+                const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`px-2 py-2 text-center border-r border-gray-200 last:border-r-0 ${
+                      isToday ? 'bg-blue-50' : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className="text-[10px] font-medium text-gray-600 uppercase tracking-wide">
+                      {DAYS[day.getDay()].substring(0, 3)}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                    <div className={`text-2xl font-bold mt-0.5 ${
+                      isToday ? 'text-blue-600' : 'text-gray-900'
+                    }`}>
+                      {format(day, 'd')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Time slots */}
+            <div className="divide-y divide-gray-100">
+              {HOURS.map((hour) => (
+                <div key={hour} className="grid grid-cols-8 min-h-[60px]">
+                  {/* Time label */}
+                  <div className="px-3 py-2 text-xs text-gray-500 border-r border-gray-200 flex items-start bg-gray-50/50">
+                    <span className="font-medium">{format(new Date().setHours(hour, 0, 0, 0), 'h a')}</span>
+                  </div>
+
+                  {/* Day slots */}
+                  {weekDays.map((day) => {
+                    const classes = getClassesForTimeSlot(day, hour);
+                    const isPast = new Date(day.setHours(hour)) < new Date();
+                    const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+
+                    return (
+                      <div
+                        key={`${day.toISOString()}-${hour}`}
+                        className={`border-r border-gray-100 last:border-r-0 px-1.5 py-1 relative group ${
+                          isTeacher && !isPast
+                            ? 'hover:bg-blue-50/50 cursor-pointer'
+                            : isPast
+                            ? 'bg-gray-50/30'
+                            : isToday
+                            ? 'bg-blue-50/20'
+                            : 'bg-white'
+                        }`}
+                        onClick={() => handleTimeSlotClick(day, hour)}
+                      >
+                        {classes.map((liveClass) => (
+                          <LiveClassCard
+                            key={liveClass.id}
+                            liveClass={liveClass}
+                            communitySlug={communitySlug}
+                          />
+                        ))}
+
+                        {/* Add class hint for teachers */}
+                        {isTeacher && !isPast && classes.length === 0 && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <PlusIcon className="h-5 w-5 text-blue-400" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
