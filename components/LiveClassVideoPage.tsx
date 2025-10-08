@@ -43,6 +43,7 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasJoined, setHasJoined] = useState(false);
+  const [userName, setUserName] = useState<string>("");
 
   const startTime = parseISO(liveClass.scheduled_start_time);
   const endTime = new Date(startTime.getTime() + liveClass.duration_minutes * 60000);
@@ -66,12 +67,23 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
         return;
       }
 
+      // Fetch user profile to get display name
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, full_name')
+        .eq('id', session.user.id)
+        .single();
+
+      // Set user name (prefer display_name, fallback to full_name, then email)
+      const name = profile?.display_name || profile?.full_name || session.user.email?.split('@')[0] || 'Guest';
+      setUserName(name);
+
       const response = await fetch(`/api/live-classes/${classId}/video-token`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to get video access");
@@ -260,6 +272,7 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
             token={videoToken.token}
             onLeave={handleLeave}
             classTitle={liveClass.title}
+            userName={userName}
           />
         </div>
       )}
