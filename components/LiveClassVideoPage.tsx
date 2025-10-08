@@ -7,7 +7,7 @@ import { ClockIcon, UsersIcon, VideoCameraIcon } from "@heroicons/react/24/outli
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import UltraSimpleDaily from "./UltraSimpleDaily";
+import CustomDailyRoom from "./CustomDailyRoom";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
 
@@ -255,10 +255,11 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
       ) : (
         // Video session
         <div className="h-screen">
-          <UltraSimpleDaily
+          <CustomDailyRoom
             roomUrl={videoToken.roomUrl}
             token={videoToken.token}
             onLeave={handleLeave}
+            classTitle={liveClass.title}
           />
         </div>
       )}
