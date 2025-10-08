@@ -129,7 +129,7 @@ export default function LiveClassDetailsModal({
               Close
             </Button>
             {canJoin && (
-              <Link href={`/${communitySlug}/live-class/${liveClass.id}`} className="flex-1">
+              <Link href={`/live-class/${liveClass.id}`} className="flex-1">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
                   <VideoCameraIcon className="h-5 w-5" />
                   {liveClass.is_currently_active ? 'Join Now' : 'Join Soon'}
