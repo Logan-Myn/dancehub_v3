@@ -45,7 +45,7 @@ export const PreRegistrationConfirmationEmail: React.FC<PreRegistrationConfirmat
   };
 
   return (
-    <BaseLayout preview={preview} emailType="transactional">
+    <BaseLayout preview={preview}>
       <Heading style={{ ...EMAIL_STYLES.heading, textAlign: 'center' }}>
         Pre-Registration Confirmed! ✅
       </Heading>

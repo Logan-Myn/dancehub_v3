@@ -19,6 +19,8 @@ interface Community {
   membership_enabled?: boolean;
   membership_price?: number;
   stripe_account_id?: string | null;
+  status?: 'active' | 'pre_registration' | 'inactive';
+  opening_date?: string | null;
   about_page?: {
     sections: Section[];
     meta: {
@@ -211,10 +213,13 @@ export default function AboutPage() {
             communityData={{
               id: community.id,
               slug: communitySlug,
+              name: community.name,
               membershipEnabled: community.membership_enabled,
               membershipPrice: community.membership_price,
               stripeAccountId: community.stripe_account_id,
-              isMember: isMember
+              isMember: isMember,
+              status: community.status,
+              opening_date: community.opening_date
             }}
           />
         </div>

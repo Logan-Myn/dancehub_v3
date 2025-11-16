@@ -121,6 +121,16 @@ export default function DiscoveryPage() {
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                       priority={false}
                     />
+                    {community.status === 'pre_registration' && (
+                      <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+                        Pre-Registration
+                      </div>
+                    )}
+                    {community.status === 'inactive' && (
+                      <div className="absolute top-2 right-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+                        Inactive
+                      </div>
+                    )}
                   </div>
                   <div className="p-4">
                     <h3 className="text-xl font-semibold mb-2">
@@ -129,6 +139,15 @@ export default function DiscoveryPage() {
                     <p className="text-gray-600 mb-4">
                       {community.description || "No description available"}
                     </p>
+                    {community.status === 'pre_registration' && community.opening_date && (
+                      <p className="text-sm text-blue-600 font-medium mb-2">
+                        Opens: {new Date(community.opening_date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500">
                         {community.privacy || "Public"} • {community.membersCount}{" "}
@@ -138,8 +157,15 @@ export default function DiscoveryPage() {
                         variant="outline"
                         onClick={(e) => handleCommunityClick(e, community)}
                         className="hover:bg-blue-500 hover:text-white"
+                        disabled={community.status === 'inactive'}
                       >
-                        {community.isMember ? "Enter" : "Join"}
+                        {community.isMember
+                          ? "Enter"
+                          : community.status === 'pre_registration'
+                            ? "Pre-Register"
+                            : community.status === 'inactive'
+                              ? "Inactive"
+                              : "Join"}
                       </Button>
                     </div>
                   </div>

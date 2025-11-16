@@ -230,8 +230,12 @@ export default function CommunitySettingsModal({
   
   // Custom Stripe onboarding state
   const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
-  
-  
+
+  // Pre-registration state
+  const [communityStatus, setCommunityStatus] = useState<'active' | 'pre_registration' | 'inactive'>('active');
+  const [openingDate, setOpeningDate] = useState<string>('');
+  const [canChangeOpeningDate, setCanChangeOpeningDate] = useState(true);
+
   const supabase = createClient();
   const { user } = useAuth();
 
@@ -282,6 +286,11 @@ export default function CommunitySettingsModal({
         // Set membership data based on database values
         setIsMembershipEnabled(data.membership_enabled || false);
         setPrice(data.membership_price || 0);
+
+        // Set pre-registration data
+        setCommunityStatus(data.status || 'active');
+        setOpeningDate(data.opening_date || '');
+        setCanChangeOpeningDate(data.can_change_opening_date ?? true);
       } catch (error) {
         console.error("Error fetching membership state:", error);
       }
@@ -668,6 +677,33 @@ export default function CommunitySettingsModal({
 
   const handleSaveChanges = useCallback(async () => {
     try {
+      // Validation for pre-registration
+      if (communityStatus === 'pre_registration') {
+        if (!openingDate) {
+          toast.error('Opening date is required for pre-registration mode');
+          return;
+        }
+
+        const openingDateTime = new Date(openingDate);
+        const now = new Date();
+
+        if (openingDateTime <= now) {
+          toast.error('Opening date must be in the future');
+          return;
+        }
+
+        // Check if more than 1 month in future (optional restriction)
+        const oneMonthFromNow = new Date();
+        oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+
+        if (openingDateTime > oneMonthFromNow) {
+          const confirm = window.confirm(
+            'Opening date is more than 1 month away. Are you sure you want to set this date?'
+          );
+          if (!confirm) return;
+        }
+      }
+
       // Show loading toast
       const loadingToast = toast.loading("Saving your changes...", {
         duration: Infinity, // The toast will remain until we dismiss it
@@ -685,6 +721,8 @@ export default function CommunitySettingsModal({
         imageUrl,
         customLinks: links,
         slug: newSlug, // Add the new slug to the update
+        status: communityStatus,
+        opening_date: communityStatus === 'pre_registration' ? openingDate : null,
       };
 
       console.log("Updating community with slug:", communitySlug);
@@ -746,6 +784,8 @@ export default function CommunitySettingsModal({
     imageUrl,
     links,
     communitySlug,
+    communityStatus,
+    openingDate,
     onCommunityUpdate,
     onImageUpdate,
     onCustomLinksUpdate,
@@ -1743,6 +1783,62 @@ export default function CommunitySettingsModal({
                               placeholder="Tell people what your community is about..."
                             />
                           </div>
+
+                          {/* Community Status */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Community Status
+                            </label>
+                            <Select
+                              value={communityStatus}
+                              onValueChange={(value: 'active' | 'pre_registration' | 'inactive') => setCommunityStatus(value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="active">Active - Members can join and access content</SelectItem>
+                                <SelectItem value="pre_registration">Pre-Registration - Accept pre-registrations only</SelectItem>
+                                <SelectItem value="inactive">Inactive - Community is closed</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            {communityStatus === 'pre_registration' && (
+                              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <p className="text-sm text-blue-800">
+                                  <strong>Pre-Registration Mode:</strong> Students can save their payment method now and will be automatically charged on the opening date.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Opening Date (conditional on pre-registration status) */}
+                          {communityStatus === 'pre_registration' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Opening Date & Time
+                              </label>
+                              <Input
+                                type="datetime-local"
+                                value={openingDate ? new Date(openingDate).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => setOpeningDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
+                                min={new Date().toISOString().slice(0, 16)}
+                                className="mt-1"
+                                disabled={!canChangeOpeningDate}
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Pre-registered members will be automatically charged on this date.
+                              </p>
+
+                              {!canChangeOpeningDate && (
+                                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                  <p className="text-sm text-yellow-800">
+                                    Opening date changes are currently restricted. Contact support if you need to modify the date.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Cover Image */}
                           <div>

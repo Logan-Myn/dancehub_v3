@@ -262,6 +262,8 @@ export interface Community {
   membershipPrice?: number;
   stripeAccountId?: string | null;
   isMember?: boolean;
+  status?: 'active' | 'pre_registration' | 'inactive';
+  opening_date?: string | null;
 }
 
 export interface ThreadCategory {

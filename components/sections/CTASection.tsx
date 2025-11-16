@@ -23,7 +23,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
 import PaymentModal from "@/components/PaymentModal";
+import { PreRegistrationPaymentModal } from "@/components/PreRegistrationPaymentModal";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface CTASectionProps {
   section: Section;
@@ -33,10 +35,13 @@ interface CTASectionProps {
   communityData?: {
     id: string;
     slug: string;
+    name: string;
     membershipEnabled?: boolean;
     membershipPrice?: number;
     stripeAccountId?: string | null;
     isMember?: boolean;
+    status?: 'active' | 'pre_registration' | 'inactive';
+    opening_date?: string | null;
   };
 }
 
@@ -51,8 +56,14 @@ export default function CTASection({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [isPreRegModalOpen, setIsPreRegModalOpen] = useState(false);
+  const [preRegClientSecret, setPreRegClientSecret] = useState<string | null>(null);
+  const [preRegStripeAccountId, setPreRegStripeAccountId] = useState<string | null>(null);
+  const [preRegOpeningDate, setPreRegOpeningDate] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
   const { user: currentUser } = useAuth();
   const { showAuthModal } = useAuthModal();
+  const router = useRouter();
 
   const {
     attributes,
@@ -90,8 +101,35 @@ export default function CTASection({
       return;
     }
 
+    setIsJoining(true);
+
     try {
-      if (
+      // Check if community is in pre-registration mode
+      if (communityData.status === 'pre_registration') {
+        const response = await fetch(
+          `/api/community/${communityData.slug}/join-pre-registration`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              email: currentUser.email,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to initiate pre-registration");
+        }
+
+        const { clientSecret, stripeAccountId, openingDate } = await response.json();
+        setPreRegClientSecret(clientSecret);
+        setPreRegStripeAccountId(stripeAccountId);
+        setPreRegOpeningDate(openingDate);
+        setIsPreRegModalOpen(true);
+      } else if (
         communityData.membershipEnabled &&
         communityData.membershipPrice &&
         communityData.membershipPrice > 0
@@ -142,6 +180,8 @@ export default function CTASection({
       toast.error(
         error instanceof Error ? error.message : "Failed to join community"
       );
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -330,9 +370,15 @@ export default function CTASection({
                 <span>
                   {communityData?.isMember && !isEditing
                     ? "You're already a member"
-                    : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
-                      ? `Join for €${communityData.membershipPrice}/month`
-                      : 'Join for free'
+                    : communityData?.status === 'pre_registration'
+                      ? communityData?.membershipPrice && communityData?.membershipPrice > 0
+                        ? `Pre-Register for €${communityData.membershipPrice}/month`
+                        : 'Pre-Register for free'
+                      : communityData?.status === 'inactive'
+                        ? 'Community Inactive'
+                        : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
+                          ? `Join for €${communityData.membershipPrice}/month`
+                          : 'Join for free'
                   }
                 </span>
               )}
@@ -355,6 +401,24 @@ export default function CTASection({
             toast.success("Successfully joined the community!");
           }}
           communitySlug={communityData.slug}
+        />
+      )}
+
+      {isPreRegModalOpen && preRegClientSecret && preRegStripeAccountId && communityData && preRegOpeningDate && (
+        <PreRegistrationPaymentModal
+          isOpen={isPreRegModalOpen}
+          onClose={() => setIsPreRegModalOpen(false)}
+          clientSecret={preRegClientSecret}
+          stripeAccountId={preRegStripeAccountId}
+          communitySlug={communityData.slug}
+          communityName={communityData.name}
+          price={communityData.membershipPrice || 0}
+          openingDate={preRegOpeningDate}
+          onSuccess={() => {
+            setIsPreRegModalOpen(false);
+            toast.success('Pre-registration confirmed!');
+            router.push(`/${communityData.slug}`);
+          }}
         />
       )}
     </div>

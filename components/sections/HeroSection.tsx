@@ -28,6 +28,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
 import PaymentModal from "@/components/PaymentModal";
+import { PreRegistrationPaymentModal } from "@/components/PreRegistrationPaymentModal";
+import { useRouter } from "next/navigation";
 
 interface HeroSectionProps {
   section: Section;
@@ -37,10 +39,13 @@ interface HeroSectionProps {
   communityData?: {
     id: string;
     slug: string;
+    name: string;
     membershipEnabled?: boolean;
     membershipPrice?: number;
     stripeAccountId?: string | null;
     isMember?: boolean;
+    status?: 'active' | 'pre_registration' | 'inactive';
+    opening_date?: string | null;
   };
 }
 
@@ -56,9 +61,15 @@ export default function HeroSection({
   const [isUploading, setIsUploading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [isPreRegModalOpen, setIsPreRegModalOpen] = useState(false);
+  const [preRegClientSecret, setPreRegClientSecret] = useState('');
+  const [preRegStripeAccountId, setPreRegStripeAccountId] = useState('');
+  const [preRegOpeningDate, setPreRegOpeningDate] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
   const { user: currentUser } = useAuth();
   const { showAuthModal } = useAuthModal();
   const supabase = createClient();
+  const router = useRouter();
 
   const {
     attributes,
@@ -166,6 +177,48 @@ export default function HeroSection({
 
     if (!communityData) {
       toast.error("Community data not available");
+      return;
+    }
+
+    // Check if community is in pre-registration mode
+    if (communityData.status === 'pre_registration') {
+      if (!communityData.membershipEnabled || !communityData.membershipPrice) {
+        toast.error('This community requires paid membership for pre-registration');
+        return;
+      }
+
+      try {
+        setIsJoining(true);
+
+        // Call pre-registration API
+        const response = await fetch(`/api/community/${communityData.slug}/join-pre-registration`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            email: currentUser.email,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to start pre-registration');
+        }
+
+        const { clientSecret, stripeAccountId, openingDate } = await response.json();
+
+        // Open pre-registration payment modal
+        setPreRegClientSecret(clientSecret);
+        setPreRegStripeAccountId(stripeAccountId);
+        setPreRegOpeningDate(openingDate);
+        setIsPreRegModalOpen(true);
+
+      } catch (error: any) {
+        console.error('Pre-registration error:', error);
+        toast.error(error.message || 'Failed to start pre-registration');
+      } finally {
+        setIsJoining(false);
+      }
       return;
     }
 
@@ -298,9 +351,15 @@ export default function HeroSection({
                 <span>
                   {communityData?.isMember && !isEditing
                     ? "You're already a member"
-                    : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
-                      ? `Join for €${communityData.membershipPrice}/month`
-                      : 'Join for free'
+                    : communityData?.status === 'pre_registration'
+                      ? communityData?.membershipPrice && communityData?.membershipPrice > 0
+                        ? `Pre-Register for €${communityData.membershipPrice}/month`
+                        : 'Pre-Register for free'
+                      : communityData?.status === 'inactive'
+                        ? 'Community Inactive'
+                        : communityData?.membershipEnabled && communityData?.membershipPrice && communityData?.membershipPrice > 0
+                          ? `Join for €${communityData.membershipPrice}/month`
+                          : 'Join for free'
                   }
                 </span>
               )}
@@ -531,6 +590,24 @@ export default function HeroSection({
             window.location.href = `/${communityData.slug}`;
           }}
           communitySlug={communityData.slug}
+        />
+      )}
+
+      {isPreRegModalOpen && preRegClientSecret && preRegStripeAccountId && communityData && preRegOpeningDate && (
+        <PreRegistrationPaymentModal
+          isOpen={isPreRegModalOpen}
+          onClose={() => setIsPreRegModalOpen(false)}
+          clientSecret={preRegClientSecret}
+          stripeAccountId={preRegStripeAccountId}
+          communitySlug={communityData.slug}
+          communityName={communityData.name}
+          price={communityData.membershipPrice || 0}
+          openingDate={preRegOpeningDate}
+          onSuccess={() => {
+            setIsPreRegModalOpen(false);
+            toast.success('Pre-registration confirmed!');
+            router.push(`/${communityData.slug}`);
+          }}
         />
       )}
     </div>

@@ -49,10 +49,13 @@ interface PageBuilderProps {
   communityData?: {
     id: string;
     slug: string;
+    name: string;
     membershipEnabled?: boolean;
     membershipPrice?: number;
     stripeAccountId?: string | null;
     isMember?: boolean;
+    status?: 'active' | 'pre_registration' | 'inactive';
+    opening_date?: string | null;
   };
 }
 

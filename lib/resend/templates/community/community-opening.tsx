@@ -38,7 +38,7 @@ export const CommunityOpeningEmail: React.FC<CommunityOpeningEmailProps> = ({
   };
 
   return (
-    <BaseLayout preview={preview} emailType="transactional">
+    <BaseLayout preview={preview}>
       <Heading style={{ ...EMAIL_STYLES.heading, textAlign: 'center' }}>
         Welcome to {communityName}! 🎉
       </Heading>

@@ -58,6 +58,8 @@ export async function PUT(
         image_url: updates.imageUrl,
         custom_links: updates.customLinks || [],
         slug: updates.slug,
+        status: updates.status,
+        opening_date: updates.opening_date,
         updated_at: new Date().toISOString(),
       })
       .eq('id', community.id)

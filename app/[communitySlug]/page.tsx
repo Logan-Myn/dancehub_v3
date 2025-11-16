@@ -12,6 +12,7 @@ import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import CommunitySettingsModal from "@/components/CommunitySettingsModal";
 import PaymentModal from "@/components/PaymentModal";
+import { PreRegistrationComingSoon } from "@/components/PreRegistrationComingSoon";
 import Thread from "@/components/Thread";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import ThreadCard from "@/components/ThreadCard";
@@ -99,8 +100,11 @@ interface Community {
   customLinks?: CustomLink[];
   membershipEnabled?: boolean;
   membershipPrice?: number;
+  membership_price?: number;
   threadCategories?: ThreadCategory[];
   stripeAccountId?: string | null;
+  status?: 'active' | 'pre_registration' | 'inactive';
+  opening_date?: string | null;
 }
 
 interface ThreadCardProps {
@@ -223,6 +227,7 @@ export default function CommunityPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [isMember, setIsMember] = useState(false);
+  const [isPreRegistered, setIsPreRegistered] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -453,8 +458,17 @@ export default function CommunityPage() {
             return;
           }
 
-          setIsMember(true);
-          setMembershipChecked(true);
+          // Check if user is pre-registered
+          if (memberData.status === 'pre_registered' || memberData.status === 'pending_pre_registration') {
+            setIsPreRegistered(true);
+            setMembershipChecked(true);
+          } else if (memberData.status === 'active') {
+            setIsMember(true);
+            setMembershipChecked(true);
+          } else {
+            router.replace(`/${communitySlug}/about`);
+            return;
+          }
         }
       } catch (error) {
         console.error("Error checking membership:", error);
@@ -940,8 +954,33 @@ export default function CommunityPage() {
     }
   };
 
+  // Handle pre-registration cancellation
+  const handleCancelPreRegistration = async () => {
+    if (!currentUser || !community) return;
+
+    try {
+      const response = await fetch(`/api/community/${communitySlug}/cancel-pre-registration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel pre-registration');
+      }
+
+      toast.success('Pre-registration cancelled successfully');
+      router.push(`/${communitySlug}/about`);
+    } catch (error) {
+      console.error('Error cancelling pre-registration:', error);
+      toast.error('Failed to cancel pre-registration');
+    }
+  };
+
   // Return nothing while checking membership or loading
-  if (!membershipChecked || !isMember || isLoading) {
+  if (!membershipChecked || isLoading) {
     return null;
   }
 
@@ -955,6 +994,24 @@ export default function CommunityPage() {
         <div>Community not found</div>
       </div>
     );
+  }
+
+  // Show coming soon page for pre-registered members
+  if (isPreRegistered && community.opening_date) {
+    return (
+      <PreRegistrationComingSoon
+        communityName={community.name}
+        communitySlug={communitySlug}
+        openingDate={community.opening_date}
+        membershipPrice={community.membership_price || 0}
+        onCancel={handleCancelPreRegistration}
+      />
+    );
+  }
+
+  // Only show main content for active members
+  if (!isMember) {
+    return null;
   }
 
   return (
