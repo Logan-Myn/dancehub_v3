@@ -63,7 +63,7 @@
     "formidable": "^3.5.2",
     "lucide-react": "^0.454.0",
     "motion": "^12.23.12",
-    "next": "14.2.16",
+    "next": "14.2.35",
     "nextstepjs": "^2.1.1",
     "novel": "^0.5.0",
     "react": "^18",
