@@ -5,14 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-# Development
-npm run dev              # Start development server at localhost:3000
-npm run build           # Build production version
-npm run start           # Start production server
-npm run lint            # Run ESLint
-npm test                # Run Jest tests
-npm run test:watch      # Run tests in watch mode
+# Development (using Bun)
+bun dev                  # Start development server at localhost:3000
+bun run build            # Build production version
+bun start                # Start production server
+bun lint                 # Run ESLint
+bun test                 # Run Jest tests
+bun run test:watch       # Run tests in watch mode
 
+# Package management
+bun add <package>        # Install a package
+bun remove <package>     # Remove a package
+bun install              # Install all dependencies
 ```
 
 ## Project Architecture
