@@ -10,7 +10,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| **Phase 1.1** | Backup Everything | ⬜ Not Started |
+| **Phase 1.1** | Backup Everything | ✅ Completed |
 | **Phase 1.2** | Switch from npm to Bun | ✅ Completed |
 | **Phase 1.3** | Set Up Neon Database | ⬜ Not Started |
 | **Phase 1.4** | Install New Dependencies | ⬜ Not Started |
