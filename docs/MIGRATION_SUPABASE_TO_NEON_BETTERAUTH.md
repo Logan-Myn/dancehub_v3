@@ -13,7 +13,7 @@
 | **Phase 1.1** | Backup Everything | ✅ Completed |
 | **Phase 1.2** | Switch from npm to Bun | ✅ Completed |
 | **Phase 1.3** | Set Up Neon Database | ✅ Completed |
-| **Phase 1.4** | Install New Dependencies | ⬜ Not Started |
+| **Phase 1.4** | Install New Dependencies | ✅ Completed |
 | **Phase 2** | Database Migration | ⬜ Not Started |
 | **Phase 3** | Authentication Migration | ⬜ Not Started |
 | **Phase 4** | Storage Migration | ⬜ Not Started |
@@ -21,7 +21,7 @@
 | **Phase 6** | Testing | ⬜ Not Started |
 
 **Last Updated:** January 14, 2025
-**Current Step:** Phase 1.4 - Install New Dependencies
+**Current Step:** Phase 2 - Database Migration
 
 ---
 
