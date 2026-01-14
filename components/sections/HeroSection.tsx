@@ -5,8 +5,7 @@ import { Button } from "../ui/button";
 import Image from "next/image";
 import { UploadCloud, GripVertical, Trash, Settings } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { createClient } from "@/lib/supabase";
-import { v4 as uuidv4 } from 'uuid';
+import { uploadFileToStorage, STORAGE_FOLDERS } from "@/lib/storage-client";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -68,7 +67,6 @@ export default function HeroSection({
   const [isJoining, setIsJoining] = useState(false);
   const { user: currentUser } = useAuth();
   const { showAuthModal } = useAuthModal();
-  const supabase = createClient();
   const router = useRouter();
 
   const {
@@ -116,32 +114,10 @@ export default function HeroSection({
     try {
       setIsUploading(true);
       console.log('Starting upload process...');
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${uuidv4()}.${fileExt}`;
-      const filePath = `community-pages/${fileName}`;
 
-      console.log('Upload details:', {
-        fileExt,
-        fileName,
-        filePath
-      });
+      // Upload to B2 Storage via API
+      const publicUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.COMMUNITY_PAGES);
 
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('images')
-        .upload(filePath, file);
-
-      console.log('Upload response:', { uploadError });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('images')
-        .getPublicUrl(filePath);
-      
       console.log('Public URL:', publicUrl);
 
       onUpdate({
@@ -452,32 +428,10 @@ export default function HeroSection({
                               try {
                                 setIsUploading(true);
                                 console.log('Starting upload process...');
-                                const fileExt = file.name.split('.').pop();
-                                const fileName = `${uuidv4()}.${fileExt}`;
-                                const filePath = `community-pages/${fileName}`;
 
-                                console.log('Upload details:', {
-                                  fileExt,
-                                  fileName,
-                                  filePath
-                                });
+                                // Upload to B2 Storage via API
+                                const publicUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.COMMUNITY_PAGES);
 
-                                // Upload to Supabase Storage
-                                const { error: uploadError } = await supabase.storage
-                                  .from('images')
-                                  .upload(filePath, file);
-
-                                console.log('Upload response:', { uploadError });
-
-                                if (uploadError) {
-                                  throw uploadError;
-                                }
-
-                                // Get the public URL
-                                const { data: { publicUrl } } = supabase.storage
-                                  .from('images')
-                                  .getPublicUrl(filePath);
-                                
                                 console.log('Public URL:', publicUrl);
 
                                 onUpdate({

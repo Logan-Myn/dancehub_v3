@@ -50,7 +50,7 @@ export default function AboutPage() {
           .from("communities")
           .select("*, about_page")
           .eq("slug", communitySlug)
-          .single();
+          .single<Community>();
 
         if (communityError) {
           throw communityError;
@@ -150,7 +150,7 @@ export default function AboutPage() {
             },
           },
           updated_at: new Date().toISOString(),
-        })
+        } as unknown as Record<string, unknown>)
         .eq('id', community.id)
         .eq('created_by', user.id);
 

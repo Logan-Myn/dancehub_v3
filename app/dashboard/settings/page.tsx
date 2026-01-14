@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
+import { uploadFileToStorage, STORAGE_FOLDERS } from "@/lib/storage-client";
 import { useAuth } from "@/hooks/auth";
 import { toast } from "react-hot-toast";
 import { User2, Mail, Camera, AtSign, RefreshCw } from "lucide-react";
@@ -34,22 +34,18 @@ export default function SettingsPage() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { user } = useAuth();
-  const supabase = createClient();
 
-  const isGoogleUser = user?.app_metadata?.provider === 'google';
+  // Check if user signed in via Google (from Better Auth session)
+  const isGoogleUser = false; // Will be determined from Better Auth account type
 
   useEffect(() => {
     async function fetchProfile() {
       if (!user) return;
 
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (error) throw error;
+        const response = await fetch('/api/profile');
+        if (!response.ok) throw new Error('Failed to fetch profile');
+        const data = await response.json();
         setProfile(data);
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -67,39 +63,28 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     try {
-      const updates: {
-        full_name: string | null;
-        display_name?: string | null;
-        updated_at: string;
-      } = {
-        full_name: profile.full_name,
-        display_name: profile.display_name,
-        updated_at: new Date().toISOString(),
-      };
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: profile.full_name,
+          displayName: profile.display_name,
+        }),
+      });
 
-      // Only check for uniqueness if display_name is set and different from current
-      if (profile.display_name) {
-        const { count, error: checkError } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('display_name', profile.display_name)
-          .neq('id', user.id);
+      const data = await response.json();
 
-        if (checkError) throw checkError;
-        
-        if (count && count > 0) {
-          toast.error('This display name is already taken');
+      if (!response.ok) {
+        if (data.error === 'This display name is already taken') {
+          toast.error(data.error);
           setIsSaving(false);
           return;
         }
+        throw new Error(data.error || 'Failed to update profile');
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (error) throw error;
       toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -127,36 +112,26 @@ export default function SettingsPage() {
 
     setIsUploadingAvatar(true);
     try {
-      // Upload image to storage
-      const fileExt = file.type.split('/')[1];
-      const fileName = `${user.id}-${Date.now()}`;
-      const filePath = `avatars/${fileName}.${fileExt}`;
+      // Upload image to B2 storage via API
+      const publicUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.AVATARS);
 
-      const { error: uploadError, data } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { 
-          upsert: true,
-          contentType: file.type
-        });
+      // Update profile with new avatar URL
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ avatarUrl: publicUrl }),
+      });
 
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      // Update profile
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update profile');
+      }
 
       setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
       toast.success('Avatar updated successfully');
-      
+
       // Clear the input
       e.target.value = '';
     } catch (error: any) {
@@ -228,14 +203,18 @@ export default function SettingsPage() {
 
     setIsResettingPassword(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        user.email,
-        {
-          redirectTo: `${window.location.origin}/auth/reset-password`
-        }
-      );
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: user.email }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send reset email');
+      }
 
       toast.success('Password reset email sent. Please check your email to reset your password.');
     } catch (error: any) {

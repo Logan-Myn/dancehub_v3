@@ -12,8 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
+import { uploadFileToStorage, STORAGE_FOLDERS } from "@/lib/storage-client";
 import Image from "next/image";
 import {
   Select,
@@ -43,7 +42,6 @@ export default function ImageSection({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayoutOpen, setIsLayoutOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const supabase = createClient();
 
   const {
     attributes,
@@ -65,30 +63,9 @@ export default function ImageSection({
 
     try {
       setIsUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${uuidv4()}.${fileExt}`;
-      const filePath = `community-pages/${fileName}`;
 
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('images')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Get the public URL
-      const { data } = supabase.storage
-        .from('images')
-        .getPublicUrl(filePath);
-
-      // Ensure we're using the full URL
-      const imageUrl = data?.publicUrl;
-
-      if (!imageUrl) {
-        throw new Error('Failed to get image URL');
-      }
+      // Upload to B2 Storage via API
+      const imageUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.COMMUNITY_PAGES);
 
       onUpdate({
         ...section.content,

@@ -14,7 +14,7 @@ import {
   CurrencyDollarIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { createClient } from "@/lib/supabase";
+import { uploadFileToStorage, STORAGE_FOLDERS } from "@/lib/storage-client";
 import { toast } from "react-hot-toast";
 import {
   DollarSign,
@@ -804,39 +804,23 @@ export default function CommunitySettingsModal({
     setIsUploading(true);
 
     try {
-      // Create a unique file name with community folder
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${communityId}/${Date.now()}.${fileExt}`;
+      // Upload to B2 Storage via API
+      const publicUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.COMMUNITY_IMAGES);
 
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("community-images")
-        .upload(filePath, file);
+      // Update community image URL via API
+      const response = await fetch(`/api/community/${communitySlug}/update-image`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageUrl: publicUrl }),
+      });
 
-      if (uploadError) {
-        throw uploadError;
+      if (!response.ok) {
+        throw new Error("Failed to update community image");
       }
 
-      // Get the public URL
-      const { data: urlData } = supabase.storage
-        .from("community-images")
-        .getPublicUrl(filePath);
-
-      if (!urlData.publicUrl) {
-        throw new Error("Failed to get public URL");
-      }
-
-      // Update community image URL
-      const { error: updateError } = await supabase
-        .from("communities")
-        .update({ image_url: urlData.publicUrl })
-        .eq("id", communityId);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      onImageUpdate(urlData.publicUrl);
+      onImageUpdate(publicUrl);
       toast.success("Community image updated successfully");
     } catch (error) {
       console.error("Error uploading image:", error);

@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import toast from 'react-hot-toast';
 import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, X } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { uploadFileToStorage, STORAGE_FOLDERS } from '@/lib/storage-client';
 import Image from 'next/image';
 
 export default function OnboardingForm() {
@@ -21,7 +21,6 @@ export default function OnboardingForm() {
   const [nameError, setNameError] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,31 +57,30 @@ export default function OnboardingForm() {
   // Function to check name and slug availability
   const checkAvailability = async (name: string) => {
     const slug = generateSlug(name);
-    
-    // Check both name and slug
-    const { data: existingCommunities, error } = await supabase
-      .from('communities')
-      .select('name, slug')
-      .or(`name.eq.${name},slug.eq.${slug}`)
-      .limit(1);
 
-    if (error) {
+    try {
+      const response = await fetch(
+        `/api/community/check-availability?name=${encodeURIComponent(name)}&slug=${encodeURIComponent(slug)}`
+      );
+
+      if (!response.ok) {
+        console.error('Error checking availability');
+        return false;
+      }
+
+      const data = await response.json();
+
+      if (!data.available) {
+        setNameError(data.reason);
+        return false;
+      }
+
+      setNameError(null);
+      return true;
+    } catch (error) {
       console.error('Error checking availability:', error);
       return false;
     }
-
-    if (existingCommunities && existingCommunities.length > 0) {
-      const community = existingCommunities[0];
-      if (community.name.toLowerCase() === name.toLowerCase()) {
-        setNameError('A community with this name already exists');
-      } else {
-        setNameError('This name would create a URL that is already taken');
-      }
-      return false;
-    }
-
-    setNameError(null);
-    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,28 +98,15 @@ export default function OnboardingForm() {
       }
 
       let imageUrl = '';
-      
+
       // Upload image if one is selected
       if (imageFile) {
         setIsUploading(true);
-        const fileExt = imageFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `community-images/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("community-images")
-          .upload(filePath, imageFile);
-
-        if (uploadError) {
-          throw uploadError;
+        try {
+          imageUrl = await uploadFileToStorage(imageFile, STORAGE_FOLDERS.COMMUNITY_IMAGES);
+        } finally {
+          setIsUploading(false);
         }
-
-        const { data: urlData } = supabase.storage
-          .from("community-images")
-          .getPublicUrl(filePath);
-
-        imageUrl = urlData.publicUrl;
-        setIsUploading(false);
       }
 
       const response = await fetch('/api/community/create', {
