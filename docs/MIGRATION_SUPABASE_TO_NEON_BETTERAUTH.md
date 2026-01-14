@@ -15,14 +15,14 @@
 | **Phase 1.3** | Set Up Neon Database | ✅ Completed |
 | **Phase 1.4** | Install New Dependencies | ✅ Completed |
 | **Phase 2.1** | Schema Migration to Neon | ✅ Completed |
-| **Phase 2.2** | Create Database Client | ⬜ Not Started |
+| **Phase 2.2** | Create Database Client | ✅ Completed |
 | **Phase 3** | Authentication Migration | ⬜ Not Started |
 | **Phase 4** | Storage Migration | ⬜ Not Started |
 | **Phase 5** | Code Updates | ⬜ Not Started |
 | **Phase 6** | Testing | ⬜ Not Started |
 
 **Last Updated:** January 14, 2025
-**Current Step:** Phase 2.2 - Create Database Client
+**Current Step:** Phase 3 - Authentication Migration
 
 ### Phase 2.1 Summary (Completed)
 Created in Neon database (`wild-art-53938668`):
@@ -31,6 +31,17 @@ Created in Neon database (`wild-art-53938668`):
 - **15 functions**: All utility, fee calculation, and trigger functions
 - **12 triggers**: All updated_at and count triggers
 - **Skipped 3 auth tables**: email_change_requests, password_reset_requests, signup_verifications (Better-Auth handles these)
+
+### Phase 2.2 Summary (Completed)
+Created database client files for Neon serverless:
+- **lib/db.ts**: Main database client with typed query helpers
+  - `sql` - Neon tagged template function for raw queries
+  - `query<T>()` - Execute typed SQL queries returning array
+  - `queryOne<T>()` - Execute query expecting single result (returns null if empty)
+  - `queryFirst<T>()` - Execute query expecting exactly one result (throws if empty)
+- **lib/db/admin.ts**: Admin database client factory
+  - `createDbClient()` - Creates a new Neon client instance for server-side operations
+  - `adminQuery<T>()` - Helper for typed admin queries
 
 ---
 
