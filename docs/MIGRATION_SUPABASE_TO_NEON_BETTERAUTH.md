@@ -17,14 +17,14 @@
 | **Phase 2.1** | Schema Migration to Neon | ✅ Completed |
 | **Phase 2.2** | Create Database Client | ✅ Completed |
 | **Phase 3.1** | Better-Auth Configuration | ✅ Completed |
-| **Phase 3.2** | Auth Context & Middleware | ⬜ Not Started |
+| **Phase 3.2** | Auth Context & Middleware | ✅ Completed |
 | **Phase 3.3** | User Data Migration | ⬜ Not Started |
 | **Phase 4** | Storage Migration | ⬜ Not Started |
 | **Phase 5** | Code Updates | ⬜ Not Started |
 | **Phase 6** | Testing | ⬜ Not Started |
 
 **Last Updated:** January 14, 2025
-**Current Step:** Phase 3.2 - Auth Context & Middleware
+**Current Step:** Phase 3.3 - User Data Migration
 
 ### Phase 2.1 Summary (Completed)
 Created in Neon database (`wild-art-53938668`):
@@ -69,6 +69,23 @@ NEXT_PUBLIC_APP_URL=https://your-domain.com
 GOOGLE_CLIENT_ID=<google-client-id>
 GOOGLE_CLIENT_SECRET=<google-client-secret>
 ```
+
+### Phase 3.2 Summary (Completed)
+Updated authentication context and middleware for Better Auth:
+- **contexts/AuthContext.tsx**: Rewritten to use Better Auth
+  - Uses `authClient.useSession()` hook for reactive session state
+  - Inferred types from Better Auth client (`$Infer.Session`)
+  - Exports `useAuth()` hook with `user`, `session`, `loading`, `error`, `refreshUser`
+- **middleware.ts**: Updated for Better Auth session checking
+  - Uses `@better-fetch/fetch` for Edge Runtime compatibility
+  - Fetches session via `/api/auth/get-session` endpoint
+  - Admin route protection with `isAdmin` check
+- **lib/auth-session.ts**: Server-side session helpers (new)
+  - `getSession()` - Get session in server components/API routes
+  - `getUser()` - Get current user
+  - `requireAuth()` - Require authentication (throws if not authenticated)
+  - `requireAdmin()` - Require admin role
+- **New dependency**: `@better-fetch/fetch` for middleware session fetching
 
 ---
 
