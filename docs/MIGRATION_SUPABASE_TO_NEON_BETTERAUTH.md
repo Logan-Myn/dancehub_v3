@@ -18,13 +18,13 @@
 | **Phase 2.2** | Create Database Client | ✅ Completed |
 | **Phase 3.1** | Better-Auth Configuration | ✅ Completed |
 | **Phase 3.2** | Auth Context & Middleware | ✅ Completed |
-| **Phase 3.3** | User Data Migration | ⬜ Not Started |
+| **Phase 3.3** | User Data Migration | ✅ Completed |
 | **Phase 4** | Storage Migration | ⬜ Not Started |
 | **Phase 5** | Code Updates | ⬜ Not Started |
 | **Phase 6** | Testing | ⬜ Not Started |
 
 **Last Updated:** January 14, 2025
-**Current Step:** Phase 3.3 - User Data Migration
+**Current Step:** Phase 4 - Storage Migration
 
 ### Phase 2.1 Summary (Completed)
 Created in Neon database (`wild-art-53938668`):
@@ -86,6 +86,27 @@ Updated authentication context and middleware for Better Auth:
   - `requireAuth()` - Require authentication (throws if not authenticated)
   - `requireAdmin()` - Require admin role
 - **New dependency**: `@better-fetch/fetch` for middleware session fetching
+
+### Phase 3.3 Summary (Completed)
+Created Better Auth database tables and user migration setup:
+- **Better Auth tables created in Neon:**
+  - `user` - Core user table with custom fields (displayName, fullName, avatarUrl, isAdmin, stripeAccountId)
+  - `session` - Session management with token and expiry
+  - `account` - OAuth and email/password accounts with password hash storage
+  - `verification` - Email verification tokens
+  - Indexes on userId and identifier columns
+- **profiles table updated:**
+  - Added `auth_user_id` column with foreign key to Better Auth `user` table
+  - Allows gradual migration and backwards compatibility
+- **Migration script created:**
+  - `scripts/migration/migrate-users-to-better-auth.ts`
+  - Migrates existing profiles to Better Auth user table
+  - Links profiles via `auth_user_id` column
+  - Note: Migrated users will need password reset (Supabase hashes not accessible)
+- **Schema file generated:**
+  - `better-auth-schema.sql` - Full Better Auth schema for reference
+
+**Database tables count:** Now 23 tables (19 original + 4 Better Auth)
 
 ---
 
