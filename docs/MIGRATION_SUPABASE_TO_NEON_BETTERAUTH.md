@@ -16,13 +16,15 @@
 | **Phase 1.4** | Install New Dependencies | ✅ Completed |
 | **Phase 2.1** | Schema Migration to Neon | ✅ Completed |
 | **Phase 2.2** | Create Database Client | ✅ Completed |
-| **Phase 3** | Authentication Migration | ⬜ Not Started |
+| **Phase 3.1** | Better-Auth Configuration | ✅ Completed |
+| **Phase 3.2** | Auth Context & Middleware | ⬜ Not Started |
+| **Phase 3.3** | User Data Migration | ⬜ Not Started |
 | **Phase 4** | Storage Migration | ⬜ Not Started |
 | **Phase 5** | Code Updates | ⬜ Not Started |
 | **Phase 6** | Testing | ⬜ Not Started |
 
 **Last Updated:** January 14, 2025
-**Current Step:** Phase 3 - Authentication Migration
+**Current Step:** Phase 3.2 - Auth Context & Middleware
 
 ### Phase 2.1 Summary (Completed)
 Created in Neon database (`wild-art-53938668`):
@@ -42,6 +44,31 @@ Created database client files for Neon serverless:
 - **lib/db/admin.ts**: Admin database client factory
   - `createDbClient()` - Creates a new Neon client instance for server-side operations
   - `adminQuery<T>()` - Helper for typed admin queries
+
+### Phase 3.1 Summary (Completed)
+Set up Better Auth for authentication:
+- **lib/auth-server.ts**: Server-side Better Auth configuration
+  - PostgreSQL database connection via `pg` Pool
+  - Email/password authentication with verification
+  - Google OAuth social provider
+  - Session management (7-day expiry, cookie caching)
+  - Custom user fields: displayName, fullName, avatarUrl, isAdmin, stripeAccountId
+  - Account linking enabled for Google and email-password
+- **lib/auth-client.ts**: Client-side auth utilities
+  - React hooks: `useSession`, `signIn`, `signUp`, `signOut`
+  - Exported `authClient` for direct API access
+- **app/api/auth/[...all]/route.ts**: Better Auth API route handler
+  - Catch-all route for all auth endpoints
+- **New dependency**: `pg` package for PostgreSQL connections
+
+**Environment variables required:**
+```env
+BETTER_AUTH_SECRET=<secret-key>
+BETTER_AUTH_URL=https://your-domain.com
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+GOOGLE_CLIENT_ID=<google-client-id>
+GOOGLE_CLIENT_SECRET=<google-client-secret>
+```
 
 ---
 
