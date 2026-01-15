@@ -20,7 +20,7 @@ import {
   Target
 } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { useRouter } from 'next/navigation';

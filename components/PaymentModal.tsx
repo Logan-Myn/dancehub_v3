@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PaymentFormProps {
   clientSecret: string;

@@ -1,18 +1,18 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
-import { getEmailService } from "@/lib/resend/email-service";
-import { WelcomeEmail } from "@/lib/resend/templates/auth/welcome";
+import { sql } from "@/lib/db";
+import { Resend } from "resend";
 import React from "react";
+import { render } from "@react-email/components";
+import { WelcomeEmail } from "@/lib/resend/templates/auth/welcome";
 
-const supabase = createAdminClient();
+const resend = new Resend(process.env.RESEND_API_KEY);
+const emailFrom = process.env.EMAIL_FROM_ADDRESS || "DanceHub <account@dance-hub.io>";
 
-// Generate a secure token for verification
-function generateToken(userId: string, email: string): string {
-  const data = `${userId}:${email}:${process.env.SUPABASE_JWT_SECRET}`;
-  return createHash('sha256').update(data).digest('hex');
-}
-
+/**
+ * Verify email token via Better Auth
+ * This endpoint handles the token verification and sends a welcome email
+ */
 export async function POST(request: Request) {
   try {
     const { token } = await request.json();
@@ -24,102 +24,70 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the signup verification request
-    const { data: verificationRequest, error: fetchError } = await supabase
-      .from('signup_verifications')
-      .select('*')
-      .eq('token', token)
-      .single();
+    // Use Better Auth's server-side API to verify email
+    const result = await auth.api.verifyEmail({
+      query: {
+        token,
+      },
+    });
 
-    if (fetchError || !verificationRequest) {
+    if (!result) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // Check if token is expired
-    if (new Date(verificationRequest.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Token has expired" },
-        { status: 400 }
-      );
-    }
+    // Get user info to send welcome email
+    // The result might contain user info depending on Better Auth config
+    const user = result.user;
 
-    // Verify token matches
-    const expectedToken = generateToken(verificationRequest.user_id, verificationRequest.email);
-    if (token !== expectedToken) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 400 }
-      );
-    }
-
-    // Update the user's email confirmation in Supabase Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      verificationRequest.user_id,
-      {
-        email_confirm: true
-      }
-    );
-
-    if (updateError) {
-      console.error('Error confirming email:', {
-        error: updateError,
-        userId: verificationRequest.user_id,
-        message: updateError.message,
-        status: updateError.status
-      });
-      return NextResponse.json(
-        { error: `Failed to confirm email: ${updateError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Delete the verification request
-    await supabase
-      .from('signup_verifications')
-      .delete()
-      .eq('token', token);
-
-    // Get user profile for welcome email
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, full_name')
-      .eq('id', verificationRequest.user_id)
-      .single();
-
-    const userName = profile?.display_name || profile?.full_name || 'there';
-    const dashboardUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`;
-
-    // Send welcome email
-    try {
-      const emailService = getEmailService();
-      await emailService.sendAuthEmail(
-        verificationRequest.email,
-        'Welcome to DanceHub - Let\'s get started!',
+    if (user) {
+      // Send welcome email (don't await)
+      const dashboardUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`;
+      const html = await render(
         React.createElement(WelcomeEmail, {
-          name: userName,
+          name: user.name || "there",
           dashboardUrl: dashboardUrl,
         })
       );
-      console.log('✅ Welcome email sent to:', verificationRequest.email);
-    } catch (emailError) {
-      console.error('❌ Error sending welcome email (non-critical):', emailError);
-      // Don't fail the verification if email sending fails
+
+      void resend.emails.send({
+        from: emailFrom,
+        to: user.email,
+        subject: "Welcome to DanceHub - Let's get started!",
+        html,
+      }).then(() => {
+        console.log(`Welcome email sent to: ${user.email}`);
+      }).catch((err) => {
+        console.error("Error sending welcome email:", err);
+      });
     }
 
-    // Return the redirect path along with the success message
     return NextResponse.json({
       message: "Email verified successfully",
-      redirectTo: verificationRequest.redirect_to
+      redirectTo: "/dashboard",
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error in verify-signup-token:", error);
+
+    if (error instanceof Error) {
+      if (error.message.includes("expired") || error.message.includes("invalid")) {
+        return NextResponse.json(
+          { error: "Token has expired or is invalid" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
   }
-} 
+}

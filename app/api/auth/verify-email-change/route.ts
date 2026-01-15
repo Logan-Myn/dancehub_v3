@@ -1,14 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { sql } from "@/lib/db";
 
-const supabase = createAdminClient();
-
-function generateToken(userId: string, newEmail: string): string {
-  const data = `${userId}:${newEmail}:${process.env.SUPABASE_JWT_SECRET}`;
-  return createHash('sha256').update(data).digest('hex');
-}
-
+/**
+ * Verify email change token via Better Auth
+ * This endpoint is called when user clicks the verification link in their email
+ */
 export async function POST(request: Request) {
   try {
     const { token } = await request.json();
@@ -20,66 +17,57 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the pending email change request
-    const { data: changeRequest, error: fetchError } = await supabase
-      .from('email_change_requests')
-      .select('*')
-      .eq('token', token)
-      .single();
+    // Use Better Auth's server-side API to verify the email change
+    const result = await auth.api.verifyEmail({
+      query: {
+        token,
+      },
+    });
 
-    if (fetchError || !changeRequest) {
+    if (!result) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // Check if token is expired
-    if (new Date(changeRequest.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Token has expired" },
-        { status: 400 }
-      );
+    // If Better Auth returns user info, update the profiles table
+    if (result.user) {
+      try {
+        await sql`
+          UPDATE profiles
+          SET email = ${result.user.email}, updated_at = NOW()
+          WHERE auth_user_id = ${result.user.id}
+        `;
+      } catch (profileError) {
+        console.error("Error updating profile email:", profileError);
+        // Don't fail - the auth email was updated successfully
+      }
     }
-
-    // Verify token matches
-    const expectedToken = generateToken(changeRequest.user_id, changeRequest.new_email);
-    if (token !== expectedToken) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 400 }
-      );
-    }
-
-    // Update user's email in Supabase Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      changeRequest.user_id,
-      { email: changeRequest.new_email }
-    );
-
-    if (updateError) {
-      console.error('Error updating user email:', updateError);
-      return NextResponse.json(
-        { error: "Failed to update email" },
-        { status: 500 }
-      );
-    }
-
-    // Delete the email change request
-    await supabase
-      .from('email_change_requests')
-      .delete()
-      .eq('token', token);
 
     return NextResponse.json({
       message: "Email updated successfully"
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error in verify-email-change:", error);
+
+    if (error instanceof Error) {
+      if (error.message.includes("expired") || error.message.includes("invalid")) {
+        return NextResponse.json(
+          { error: "Token has expired or is invalid" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
   }
-} 
+}

@@ -8,7 +8,7 @@ import CourseCard from "@/components/CourseCard";
 import CreateCourseModal from "@/components/CreateCourseModal";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import useSWR from "swr";

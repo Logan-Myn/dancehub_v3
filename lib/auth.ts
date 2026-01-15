@@ -1,82 +1,141 @@
-import { createClient } from './supabase';
+"use client";
 
+import { authClient } from "./auth-client";
+
+/**
+ * Sign in with email and password
+ */
 export async function signIn(email: string, password: string) {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await authClient.signIn.email({
     email,
     password,
   });
-  
-  if (error) throw error;
+
+  if (error) {
+    throw new Error(error.message || "Failed to sign in");
+  }
+
   return data;
 }
 
+/**
+ * Sign in with Google OAuth
+ */
 export async function signInWithGoogle() {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`
-    }
+  const { data, error } = await authClient.signIn.social({
+    provider: "google",
+    callbackURL: window.location.origin + "/dashboard",
   });
-  
-  if (error) throw error;
+
+  if (error) {
+    throw new Error(error.message || "Failed to sign in with Google");
+  }
+
   return data;
 }
 
-export async function signUp(email: string, password: string, full_name: string) {
+/**
+ * Sign up with email and password
+ */
+export async function signUp(
+  email: string,
+  password: string,
+  full_name: string
+) {
   // Get the current URL path (excluding the /auth/signup part)
   const currentPath = window.location.pathname;
-  const redirectPath = currentPath.startsWith('/auth/') ? '/' : currentPath;
+  const redirectPath = currentPath.startsWith("/auth/") ? "/" : currentPath;
 
-  // Call our server endpoint to create the user and send verification email
-  const response = await fetch('/api/auth/signup', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      full_name,
-      redirectTo: redirectPath,
-    }),
+  const { data, error } = await authClient.signUp.email({
+    email,
+    password,
+    name: full_name,
+    callbackURL: redirectPath,
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to sign up');
+  if (error) {
+    throw new Error(error.message || "Failed to sign up");
   }
 
-  const data = await response.json();
-  return data;
+  return {
+    message: "Please check your email to confirm your account",
+    user: data?.user,
+  };
 }
 
+/**
+ * Sign out the current user
+ */
 export async function signOut() {
-  const supabase = createClient();
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  const { error } = await authClient.signOut();
+
+  if (error) {
+    throw new Error(error.message || "Failed to sign out");
+  }
 }
 
+/**
+ * Request password reset email
+ */
 export async function resetPassword(email: string) {
-  try {
-    const response = await fetch('/api/auth/reset-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
+  const { error } = await authClient.forgetPassword({
+    email,
+    redirectTo: `${window.location.origin}/auth/reset-password`,
+  });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to send reset password email');
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error('Reset password error:', error);
-    throw error;
+  if (error) {
+    throw new Error(error.message || "Failed to send reset password email");
   }
-} 
+
+  return { success: true };
+}
+
+/**
+ * Reset password with token
+ */
+export async function resetPasswordWithToken(
+  token: string,
+  newPassword: string
+) {
+  const { error } = await authClient.resetPassword({
+    token,
+    newPassword,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to reset password");
+  }
+
+  return { success: true };
+}
+
+/**
+ * Change email address (requires authentication)
+ */
+export async function changeEmail(newEmail: string) {
+  const { error } = await authClient.changeEmail({
+    newEmail,
+    callbackURL: "/dashboard/settings",
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to initiate email change");
+  }
+
+  return { success: true };
+}
+
+/**
+ * Verify email with token
+ */
+export async function verifyEmail(token: string) {
+  const { error } = await authClient.verifyEmail({
+    token,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to verify email");
+  }
+
+  return { success: true };
+}

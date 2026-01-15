@@ -1,5 +1,35 @@
 import { betterAuth } from "better-auth";
 import { Pool } from "pg";
+import { Resend } from "resend";
+import React from "react";
+import { render } from "@react-email/components";
+import { SignupVerificationEmail } from "@/lib/resend/templates/auth/signup-verification";
+import { PasswordResetEmail } from "@/lib/resend/templates/auth/password-reset";
+import { WelcomeEmail } from "@/lib/resend/templates/auth/welcome";
+
+// Initialize Resend for sending emails
+const resend = new Resend(process.env.RESEND_API_KEY);
+const emailFrom = process.env.EMAIL_FROM_ADDRESS || "DanceHub <account@dance-hub.io>";
+
+// Helper function to send emails without blocking
+async function sendEmail(
+  to: string,
+  subject: string,
+  reactElement: React.ReactElement
+) {
+  try {
+    const html = await render(reactElement);
+    await resend.emails.send({
+      from: emailFrom,
+      to,
+      subject,
+      html,
+    });
+    console.log(`Email sent successfully to ${to}: ${subject}`);
+  } catch (error) {
+    console.error(`Failed to send email to ${to}:`, error);
+  }
+}
 
 export const auth = betterAuth({
   database: new Pool({
@@ -18,16 +48,34 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     minPasswordLength: 8,
     sendResetPassword: async ({ user, url }) => {
-      // TODO: Implement with Resend in Phase 3
-      console.log(`Password reset for ${user.email}: ${url}`);
+      // Don't await - prevents timing attacks
+      void sendEmail(
+        user.email,
+        "Reset your password",
+        React.createElement(PasswordResetEmail, {
+          name: user.name || "there",
+          email: user.email,
+          resetUrl: url,
+        })
+      );
     },
   },
 
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
-      // TODO: Implement with Resend in Phase 3
-      console.log(`Email verification for ${user.email}: ${url}`);
+      // Don't await - prevents timing attacks
+      void sendEmail(
+        user.email,
+        "Verify your email address",
+        React.createElement(SignupVerificationEmail, {
+          name: user.name || "there",
+          email: user.email,
+          verificationUrl: url,
+        })
+      );
     },
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
   },
 
   socialProviders: {
@@ -71,6 +119,21 @@ export const auth = betterAuth({
         input: false,
       },
     },
+    changeEmail: {
+      enabled: true,
+      sendChangeEmailVerification: async ({ user, newEmail, url }) => {
+        // Send verification to the new email address
+        void sendEmail(
+          newEmail,
+          "Verify your new email address",
+          React.createElement(SignupVerificationEmail, {
+            name: user.name || "there",
+            email: newEmail,
+            verificationUrl: url,
+          })
+        );
+      },
+    },
   },
 
   account: {
@@ -83,6 +146,13 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
     cookiePrefix: "dancehub",
+  },
+
+  callbacks: {
+    onUserCreated: async ({ user }) => {
+      // Send welcome email after user is created and verified
+      console.log(`New user created: ${user.email}`);
+    },
   },
 });
 

@@ -1,8 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
+import { sql } from "@/lib/db";
 
-const supabase = createAdminClient();
-
+/**
+ * Verify email via Better Auth
+ * This endpoint handles both initial email verification and email change verification
+ */
 export async function POST(request: Request) {
   try {
     const { token } = await request.json();
@@ -14,79 +17,58 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the email change request
-    const { data: emailRequest, error: fetchError } = await supabase
-      .from('email_change_requests')
-      .select('*')
-      .eq('token', token)
-      .single();
+    // Use Better Auth's server-side API to verify email
+    const result = await auth.api.verifyEmail({
+      query: {
+        token,
+      },
+    });
 
-    if (fetchError || !emailRequest) {
+    if (!result) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // Check if token is expired
-    if (new Date(emailRequest.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Token has expired" },
-        { status: 400 }
-      );
-    }
-
-    // Check if email is already in use
-    const { data: existingUser, error: checkError } = await supabase.auth.admin.listUsers();
-    const isEmailTaken = existingUser?.users.some(
-      user => user.email === emailRequest.new_email && user.id !== emailRequest.user_id
-    );
-
-    if (isEmailTaken) {
-      return NextResponse.json(
-        { error: "This email address is already registered with another account" },
-        { status: 400 }
-      );
-    }
-
-    // Update the user's email in Supabase Auth
-    const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(
-      emailRequest.user_id,
-      {
-        email: emailRequest.new_email,
-        email_confirm: true
+    // If we have user info, sync the email to profiles table
+    if (result.user) {
+      try {
+        await sql`
+          UPDATE profiles
+          SET email = ${result.user.email}, updated_at = NOW()
+          WHERE auth_user_id = ${result.user.id}
+        `;
+      } catch (profileError) {
+        console.error("Error syncing profile email:", profileError);
+        // Don't fail - auth email was verified successfully
       }
-    );
-
-    if (updateError) {
-      console.error('Error updating email:', {
-        error: updateError,
-        userId: emailRequest.user_id,
-        newEmail: emailRequest.new_email,
-        message: updateError.message,
-        status: updateError.status
-      });
-      return NextResponse.json(
-        { error: `Failed to update email: ${updateError.message}` },
-        { status: 500 }
-      );
     }
-
-    // Delete the email change request
-    await supabase
-      .from('email_change_requests')
-      .delete()
-      .eq('token', token);
 
     return NextResponse.json({
-      message: "Email updated successfully"
+      message: "Email verified successfully",
+      user: result.user,
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error in verify-email:", error);
+
+    if (error instanceof Error) {
+      if (error.message.includes("expired") || error.message.includes("invalid")) {
+        return NextResponse.json(
+          { error: "Token has expired or is invalid" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
   }
-} 
+}

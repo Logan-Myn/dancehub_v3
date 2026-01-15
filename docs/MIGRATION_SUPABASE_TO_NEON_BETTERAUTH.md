@@ -19,12 +19,14 @@
 | **Phase 3.1** | Better-Auth Configuration | ✅ Completed |
 | **Phase 3.2** | Auth Context & Middleware | ✅ Completed |
 | **Phase 3.3** | User Data Migration | ✅ Completed |
-| **Phase 4** | Storage Migration | ⬜ Not Started |
-| **Phase 5** | Code Updates | ⬜ Not Started |
+| **Phase 4** | Storage Migration | ✅ Completed |
+| **Phase 5.1** | Core Auth File Updates | ✅ Completed |
+| **Phase 5.2** | API Route Updates | ⬜ Not Started |
+| **Phase 5.3** | Component Updates | ⬜ Not Started |
 | **Phase 6** | Testing | ⬜ Not Started |
 
-**Last Updated:** January 14, 2025
-**Current Step:** Phase 4 - Storage Migration
+**Last Updated:** January 15, 2025
+**Current Step:** Phase 5.2 - API Route Updates
 
 ### Phase 2.1 Summary (Completed)
 Created in Neon database (`wild-art-53938668`):
@@ -107,6 +109,42 @@ Created Better Auth database tables and user migration setup:
   - `better-auth-schema.sql` - Full Better Auth schema for reference
 
 **Database tables count:** Now 23 tables (19 original + 4 Better Auth)
+
+### Phase 5.1 Summary (Completed)
+Updated core authentication files to use Better Auth instead of Supabase:
+
+**Files Updated:**
+- `lib/auth.ts` - Rewritten to use Better Auth client (`authClient.signIn.email()`, `authClient.signUp.email()`, etc.)
+- `lib/auth-server.ts` - Enhanced with Resend email integration for:
+  - Email verification (`sendVerificationEmail`)
+  - Password reset (`sendResetPassword`)
+  - Email change verification (`sendChangeEmailVerification`)
+- `app/api/auth/signup/route.ts` - Uses `auth.api.signUpEmail()` + creates profile
+- `app/api/auth/reset-password/route.ts` - Uses `auth.api.forgetPassword()`
+- `app/api/auth/verify-reset-password/route.ts` - Uses `auth.api.resetPassword()`
+- `app/api/auth/verify-signup-token/route.ts` - Uses `auth.api.verifyEmail()` + sends welcome email
+- `app/api/auth/change-email/route.ts` - Uses `auth.api.changeEmail()`
+- `app/api/auth/verify-email-change/route.ts` - Uses `auth.api.verifyEmail()` + syncs profile
+- `app/api/auth/verify-email/route.ts` - Uses `auth.api.verifyEmail()`
+- `app/auth/callback/route.ts` - Simplified for Better Auth OAuth flow
+- `app/auth/verify-email/page.tsx` - Uses `authClient.verifyEmail()`
+
+**Files Deleted:**
+- `hooks/auth.ts` - Replaced by `useAuth()` from `contexts/AuthContext.tsx`
+
+**Import Fixes (updated to use `@/contexts/AuthContext` instead of deleted `@/hooks/auth`):**
+- `app/dashboard/page.tsx`
+- `app/dashboard/settings/page.tsx`
+- `app/[communitySlug]/classroom/page.tsx`
+- `app/[communitySlug]/classroom/[courseSlug]/page.tsx`
+- `components/PaymentModal.tsx`
+
+**Files Deprecated (with warnings):**
+- `lib/supabase.ts` - Added deprecation notice, kept for Phase 5.2/5.3
+- `lib/supabase/client.ts` - Added deprecation notice, kept for Phase 5.2/5.3
+- `lib/supabase/admin.ts` - Added deprecation notice, kept for Phase 5.2/5.3
+
+**Remaining files using Supabase:** 114 files (to be migrated in Phase 5.2 and 5.3)
 
 ---
 
@@ -786,24 +824,120 @@ migrateStorage();
 
 ### Phase 5: Code Updates (Days 13-15)
 
-#### 5.1 Files to Update
+#### 5.1 Core Auth Files to Update
 
-**Priority 1 - Core Auth:**
-- [ ] `contexts/AuthContext.tsx`
-- [ ] `middleware.ts`
-- [ ] `lib/supabase/client.ts` → `lib/auth-client.ts`
-- [ ] `lib/supabase/admin.ts` → `lib/db.ts`
-- [ ] `hooks/auth.ts`
+This phase focuses on updating **core authentication files** that still use Supabase patterns to use Better Auth and Neon database.
 
-**Priority 2 - API Routes:**
-- [ ] All `/app/api/auth/*` routes
-- [ ] All `/app/api/community/*` routes
-- [ ] All `/app/api/admin/*` routes
+**Status Legend:** ✅ Already Updated | ⬜ Needs Update
 
-**Priority 3 - Components:**
-- [ ] Auth modals and forms
-- [ ] User profile components
-- [ ] Protected route wrappers
+---
+
+##### Already Completed (Phase 3.1-3.3):
+- ✅ `contexts/AuthContext.tsx` - Uses Better Auth `authClient.useSession()`
+- ✅ `middleware.ts` - Uses Better Fetch with `/api/auth/get-session`
+- ✅ `lib/auth-server.ts` - Better Auth server configuration
+- ✅ `lib/auth-client.ts` - Better Auth client hooks
+- ✅ `lib/auth-session.ts` - Server-side session helpers
+- ✅ `app/api/auth/[...all]/route.ts` - Better Auth catch-all handler
+
+---
+
+##### Priority 1 - Core Auth Files (Must Update):
+
+**Client-side Supabase files to remove/replace:**
+- ✅ `lib/supabase.ts` - Added deprecation notice (DELETE in Phase 5.2/5.3)
+- ✅ `lib/supabase/client.ts` - Added deprecation notice (DELETE in Phase 5.2/5.3)
+- ✅ `lib/supabase/admin.ts` - Added deprecation notice (DELETE in Phase 5.2/5.3)
+
+**Auth utility files:**
+- ✅ `lib/auth.ts` - Completely rewritten to use `authClient` from `lib/auth-client.ts`
+- ✅ `hooks/auth.ts` - **DELETED** (replaced by `useAuth` from `contexts/AuthContext.tsx`)
+
+---
+
+##### Priority 2 - Auth API Routes (6 files):
+
+These routes have been rewritten to use Better Auth API:
+
+- ✅ `app/api/auth/signup/route.ts`
+  - Now uses: `auth.api.signUpEmail()` + creates profile in `profiles` table
+  - Integrated with Better Auth's email verification flow
+
+- ✅ `app/api/auth/reset-password/route.ts`
+  - Now uses: `auth.api.forgetPassword()` with Resend email integration
+  - Better Auth sends password reset emails via configured callback
+
+- ✅ `app/api/auth/verify-reset-password/route.ts`
+  - Now uses: `auth.api.resetPassword()` with token verification
+  - Better Auth handles password update securely
+
+- ✅ `app/api/auth/verify-signup-token/route.ts`
+  - Now uses: `auth.api.verifyEmail()` + sends welcome email via Resend
+  - Syncs user profile after verification
+
+- ✅ `app/api/auth/change-email/route.ts`
+  - Now uses: `auth.api.changeEmail()` with Better Auth session
+  - Integrated with Better Auth's email change flow
+
+- ✅ `app/api/auth/verify-email-change/route.ts`
+  - Now uses: `auth.api.verifyEmail()` + syncs email to `profiles` table
+  - Updates both Better Auth user and profile record
+
+---
+
+##### Priority 3 - Auth Page Components (2 files):
+
+- ✅ `app/auth/callback/route.ts` - OAuth callback handler
+  - Simplified for Better Auth - handles token/error params and redirects appropriately
+
+- ✅ `app/auth/verify-email/page.tsx` - Email verification page
+  - Now uses `authClient.verifyEmail()` with Better Auth verification flow
+
+---
+
+##### Files Summary for Phase 5.1:
+
+| Category | Files | Status |
+|----------|-------|--------|
+| Core Supabase libs | 3 | ✅ Deprecation notices added |
+| Auth utilities | 2 | ✅ Rewritten + 1 deleted |
+| Auth API routes | 6 | ✅ All rewritten for Better Auth |
+| Auth pages | 2 | ✅ Updated for Better Auth |
+| Import fixes | 5 | ✅ Updated to use AuthContext |
+| **Total** | **18 files** | ✅ **COMPLETE** |
+
+---
+
+##### Migration Notes for Phase 5.1:
+
+1. **Better Auth built-in features replace custom routes:**
+   - Signup: `authClient.signUp.email()`
+   - Login: `authClient.signIn.email()` / `authClient.signIn.social()`
+   - Logout: `authClient.signOut()`
+   - Password reset: Better Auth's `sendResetPassword` callback in `lib/auth-server.ts`
+   - Email verification: Better Auth's `emailVerification` config
+
+2. **Database tables to migrate from Supabase-specific to Better Auth:**
+   - `password_reset_requests` → Better Auth uses `verification` table
+   - `signup_verifications` → Better Auth uses `verification` table
+   - `email_change_requests` → Custom handling needed or use Better Auth plugin
+
+3. **Session pattern changes:**
+   ```typescript
+   // Client-side (components)
+   // Before: const { user } = useAuth() from hooks/auth.ts
+   // After: const { user } = useAuth() from contexts/AuthContext.tsx
+
+   // Server-side (API routes)
+   // Before: supabase.auth.getUser()
+   // After: getSession() from lib/auth-session.ts
+   ```
+
+4. **Admin operations pattern:**
+   ```typescript
+   // Before: supabase.auth.admin.updateUserById()
+   // After: Use Better Auth admin API or direct database updates via sql``
+   ```
 
 #### 5.2 Search and Replace Patterns
 
