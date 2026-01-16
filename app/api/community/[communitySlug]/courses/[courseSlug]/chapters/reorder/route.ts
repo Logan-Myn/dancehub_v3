@@ -1,39 +1,49 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface Course {
+  id: string;
+}
+
+interface Chapter {
+  id: string;
+  course_id: string;
+  title: string;
+  chapter_position: number;
+  created_at: string;
+  updated_at: string;
+}
 
 export async function PUT(
   req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { chapters } = await req.json();
 
-    // Get the authorization token
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // Verify the session and get user
+    const session = await getSession();
+
+    if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    const token = authHeader.split("Bearer ")[1];
 
-    // Verify the token and get user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+    const user = session.user;
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return new NextResponse("Community not found", { status: 404 });
     }
 
@@ -42,49 +52,39 @@ export async function PUT(
     }
 
     // Get course ID
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return new NextResponse("Course not found", { status: 404 });
     }
 
-    // Update positions for all chapters
-    const updates = chapters.map((chapter: any, index: number) => ({
-      id: chapter.id,
-      chapter_position: index,
-      title: chapter.title,
-      course_id: course.id
-    }));
-
-    const { error: updateError } = await supabase
-      .from("chapters")
-      .upsert(updates, { onConflict: 'id' });
-
-    if (updateError) {
-      console.error("Error updating chapter positions:", updateError);
-      return new NextResponse("Failed to update chapter positions", { status: 500 });
+    // Update positions for all chapters using individual updates
+    // (Neon doesn't support the same upsert syntax as Supabase)
+    for (let index = 0; index < chapters.length; index++) {
+      const chapter = chapters[index];
+      await sql`
+        UPDATE chapters
+        SET chapter_position = ${index}, title = ${chapter.title}
+        WHERE id = ${chapter.id} AND course_id = ${course.id}
+      `;
     }
 
     // Fetch updated chapters
-    const { data: updatedChapters, error: fetchError } = await supabase
-      .from("chapters")
-      .select("*")
-      .eq("course_id", course.id)
-      .order("chapter_position", { ascending: true });
-
-    if (fetchError) {
-      console.error("Error fetching updated chapters:", fetchError);
-      return new NextResponse("Failed to fetch updated chapters", { status: 500 });
-    }
+    const updatedChapters = await query<Chapter>`
+      SELECT *
+      FROM chapters
+      WHERE course_id = ${course.id}
+      ORDER BY chapter_position ASC
+    `;
 
     return NextResponse.json(updatedChapters);
   } catch (error) {
     console.error("Error in reorder chapters:", error);
     return new NextResponse("Internal server error", { status: 500 });
   }
-} 
+}
