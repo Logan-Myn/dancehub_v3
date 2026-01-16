@@ -1,10 +1,16 @@
-import { createAdminClient } from "@/lib/supabase";
+import { sql, queryOne } from "@/lib/db";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
 import { getEmailService } from "@/lib/resend/email-service";
 import { LessonReminderEmail } from "@/lib/resend/templates/video/lesson-reminder";
 import React from "react";
 
-const supabase = createAdminClient();
+/**
+ * Video Session Notifications
+ *
+ * Handles sending notifications (in-app and email) for video session events
+ *
+ * Migrated from Supabase to Neon database
+ */
 
 interface VideoSessionNotification {
   type: 'video_room_ready' | 'lesson_starting' | 'lesson_completed';
@@ -15,6 +21,25 @@ interface VideoSessionNotification {
   communityName: string;
   videoRoomUrl?: string;
   scheduledAt?: string;
+}
+
+interface CommunityCreator {
+  created_by: string;
+}
+
+interface ProfileEmail {
+  email: string;
+}
+
+interface ProfileName {
+  display_name: string | null;
+  full_name: string | null;
+}
+
+interface BookingWithLesson {
+  student_id: string;
+  student_name: string | null;
+  teacher_id: string;
 }
 
 /**
@@ -35,18 +60,18 @@ export async function notifyVideoRoomReady(booking: LessonBookingWithDetails) {
     });
 
     // Get teacher info and notify
-    const { data: community } = await supabase
-      .from('communities')
-      .select('created_by')
-      .eq('id', booking.community_id)
-      .single();
+    const community = await queryOne<CommunityCreator>`
+      SELECT created_by
+      FROM communities
+      WHERE id = ${booking.community_id}
+    `;
 
     if (community?.created_by) {
-      const { data: teacherProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', community.created_by)
-        .single();
+      const teacherProfile = await queryOne<ProfileEmail>`
+        SELECT email
+        FROM profiles
+        WHERE id = ${community.created_by}
+      `;
 
       if (teacherProfile?.email) {
         await sendNotification({
@@ -84,18 +109,18 @@ export async function notifyLessonStarting(booking: LessonBookingWithDetails) {
     });
 
     // Get teacher info and notify
-    const { data: community } = await supabase
-      .from('communities')
-      .select('created_by')
-      .eq('id', booking.community_id)
-      .single();
+    const community = await queryOne<CommunityCreator>`
+      SELECT created_by
+      FROM communities
+      WHERE id = ${booking.community_id}
+    `;
 
     if (community?.created_by) {
-      const { data: teacherProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', community.created_by)
-        .single();
+      const teacherProfile = await queryOne<ProfileEmail>`
+        SELECT email
+        FROM profiles
+        WHERE id = ${community.created_by}
+      `;
 
       if (teacherProfile?.email) {
         await sendNotification({
@@ -131,18 +156,18 @@ export async function notifyLessonCompleted(booking: LessonBookingWithDetails) {
     });
 
     // Get teacher info and notify
-    const { data: community } = await supabase
-      .from('communities')
-      .select('created_by')
-      .eq('id', booking.community_id)
-      .single();
+    const community = await queryOne<CommunityCreator>`
+      SELECT created_by
+      FROM communities
+      WHERE id = ${booking.community_id}
+    `;
 
     if (community?.created_by) {
-      const { data: teacherProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', community.created_by)
-        .single();
+      const teacherProfile = await queryOne<ProfileEmail>`
+        SELECT email
+        FROM profiles
+        WHERE id = ${community.created_by}
+      `;
 
       if (teacherProfile?.email) {
         await sendNotification({
@@ -166,7 +191,7 @@ export async function notifyLessonCompleted(booking: LessonBookingWithDetails) {
 async function sendNotification(notification: VideoSessionNotification) {
   // Send in-app notification
   await createInAppNotification(notification);
-  
+
   // Send email notification
   await sendEmailNotification(notification);
 }
@@ -176,26 +201,23 @@ async function sendNotification(notification: VideoSessionNotification) {
  */
 async function createInAppNotification(notification: VideoSessionNotification) {
   try {
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: notification.recipientId,
-        type: notification.type,
-        title: getNotificationTitle(notification),
-        message: getNotificationMessage(notification),
-        data: {
+    await sql`
+      INSERT INTO notifications (user_id, type, title, message, data, read)
+      VALUES (
+        ${notification.recipientId},
+        ${notification.type},
+        ${getNotificationTitle(notification)},
+        ${getNotificationMessage(notification)},
+        ${JSON.stringify({
           booking_id: notification.bookingId,
           video_room_url: notification.videoRoomUrl,
           lesson_title: notification.lessonTitle,
           community_name: notification.communityName,
           scheduled_at: notification.scheduledAt,
-        },
-        read: false,
-      });
-
-    if (error) {
-      console.error('Error creating in-app notification:', error);
-    }
+        })},
+        false
+      )
+    `;
   } catch (error) {
     console.error('Error creating in-app notification:', error);
   }
@@ -209,50 +231,53 @@ async function sendEmailNotification(notification: VideoSessionNotification) {
     const emailService = getEmailService();
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://dancehub.com';
     const videoRoomUrl = notification.videoRoomUrl || `${baseUrl}/video-session/${notification.bookingId}`;
-    
+
     // Get recipient name from profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, full_name')
-      .eq('id', notification.recipientId)
-      .single();
-    
+    const profile = await queryOne<ProfileName>`
+      SELECT display_name, full_name
+      FROM profiles
+      WHERE id = ${notification.recipientId}
+    `;
+
     const recipientName = profile?.display_name || profile?.full_name || 'Student';
-    
+
     // Get teacher/student name based on recipient type
-    const { data: booking } = await supabase
-      .from('lesson_bookings')
-      .select('student_id, student_name, lesson:private_lessons!inner(teacher_id)')
-      .eq('id', notification.bookingId)
-      .single();
-    
+    const booking = await queryOne<BookingWithLesson>`
+      SELECT
+        lb.student_id,
+        lb.student_name,
+        pl.teacher_id
+      FROM lesson_bookings lb
+      INNER JOIN private_lessons pl ON pl.id = lb.private_lesson_id
+      WHERE lb.id = ${notification.bookingId}
+    `;
+
     let otherParticipantName = 'Participant';
     let recipientRole: 'student' | 'teacher' = 'student';
-    
+
     if (booking) {
       // If recipient is the student
       if (notification.recipientId === booking.student_id) {
         recipientRole = 'student';
         // Get teacher name
-        const teacherInfo = Array.isArray(booking.lesson) ? booking.lesson[0] : booking.lesson;
-        const { data: teacher } = await supabase
-          .from('profiles')
-          .select('display_name, full_name')
-          .eq('id', teacherInfo?.teacher_id)
-          .single();
+        const teacher = await queryOne<ProfileName>`
+          SELECT display_name, full_name
+          FROM profiles
+          WHERE id = ${booking.teacher_id}
+        `;
         otherParticipantName = teacher?.display_name || teacher?.full_name || 'Teacher';
       } else {
         recipientRole = 'teacher';
         otherParticipantName = booking.student_name || 'Student';
       }
     }
-    
+
     switch (notification.type) {
       case 'video_room_ready':
         // Skip email notification for video room ready - only create in-app notification
         console.log('Video room ready - skipping email, in-app notification created');
         break;
-        
+
       case 'lesson_starting':
         await emailService.sendNotificationEmail(
           notification.recipientEmail,
@@ -267,15 +292,14 @@ async function sendEmailNotification(notification: VideoSessionNotification) {
           })
         );
         break;
-        
+
       case 'lesson_completed':
         // For now, send a simple text email for lesson completed
-        // You could create a dedicated template for this
         await emailService.sendNotificationEmail(
           notification.recipientEmail,
           getEmailSubject(notification),
           React.createElement('div', {},
-            React.createElement('h2', {}, '✅ Lesson Completed!'),
+            React.createElement('h2', {}, 'Lesson Completed!'),
             React.createElement('p', {}, `Your lesson "${notification.lessonTitle}" has been completed.`),
             React.createElement('p', {}, 'Thank you for using DanceHub!')
           )
@@ -293,11 +317,11 @@ async function sendEmailNotification(notification: VideoSessionNotification) {
 function getNotificationTitle(notification: VideoSessionNotification): string {
   switch (notification.type) {
     case 'video_room_ready':
-      return '🎥 Video Room Ready';
+      return 'Video Room Ready';
     case 'lesson_starting':
-      return '⏰ Lesson Starting Soon';
+      return 'Lesson Starting Soon';
     case 'lesson_completed':
-      return '✅ Lesson Completed';
+      return 'Lesson Completed';
     default:
       return 'Lesson Update';
   }
@@ -334,4 +358,3 @@ function getEmailSubject(notification: VideoSessionNotification): string {
       return `Lesson Update - ${notification.lessonTitle}`;
   }
 }
-

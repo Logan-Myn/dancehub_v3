@@ -2,9 +2,31 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth-session';
 import { sql } from '@/lib/db';
 
-// GET: Fetch current user's profile
-export async function GET() {
+// GET: Fetch profile (current user or by userId query param)
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const requestedUserId = searchParams.get('userId');
+
+    // If userId is provided, fetch that specific profile
+    if (requestedUserId) {
+      const profiles = await sql`
+        SELECT id, full_name, display_name, avatar_url, email
+        FROM profiles
+        WHERE id = ${requestedUserId}
+      `;
+
+      if (profiles.length === 0) {
+        return NextResponse.json(
+          { error: 'Profile not found' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(profiles[0]);
+    }
+
+    // Otherwise, fetch current user's profile (requires auth)
     const session = await getSession();
     if (!session) {
       return NextResponse.json(

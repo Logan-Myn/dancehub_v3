@@ -1,14 +1,35 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql, queryOne } from "@/lib/db";
 
-const supabase = createAdminClient();
+/**
+ * Email Preferences Check
+ *
+ * Handles checking user email preferences and generating unsubscribe URLs
+ *
+ * Migrated from Supabase to Neon database
+ */
 
-export type EmailCategory = 
+export type EmailCategory =
   | 'transactional'
   | 'marketing'
   | 'course_announcements'
   | 'lesson_reminders'
   | 'community_updates'
   | 'weekly_digest';
+
+interface EmailPreferences {
+  email: string;
+  unsubscribe_token: string | null;
+  unsubscribed_all: boolean;
+  marketing_emails: boolean | null;
+  course_announcements: boolean | null;
+  lesson_reminders: boolean | null;
+  community_updates: boolean | null;
+  weekly_digest: boolean | null;
+}
+
+interface ProfileId {
+  id: string;
+}
 
 /**
  * Check if a user has opted in to receive a specific category of emails
@@ -24,13 +45,21 @@ export async function canSendEmail(
     }
 
     // Get email preferences
-    const { data: preferences, error } = await supabase
-      .from('email_preferences')
-      .select('*')
-      .eq('email', userEmail)
-      .single();
+    const preferences = await queryOne<EmailPreferences>`
+      SELECT
+        email,
+        unsubscribe_token,
+        unsubscribed_all,
+        marketing_emails,
+        course_announcements,
+        lesson_reminders,
+        community_updates,
+        weekly_digest
+      FROM email_preferences
+      WHERE email = ${userEmail}
+    `;
 
-    if (error || !preferences) {
+    if (!preferences) {
       // If no preferences exist, default to allowing emails
       // (preferences will be created on first login)
       console.warn(`No email preferences found for ${userEmail}, defaulting to allow`);
@@ -72,11 +101,11 @@ export async function getUnsubscribeUrl(
   emailType?: EmailCategory
 ): Promise<string> {
   try {
-    const { data: preferences } = await supabase
-      .from('email_preferences')
-      .select('unsubscribe_token')
-      .eq('email', userEmail)
-      .single();
+    const preferences = await queryOne<{ unsubscribe_token: string | null }>`
+      SELECT unsubscribe_token
+      FROM email_preferences
+      WHERE email = ${userEmail}
+    `;
 
     if (preferences?.unsubscribe_token) {
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dance-hub.io';
@@ -100,11 +129,11 @@ export async function getUnsubscribeUrl(
  */
 export async function getPreferencesUrl(userEmail: string): Promise<string> {
   try {
-    const { data: preferences } = await supabase
-      .from('email_preferences')
-      .select('unsubscribe_token')
-      .eq('email', userEmail)
-      .single();
+    const preferences = await queryOne<{ unsubscribe_token: string | null }>`
+      SELECT unsubscribe_token
+      FROM email_preferences
+      WHERE email = ${userEmail}
+    `;
 
     if (preferences?.unsubscribe_token) {
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dance-hub.io';
@@ -125,25 +154,26 @@ export async function logEmailEvent(
   userEmail: string,
   eventType: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'failed',
   emailType: EmailCategory,
-  metadata?: any
+  metadata?: unknown
 ): Promise<void> {
   try {
     // Get user ID from email
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', userEmail)
-      .single();
+    const userData = await queryOne<ProfileId>`
+      SELECT id
+      FROM profiles
+      WHERE email = ${userEmail}
+    `;
 
-    await supabase
-      .from('email_events')
-      .insert({
-        user_id: userData?.id,
-        email: userEmail,
-        event_type: eventType,
-        email_type: emailType,
-        metadata,
-      });
+    await sql`
+      INSERT INTO email_events (user_id, email, event_type, email_type, metadata)
+      VALUES (
+        ${userData?.id || null},
+        ${userEmail},
+        ${eventType},
+        ${emailType},
+        ${metadata ? JSON.stringify(metadata) : null}
+      )
+    `;
   } catch (error) {
     console.error('Error logging email event:', error);
   }

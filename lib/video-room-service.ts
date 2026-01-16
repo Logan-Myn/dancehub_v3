@@ -1,19 +1,20 @@
-import { createAdminClient } from "@/lib/supabase";
+import { sql, query, queryOne } from "@/lib/db";
 
 /**
  * Consolidated Video Room Service
- * 
+ *
  * Handles the entire lifecycle of Daily.co video rooms for private lessons:
  * - Room creation and management
  * - Token generation for secure access
  * - Session tracking and cleanup
  * - Error handling and retry logic
+ *
+ * Migrated from Supabase to Neon database
  */
 
 // Daily.co API configuration
 const DAILY_API_KEY = process.env.DAILY_API_KEY;
 const DAILY_API_URL = 'https://api.daily.co/v1';
-const supabase = createAdminClient();
 
 if (!DAILY_API_KEY) {
   console.warn('DAILY_API_KEY is not set in environment variables');
@@ -55,6 +56,52 @@ export interface VideoRoomResult {
   expiresAt?: string;
 }
 
+// Database types
+interface BookingDetails {
+  id: string;
+  private_lesson_id: string;
+  student_id: string;
+  student_name: string | null;
+  community_id: string;
+  payment_status: string;
+  scheduled_at: string | null;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  daily_room_expires_at: string | null;
+  teacher_daily_token: string | null;
+  student_daily_token: string | null;
+  lesson_title: string;
+  lesson_duration_minutes: number;
+  lesson_location_type: string;
+  lesson_teacher_id: string;
+  community_slug: string;
+  community_created_by: string;
+}
+
+interface BookingSession {
+  session_started_at: string | null;
+  teacher_joined_at: string | null;
+  student_joined_at: string | null;
+}
+
+interface ExpiredBooking {
+  id: string;
+  daily_room_name: string | null;
+}
+
+interface LiveClassDetails {
+  id: string;
+  title: string;
+  description: string | null;
+  scheduled_start_time: string;
+  duration_minutes: number;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  daily_room_expires_at: string | null;
+  community_id: string;
+  created_by: string;
+}
+
 export class VideoRoomService {
   /**
    * Create a complete video room setup for a booking
@@ -66,7 +113,7 @@ export class VideoRoomService {
 
       // Get booking details with related data
       const booking = await this.getBookingDetails(bookingId);
-      
+
       // Validate booking can have video room
       this.validateBookingForVideo(booking);
 
@@ -76,10 +123,10 @@ export class VideoRoomService {
         return {
           success: true,
           roomName: booking.daily_room_name,
-          roomUrl: booking.daily_room_url,
-          teacherToken: booking.teacher_daily_token,
-          studentToken: booking.student_daily_token,
-          expiresAt: booking.daily_room_expires_at,
+          roomUrl: booking.daily_room_url ?? undefined,
+          teacherToken: booking.teacher_daily_token ?? undefined,
+          studentToken: booking.student_daily_token ?? undefined,
+          expiresAt: booking.daily_room_expires_at ?? undefined,
         };
       }
 
@@ -120,26 +167,26 @@ export class VideoRoomService {
    */
   async generateTokensForRoom(bookingId: string): Promise<{ teacherToken: string; studentToken: string }> {
     const booking = await this.getBookingDetails(bookingId);
-    
+
     if (!booking.daily_room_name) {
       throw new Error('No video room exists for this booking');
     }
 
-    const roomExpiration = booking.daily_room_expires_at 
+    const roomExpiration = booking.daily_room_expires_at
       ? Math.floor(new Date(booking.daily_room_expires_at).getTime() / 1000)
       : Math.floor(Date.now() / 1000) + (2 * 60 * 60); // 2 hours fallback
 
     const tokens = await this.generateTokensForBooking(booking, booking.daily_room_name, roomExpiration);
 
     // Update tokens in database
-    await supabase
-      .from("lesson_bookings")
-      .update({
-        teacher_daily_token: tokens.teacherToken,
-        student_daily_token: tokens.studentToken,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", bookingId);
+    await sql`
+      UPDATE lesson_bookings
+      SET
+        teacher_daily_token = ${tokens.teacherToken},
+        student_daily_token = ${tokens.studentToken},
+        updated_at = NOW()
+      WHERE id = ${bookingId}
+    `;
 
     return tokens;
   }
@@ -149,29 +196,53 @@ export class VideoRoomService {
    */
   async startSession(bookingId: string, userRole: 'teacher' | 'student'): Promise<void> {
     const now = new Date().toISOString();
-    const updateField = userRole === 'teacher' ? 'teacher_joined_at' : 'student_joined_at';
-    
+
     // Check if this is the first person to join (start the session)
-    const { data: booking } = await supabase
-      .from("lesson_bookings")
-      .select("session_started_at, teacher_joined_at, student_joined_at")
-      .eq("id", bookingId)
-      .single();
+    const booking = await queryOne<BookingSession>`
+      SELECT session_started_at, teacher_joined_at, student_joined_at
+      FROM lesson_bookings
+      WHERE id = ${bookingId}
+    `;
 
-    const updates: any = {
-      [updateField]: now,
-      updated_at: now,
-    };
-
-    // If no one has joined yet, mark session as started
-    if (booking && !booking.session_started_at) {
-      updates.session_started_at = now;
+    if (userRole === 'teacher') {
+      if (booking && !booking.session_started_at) {
+        await sql`
+          UPDATE lesson_bookings
+          SET
+            teacher_joined_at = ${now},
+            session_started_at = ${now},
+            updated_at = ${now}
+          WHERE id = ${bookingId}
+        `;
+      } else {
+        await sql`
+          UPDATE lesson_bookings
+          SET
+            teacher_joined_at = ${now},
+            updated_at = ${now}
+          WHERE id = ${bookingId}
+        `;
+      }
+    } else {
+      if (booking && !booking.session_started_at) {
+        await sql`
+          UPDATE lesson_bookings
+          SET
+            student_joined_at = ${now},
+            session_started_at = ${now},
+            updated_at = ${now}
+          WHERE id = ${bookingId}
+        `;
+      } else {
+        await sql`
+          UPDATE lesson_bookings
+          SET
+            student_joined_at = ${now},
+            updated_at = ${now}
+          WHERE id = ${bookingId}
+        `;
+      }
     }
-
-    await supabase
-      .from("lesson_bookings")
-      .update(updates)
-      .eq("id", bookingId);
 
     console.log(`📹 ${userRole} joined video session for booking: ${bookingId}`);
   }
@@ -181,14 +252,14 @@ export class VideoRoomService {
    */
   async endSession(bookingId: string): Promise<void> {
     const now = new Date().toISOString();
-    
-    await supabase
-      .from("lesson_bookings")
-      .update({
-        session_ended_at: now,
-        updated_at: now,
-      })
-      .eq("id", bookingId);
+
+    await sql`
+      UPDATE lesson_bookings
+      SET
+        session_ended_at = ${now},
+        updated_at = ${now}
+      WHERE id = ${bookingId}
+    `;
 
     console.log(`⏹️ Video session ended for booking: ${bookingId}`);
   }
@@ -197,32 +268,33 @@ export class VideoRoomService {
    * Clean up expired rooms
    */
   async cleanupExpiredRooms(): Promise<void> {
-    const { data: expiredBookings } = await supabase
-      .from("lesson_bookings")
-      .select("id, daily_room_name")
-      .lt("daily_room_expires_at", new Date().toISOString())
-      .not("daily_room_name", "is", null);
+    const expiredBookings = await query<ExpiredBooking>`
+      SELECT id, daily_room_name
+      FROM lesson_bookings
+      WHERE daily_room_expires_at < NOW()
+        AND daily_room_name IS NOT NULL
+    `;
 
-    if (expiredBookings?.length) {
+    if (expiredBookings.length > 0) {
       console.log(`🧹 Cleaning up ${expiredBookings.length} expired video rooms`);
-      
+
       for (const booking of expiredBookings) {
         try {
           if (booking.daily_room_name) {
             await this.deleteDailyRoom(booking.daily_room_name);
           }
-          
-          await supabase
-            .from("lesson_bookings")
-            .update({
-              daily_room_name: null,
-              daily_room_url: null,
-              teacher_daily_token: null,
-              student_daily_token: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", booking.id);
-            
+
+          await sql`
+            UPDATE lesson_bookings
+            SET
+              daily_room_name = NULL,
+              daily_room_url = NULL,
+              teacher_daily_token = NULL,
+              student_daily_token = NULL,
+              updated_at = NOW()
+            WHERE id = ${booking.id}
+          `;
+
         } catch (error) {
           console.error(`Error cleaning up room for booking ${booking.id}:`, error);
         }
@@ -232,71 +304,64 @@ export class VideoRoomService {
 
   // Private helper methods
 
-  private async getBookingDetails(bookingId: string) {
-    const { data: booking, error } = await supabase
-      .from("lesson_bookings")
-      .select(`
-        id,
-        private_lesson_id,
-        student_id,
-        student_name,
-        community_id,
-        payment_status,
-        scheduled_at,
-        daily_room_name,
-        daily_room_url,
-        daily_room_expires_at,
-        teacher_daily_token,
-        student_daily_token,
-        private_lessons!inner(
-          title,
-          duration_minutes,
-          location_type,
-          teacher_id,
-          communities!inner(
-            slug,
-            created_by
-          )
-        )
-      `)
-      .eq("id", bookingId)
-      .single();
+  private async getBookingDetails(bookingId: string): Promise<BookingDetails> {
+    const booking = await queryOne<BookingDetails>`
+      SELECT
+        lb.id,
+        lb.private_lesson_id,
+        lb.student_id,
+        lb.student_name,
+        lb.community_id,
+        lb.payment_status,
+        lb.scheduled_at,
+        lb.daily_room_name,
+        lb.daily_room_url,
+        lb.daily_room_expires_at,
+        lb.teacher_daily_token,
+        lb.student_daily_token,
+        pl.title as lesson_title,
+        pl.duration_minutes as lesson_duration_minutes,
+        pl.location_type as lesson_location_type,
+        pl.teacher_id as lesson_teacher_id,
+        c.slug as community_slug,
+        c.created_by as community_created_by
+      FROM lesson_bookings lb
+      INNER JOIN private_lessons pl ON pl.id = lb.private_lesson_id
+      INNER JOIN communities c ON c.id = pl.community_id
+      WHERE lb.id = ${bookingId}
+    `;
 
-    if (error || !booking) {
+    if (!booking) {
       throw new Error(`Booking not found: ${bookingId}`);
     }
 
     return booking;
   }
 
-  private validateBookingForVideo(booking: any): void {
+  private validateBookingForVideo(booking: BookingDetails): void {
     if (booking.payment_status !== 'succeeded') {
       throw new Error('Payment not completed');
     }
 
-    const lesson = booking.private_lessons;
-    if (lesson.location_type !== 'online' && lesson.location_type !== 'both') {
+    if (booking.lesson_location_type !== 'online' && booking.lesson_location_type !== 'both') {
       throw new Error('Video room not needed for in-person only lessons');
     }
   }
 
-  private generateRoomConfig(booking: any): { roomName: string; roomExpiration: number } {
-    const lesson = booking.private_lessons;
-    const community = lesson.communities;
-    
+  private generateRoomConfig(booking: BookingDetails): { roomName: string; roomExpiration: number } {
     // Generate unique room name - ensure it meets Daily.co requirements
     // Room names must be alphanumeric with dashes/underscores, max 128 chars
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const shortBookingId = booking.id.substring(0, 8);
-    const sanitizedSlug = community.slug.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
+    const sanitizedSlug = booking.community_slug.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
     const roomName = `${sanitizedSlug}-${shortBookingId}-${randomSuffix}`.toLowerCase();
 
     console.log('🏠 Generated room name:', roomName);
 
     // Calculate expiration time
     const bufferMinutes = 30;
-    const totalMinutes = lesson.duration_minutes + bufferMinutes;
-    
+    const totalMinutes = booking.lesson_duration_minutes + bufferMinutes;
+
     let roomExpiration: number;
     if (booking.scheduled_at) {
       const scheduledTime = new Date(booking.scheduled_at).getTime() / 1000;
@@ -353,14 +418,12 @@ export class VideoRoomService {
     return response;
   }
 
-  private async generateTokensForBooking(booking: any, roomName: string, expiration: number) {
-    const lesson = booking.private_lessons;
-    
+  private async generateTokensForBooking(booking: BookingDetails, roomName: string, expiration: number) {
     // Generate teacher token (owner privileges)
     const teacherTokenConfig: DailyMeetingToken = {
       room_name: roomName,
       user_name: 'Teacher',
-      user_id: lesson.teacher_id,
+      user_id: booking.lesson_teacher_id,
       is_owner: true,
       exp: expiration,
       enable_screenshare: true,
@@ -402,22 +465,21 @@ export class VideoRoomService {
     tokens: { teacherToken: string; studentToken: string },
     expiration: number
   ) {
-    const { error } = await supabase
-      .from("lesson_bookings")
-      .update({
-        daily_room_name: dailyRoom.name,
-        daily_room_url: dailyRoom.url,
-        daily_room_created_at: new Date().toISOString(),
-        daily_room_expires_at: new Date(expiration * 1000).toISOString(),
-        teacher_daily_token: tokens.teacherToken,
-        student_daily_token: tokens.studentToken,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", bookingId);
+    const expiresAt = new Date(expiration * 1000).toISOString();
+    const now = new Date().toISOString();
 
-    if (error) {
-      throw new Error(`Failed to update booking with room details: ${error.message}`);
-    }
+    await sql`
+      UPDATE lesson_bookings
+      SET
+        daily_room_name = ${dailyRoom.name},
+        daily_room_url = ${dailyRoom.url},
+        daily_room_created_at = ${now},
+        daily_room_expires_at = ${expiresAt},
+        teacher_daily_token = ${tokens.teacherToken},
+        student_daily_token = ${tokens.studentToken},
+        updated_at = ${now}
+      WHERE id = ${bookingId}
+    `;
   }
 
   private async makeApiRequest(url: string, method: 'GET' | 'POST' | 'DELETE', body?: any, retries = 2) {
@@ -442,19 +504,19 @@ export class VideoRoomService {
         };
 
         const response = await fetch(url, options);
-        
+
         console.log(`📡 Daily.co API Response: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
           const errorText = await response.text();
           let errorDetail;
-          
+
           try {
             errorDetail = JSON.parse(errorText);
           } catch {
             errorDetail = { error: errorText };
           }
-          
+
           console.error('📡 Daily.co API Error Response:', {
             status: response.status,
             statusText: response.statusText,
@@ -463,7 +525,7 @@ export class VideoRoomService {
             method,
             body
           });
-          
+
           throw new Error(`Daily.co API error (${response.status}): ${errorDetail.error || errorDetail.message || errorText || 'Request failed'}`);
         }
 
@@ -496,25 +558,25 @@ export class VideoRoomService {
         return { success: false, error: 'Live class not found' };
       }
 
-      const { roomName, roomExpiration } = await this.generateLiveClassRoom(liveClass);
-      
+      const { roomName, roomExpiration } = this.generateLiveClassRoom(liveClass);
+
       console.log(`🎬 Generated room name: ${roomName}`);
 
       const dailyRoom = await this.createDailyRoomForLiveClass(roomName, roomExpiration);
-      
+
       await this.updateLiveClassWithRoomDetails(classId, dailyRoom, roomExpiration);
 
       console.log(`✅ Successfully created video room for live class ${classId}`);
-      return { 
-        success: true, 
-        roomName: dailyRoom.name, 
-        roomUrl: dailyRoom.url 
+      return {
+        success: true,
+        roomName: dailyRoom.name,
+        roomUrl: dailyRoom.url
       };
     } catch (error) {
       console.error(`❌ Failed to create video room for live class ${classId}:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
@@ -557,24 +619,34 @@ export class VideoRoomService {
     }
   }
 
-  private async getLiveClassDetails(classId: string) {
-    const { data: liveClass, error } = await supabase
-      .from("live_classes")
-      .select("*")
-      .eq("id", classId)
-      .single();
+  private async getLiveClassDetails(classId: string): Promise<LiveClassDetails | null> {
+    const liveClass = await queryOne<LiveClassDetails>`
+      SELECT
+        id,
+        title,
+        description,
+        scheduled_start_time,
+        duration_minutes,
+        daily_room_name,
+        daily_room_url,
+        daily_room_expires_at,
+        community_id,
+        created_by
+      FROM live_classes
+      WHERE id = ${classId}
+    `;
 
-    if (error || !liveClass) {
-      console.error(`Live class ${classId} not found:`, error);
+    if (!liveClass) {
+      console.error(`Live class ${classId} not found`);
       return null;
     }
 
     return liveClass;
   }
 
-  private async generateLiveClassRoom(liveClass: any) {
+  private generateLiveClassRoom(liveClass: LiveClassDetails): { roomName: string; roomExpiration: number } {
     const roomName = `live-class-${liveClass.id.replace(/-/g, '')}`;
-    
+
     // Calculate room expiration (class time + duration + 30 minute buffer)
     const classStart = new Date(liveClass.scheduled_start_time).getTime() / 1000;
     const bufferMinutes = 30;
@@ -622,19 +694,18 @@ export class VideoRoomService {
     dailyRoom: any,
     expiration: number
   ) {
-    const { error } = await supabase
-      .from("live_classes")
-      .update({
-        daily_room_name: dailyRoom.name,
-        daily_room_url: dailyRoom.url,
-        daily_room_expires_at: new Date(expiration * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", classId);
+    const expiresAt = new Date(expiration * 1000).toISOString();
+    const now = new Date().toISOString();
 
-    if (error) {
-      throw new Error(`Failed to update live class with room details: ${error.message}`);
-    }
+    await sql`
+      UPDATE live_classes
+      SET
+        daily_room_name = ${dailyRoom.name},
+        daily_room_url = ${dailyRoom.url},
+        daily_room_expires_at = ${expiresAt},
+        updated_at = ${now}
+      WHERE id = ${classId}
+    `;
   }
 }
 
