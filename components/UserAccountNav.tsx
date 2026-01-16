@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, User as UserIcon, Settings } from "lucide-react";
-import { User } from "@supabase/supabase-js";
 import { signOut } from "@/lib/auth";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -16,6 +15,14 @@ interface Profile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+}
+
+// Better Auth User type
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  image?: string | null;
 }
 
 interface UserAccountNavProps {
@@ -40,7 +47,7 @@ export default function UserAccountNav({ user, profile }: UserAccountNavProps) {
     <DropdownMenu>
       <DropdownMenuTrigger className="focus-visible:outline-none">
         <Avatar className="h-8 w-8">
-          <AvatarImage src={profile?.avatar_url || user.user_metadata?.avatar_url} />
+          <AvatarImage src={profile?.avatar_url || user.image || undefined} />
           <AvatarFallback className="uppercase">
             {profile?.full_name?.[0] || user.email?.[0] || "U"}
           </AvatarFallback>
@@ -49,8 +56,8 @@ export default function UserAccountNav({ user, profile }: UserAccountNavProps) {
       <DropdownMenuContent align="end">
         <div className="flex items-center justify-start gap-2 p-2">
           <div className="flex flex-col space-y-1 leading-none">
-            {(profile?.full_name || user.user_metadata?.full_name) && (
-              <p className="font-medium">{profile?.full_name || user.user_metadata?.full_name}</p>
+            {(profile?.full_name || user.name) && (
+              <p className="font-medium">{profile?.full_name || user.name}</p>
             )}
             {user.email && (
               <p className="w-[200px] truncate text-sm text-muted-foreground">

@@ -6,7 +6,6 @@ import UserAccountNav from "@/components/UserAccountNav";
 import NotificationsButton from "@/components/NotificationsButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
-import { createClient } from "@/lib/supabase/client";
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 
@@ -19,8 +18,7 @@ interface Profile {
 export default function Navbar() {
   const { user, loading: isAuthLoading } = useAuth();
   const { showAuthModal } = useAuthModal();
-  const supabase = createClient();
-  
+
   // Use SWR for profile fetching
   const { data: profile } = useSWR<Profile>(
     user ? `profile:${user.id}` : null,

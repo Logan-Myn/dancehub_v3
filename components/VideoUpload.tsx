@@ -5,7 +5,7 @@ import { Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface VideoUploadProps {
   onUploadComplete: (assetId: string, playbackId: string) => void;
@@ -21,17 +21,13 @@ export default function VideoUpload({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
+  const { session } = useAuth();
 
   const handleUpload = async (file: File) => {
     try {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Get session for authentication
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       if (!session) {
         throw new Error("Authentication required");
       }
@@ -39,9 +35,6 @@ export default function VideoUpload({
       // Get upload URL
       const response = await fetch("/api/mux/upload-url", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       if (!response.ok) {
@@ -101,11 +94,7 @@ export default function VideoUpload({
         }
 
         try {
-          const assetResponse = await fetch(`/api/mux/assets/${uploadId}`, {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
+          const assetResponse = await fetch(`/api/mux/assets/${uploadId}`);
 
           if (!assetResponse.ok) {
             throw new Error("Failed to check asset status");

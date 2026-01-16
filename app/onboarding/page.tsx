@@ -5,23 +5,16 @@ import { Rocket, Heart, Smile, Users, Smartphone, Globe } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import OnboardingForm from '@/app/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from '@/lib/supabase/client';
 
 export default function OnboardingPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
 
   React.useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !user) {
-        router.push('/');
-      }
-    };
-
-    checkAuth();
-  }, [user, router, supabase]);
+    if (!session || !user) {
+      router.push('/');
+    }
+  }, [user, session, router]);
 
   // Show loading state while checking authentication
   if (!user) {

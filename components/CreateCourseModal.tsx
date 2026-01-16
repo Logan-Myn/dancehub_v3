@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { useDropzone } from 'react-dropzone';
 import Image from 'next/image';
 import { Course } from "@/types/course";
-import { createClient } from "@/lib/supabase";
 import { slugify } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 
@@ -38,7 +37,6 @@ export default function CreateCourseModal({
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const supabase = createClient();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];

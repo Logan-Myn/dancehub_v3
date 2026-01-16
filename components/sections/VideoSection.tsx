@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import MuxPlayerComponent from '@mux/mux-player-react';
 
@@ -37,7 +37,7 @@ export default function VideoSection({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = createClient();
+  const { session } = useAuth();
 
   const {
     attributes,
@@ -58,8 +58,6 @@ export default function VideoSection({
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Get session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('Authentication required');
       }
@@ -67,9 +65,6 @@ export default function VideoSection({
       // Get upload URL
       const response = await fetch('/api/mux/upload-url', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
       });
 
       if (!response.ok) {
@@ -120,11 +115,7 @@ export default function VideoSection({
         }
 
         try {
-          const assetResponse = await fetch(`/api/mux/assets/${uploadId}`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          });
+          const assetResponse = await fetch(`/api/mux/assets/${uploadId}`);
 
           if (!assetResponse.ok) {
             throw new Error('Failed to check asset status');

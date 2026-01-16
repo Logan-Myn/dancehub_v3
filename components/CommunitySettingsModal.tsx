@@ -236,8 +236,7 @@ export default function CommunitySettingsModal({
   const [openingDate, setOpeningDate] = useState<string>('');
   const [canChangeOpeningDate, setCanChangeOpeningDate] = useState(true);
 
-  const supabase = createClient();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -442,40 +441,14 @@ export default function CommunitySettingsModal({
       if (activeCategory === "members") {
         setIsLoadingMembers(true);
         try {
-          // Get community ID first
-          const { data: communityData, error: communityError } = await supabase
-            .from("communities")
-            .select("id")
-            .eq("slug", communitySlug)
-            .single();
+          const response = await fetch(`/api/community/${communitySlug}/members`);
 
-          if (communityError || !communityData) {
-            throw new Error("Community not found");
+          if (!response.ok) {
+            throw new Error("Failed to fetch members");
           }
 
-          // Get members with profiles
-          const { data: membersData, error: membersError } = await supabase
-            .from("community_members_with_profiles")
-            .select("*")
-            .eq("community_id", communityData.id);
-
-          if (membersError) {
-            throw membersError;
-          }
-
-          // Format members data
-          const formattedMembers = membersData.map((member) => ({
-            id: member.id,
-            displayName: member.full_name || "Anonymous",
-            email: member.email || "",
-            imageUrl: member.avatar_url || "",
-            joinedAt: member.joined_at,
-            status: member.status || "active",
-            lastActive: member.last_active,
-            user_id: member.user_id,
-          }));
-
-          setMembers(formattedMembers);
+          const data = await response.json();
+          setMembers(data.members || []);
         } catch (error) {
           console.error("Error fetching members:", error);
           toast.error("Failed to fetch members");
@@ -598,22 +571,19 @@ export default function CommunitySettingsModal({
       return;
     }
 
+    if (!session) {
+      toast.error("You must be logged in to update bank account");
+      return;
+    }
+
     setIsUpdatingIban(true);
     try {
-      // Get user session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("You must be logged in to update bank account");
-        return;
-      }
-
       const response = await fetch(
         `/api/stripe/bank-account/${stripeAccountId}/update-iban`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             iban: newIban,
@@ -1024,12 +994,18 @@ export default function CommunitySettingsModal({
     if (!confirm("Are you sure you want to remove this member?")) return;
 
     try {
-      const { error } = await supabase
-        .from("community_members")
-        .delete()
-        .eq("id", memberId);
+      const response = await fetch(`/api/community/${communitySlug}/members`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ memberId }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to remove member");
+      }
 
       setRefreshMembersTrigger((prev) => prev + 1);
       toast.success("Member removed successfully");

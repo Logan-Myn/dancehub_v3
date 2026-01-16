@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql, query, queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 
 interface CommunityId {
   id: string;
@@ -59,6 +60,66 @@ export async function GET(
     console.error("Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Remove a member from the community
+export async function DELETE(
+  request: Request,
+  { params }: { params: { communitySlug: string } }
+) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const { memberId } = await request.json();
+    if (!memberId) {
+      return NextResponse.json(
+        { error: "Member ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Get community and check if user is the creator
+    const community = await queryOne<{ id: string; created_by: string }>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
+
+    if (!community) {
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
+    }
+
+    // Only the community creator can remove members
+    if (community.created_by !== session.user.id) {
+      return NextResponse.json(
+        { error: "Only the community creator can remove members" },
+        { status: 403 }
+      );
+    }
+
+    // Delete the member
+    await sql`
+      DELETE FROM community_members
+      WHERE id = ${memberId}
+    `;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error removing member:", error);
+    return NextResponse.json(
+      { error: "Failed to remove member" },
       { status: 500 }
     );
   }
