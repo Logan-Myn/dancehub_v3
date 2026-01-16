@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { sql } from '@/lib/db';
 
 export async function POST(request: Request) {
-  const supabase = createAdminClient();
-  
   try {
     const { communityId } = await request.json();
 
@@ -26,12 +24,11 @@ export async function POST(request: Request) {
     });
 
     // Update the community with the Stripe account ID
-    const { error } = await supabase
-      .from('communities')
-      .update({ stripe_account_id: account.id })
-      .eq('id', communityId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE communities
+      SET stripe_account_id = ${account.id}
+      WHERE id = ${communityId}
+    `;
 
     // Create an account link for onboarding
     const accountLink = await stripe.accountLinks.create({
@@ -49,4 +46,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

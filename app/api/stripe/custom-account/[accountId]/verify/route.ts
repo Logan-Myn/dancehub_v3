@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { sql } from '@/lib/db';
 
 export async function POST(
   request: Request,
   { params }: { params: { accountId: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { accountId } = params;
 
     // Get current account status
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (!account) {
       return NextResponse.json(
         { error: 'Stripe account not found' },
@@ -30,23 +28,23 @@ export async function POST(
     }
 
     // Check if account is already fully verified
-    const isFullyVerified = account.charges_enabled && 
-      account.payouts_enabled && 
-      account.details_submitted && 
-      !(account.requirements?.currently_due || []).length && 
+    const isFullyVerified = account.charges_enabled &&
+      account.payouts_enabled &&
+      account.details_submitted &&
+      !(account.requirements?.currently_due || []).length &&
       !(account.requirements?.past_due || []).length;
 
     if (isFullyVerified) {
       // Update onboarding progress to completed
-      await supabase
-        .from('stripe_onboarding_progress')
-        .update({
-          current_step: 5,
-          completed_steps: [1, 2, 3, 4, 5],
-          verification_completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('stripe_account_id', accountId);
+      await sql`
+        UPDATE stripe_onboarding_progress
+        SET
+          current_step = 5,
+          completed_steps = ARRAY[1, 2, 3, 4, 5],
+          verification_completed_at = NOW(),
+          updated_at = NOW()
+        WHERE stripe_account_id = ${accountId}
+      `;
 
       return NextResponse.json({
         success: true,
@@ -80,7 +78,7 @@ export async function POST(
         'company.phone': 'Company phone number',
       };
 
-      const missingRequirements = allRequirements.map(req => 
+      const missingRequirements = allRequirements.map(req =>
         requirementMessages[req as keyof typeof requirementMessages] || req
       );
 
@@ -126,17 +124,17 @@ export async function POST(
 
   } catch (error: any) {
     console.error('Error verifying custom Stripe account:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to verify account' },
       { status: 500 }
     );
   }
-} 
+}

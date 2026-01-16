@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
 import { createVideoRoomForBooking } from "@/lib/video-room-creation";
 
-const supabase = createAdminClient();
+interface NewBooking {
+  id: string;
+}
 
 export async function POST(request: Request) {
   try {
@@ -32,27 +34,60 @@ export async function POST(request: Request) {
       lesson_status: 'booked',
       student_message: 'Test booking with new flow',
       contact_info: { phone: '', preferred_contact: 'email' },
-      daily_room_name: null,
-      daily_room_url: null,
-      daily_room_created_at: null,
-      daily_room_expires_at: null,
-      teacher_daily_token: null,
-      student_daily_token: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
     };
 
     // Create the booking record
-    const { data: newBooking, error: bookingCreateError } = await supabase
-      .from('lesson_bookings')
-      .insert(testBookingData)
-      .select('id')
-      .single();
+    const newBooking = await queryOne<NewBooking>`
+      INSERT INTO lesson_bookings (
+        private_lesson_id,
+        community_id,
+        student_id,
+        student_email,
+        student_name,
+        is_community_member,
+        price_paid,
+        stripe_payment_intent_id,
+        payment_status,
+        lesson_status,
+        student_message,
+        contact_info,
+        daily_room_name,
+        daily_room_url,
+        daily_room_created_at,
+        daily_room_expires_at,
+        teacher_daily_token,
+        student_daily_token,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${testBookingData.private_lesson_id},
+        ${testBookingData.community_id},
+        ${testBookingData.student_id},
+        ${testBookingData.student_email},
+        ${testBookingData.student_name},
+        ${testBookingData.is_community_member},
+        ${testBookingData.price_paid},
+        ${testBookingData.stripe_payment_intent_id},
+        ${testBookingData.payment_status},
+        ${testBookingData.lesson_status},
+        ${testBookingData.student_message},
+        ${JSON.stringify(testBookingData.contact_info)}::jsonb,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NOW(),
+        NOW()
+      )
+      RETURNING id
+    `;
 
-    if (bookingCreateError || !newBooking) {
-      console.error('❌ Error creating booking record:', bookingCreateError);
+    if (!newBooking) {
+      console.error('❌ Error creating booking record');
       return NextResponse.json(
-        { error: `Failed to create booking: ${bookingCreateError?.message}` },
+        { error: 'Failed to create booking' },
         { status: 500 }
       );
     }

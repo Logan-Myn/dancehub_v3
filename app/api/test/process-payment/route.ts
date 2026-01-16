@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { createAdminClient } from "@/lib/supabase";
+import { sql, queryOne } from "@/lib/db";
 import { createVideoRoomForBooking } from "@/lib/video-room-creation";
 
-const supabase = createAdminClient();
+interface NewBooking {
+  id: string;
+}
 
 export async function POST(request: Request) {
   try {
@@ -55,37 +57,57 @@ export async function POST(request: Request) {
     }
 
     // Create the booking record
-    const { data: newBooking, error: bookingCreateError } = await supabase
-      .from('lesson_bookings')
-      .insert({
-        private_lesson_id: metadata.lesson_id,
-        community_id: metadata.community_id,
-        student_id: metadata.student_id,
-        student_email: metadata.student_email,
-        student_name: metadata.student_name || '',
-        is_community_member: metadata.is_member === 'true',
-        price_paid: parseFloat(metadata.price_paid),
-        stripe_payment_intent_id: paymentIntentId,
-        payment_status: 'succeeded',
-        lesson_status: 'booked',
-        student_message: metadata.student_message || '',
-        contact_info: contactInfo,
-        daily_room_name: null,
-        daily_room_url: null,
-        daily_room_created_at: null,
-        daily_room_expires_at: null,
-        teacher_daily_token: null,
-        student_daily_token: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select('id')
-      .single();
+    const newBooking = await queryOne<NewBooking>`
+      INSERT INTO lesson_bookings (
+        private_lesson_id,
+        community_id,
+        student_id,
+        student_email,
+        student_name,
+        is_community_member,
+        price_paid,
+        stripe_payment_intent_id,
+        payment_status,
+        lesson_status,
+        student_message,
+        contact_info,
+        daily_room_name,
+        daily_room_url,
+        daily_room_created_at,
+        daily_room_expires_at,
+        teacher_daily_token,
+        student_daily_token,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${metadata.lesson_id},
+        ${metadata.community_id},
+        ${metadata.student_id},
+        ${metadata.student_email},
+        ${metadata.student_name || ''},
+        ${metadata.is_member === 'true'},
+        ${parseFloat(metadata.price_paid)},
+        ${paymentIntentId},
+        'succeeded',
+        'booked',
+        ${metadata.student_message || ''},
+        ${JSON.stringify(contactInfo)}::jsonb,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NOW(),
+        NOW()
+      )
+      RETURNING id
+    `;
 
-    if (bookingCreateError || !newBooking) {
-      console.error('❌ Error creating booking record:', bookingCreateError);
+    if (!newBooking) {
+      console.error('❌ Error creating booking record');
       return NextResponse.json(
-        { error: `Failed to create booking: ${bookingCreateError?.message}` },
+        { error: 'Failed to create booking' },
         { status: 500 }
       );
     }

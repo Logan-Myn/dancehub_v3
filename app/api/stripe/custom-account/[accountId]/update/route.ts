@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { sql } from '@/lib/db';
 
 interface BusinessInfo {
   type: 'individual' | 'company';
@@ -16,6 +16,7 @@ interface BusinessInfo {
   phone?: string;
   website?: string;
   mcc?: string;
+  url?: string;
 }
 
 interface PersonalInfo {
@@ -47,30 +48,36 @@ interface BankAccountInfo {
   country?: string;
   currency?: string;
   iban?: string;
+  skipped?: boolean;
 }
 
 export async function PUT(
   request: Request,
   { params }: { params: { accountId: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { accountId } = params;
-    const { 
-      step, 
-      businessInfo, 
-      personalInfo, 
+    const {
+      step,
+      businessInfo,
+      personalInfo,
       bankAccount,
       tosAcceptance,
-      currentStep 
-    } = await request.json();
+      currentStep
+    } = await request.json() as {
+      step: string;
+      businessInfo?: BusinessInfo;
+      personalInfo?: PersonalInfo;
+      bankAccount?: BankAccountInfo;
+      tosAcceptance?: { accepted: boolean; date: string; userAgent: string };
+      currentStep?: number;
+    };
 
     console.log('Update endpoint received:', { step, businessInfo, personalInfo, bankAccount, tosAcceptance, currentStep });
 
     // Verify the account exists and belongs to a community
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (!account) {
       return NextResponse.json(
         { error: 'Stripe account not found' },
@@ -94,7 +101,7 @@ export async function PUT(
         if (businessInfo) {
           updateParams = {
             business_type: businessInfo.type,
-            ...(businessInfo.name && { 
+            ...(businessInfo.name && {
               [businessInfo.type === 'individual' ? 'individual' : 'company']: {
                 ...(businessInfo.type === 'individual' ? { first_name: businessInfo.name.split(' ')[0], last_name: businessInfo.name.split(' ').slice(1).join(' ') } : { name: businessInfo.name })
               }
@@ -112,8 +119,8 @@ export async function PUT(
 
           // Handle Terms of Service acceptance for Custom accounts
           if (tosAcceptance && tosAcceptance.accepted) {
-            const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                           request.headers.get('x-real-ip') || 
+            const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+                           request.headers.get('x-real-ip') ||
                            request.headers.get('cf-connecting-ip') ||
                            '127.0.0.1';
 
@@ -170,7 +177,7 @@ export async function PUT(
             // For international accounts using IBAN (according to Perplexity solution)
             else if (bankAccount.iban || (bankAccount.account_number && bankAccount.account_number.startsWith('EE'))) {
               const ibanValue = bankAccount.iban || bankAccount.account_number;
-              
+
               // Create external account with IBAN as account_number (Perplexity solution)
               await stripe.accounts.createExternalAccount(accountId, {
                 external_account: {
@@ -215,33 +222,66 @@ export async function PUT(
     }
 
     // Update onboarding progress in database
-    const completedSteps = [];
-    if (step === 'business_info') completedSteps.push(1);
-    if (step === 'personal_info') completedSteps.push(2);
-    if (step === 'bank_account') completedSteps.push(3);
+    const updateFields: string[] = ['updated_at = NOW()'];
+    const updateValues: any[] = [];
 
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-      ...(currentStep && { current_step: currentStep }),
-    };
+    if (currentStep !== undefined) {
+      updateFields.push(`current_step = ${currentStep}`);
+    }
+    if (businessInfo) {
+      updateFields.push(`business_info = $1::jsonb`);
+      updateValues.push(JSON.stringify(businessInfo));
+    }
+    if (personalInfo) {
+      updateFields.push(`personal_info = $${updateValues.length + 1}::jsonb`);
+      updateValues.push(JSON.stringify(personalInfo));
+    }
+    if (bankAccount) {
+      updateFields.push(`bank_account = $${updateValues.length + 1}::jsonb`);
+      updateValues.push(JSON.stringify(bankAccount));
+    }
 
-    if (businessInfo) updateData.business_info = businessInfo;
-    if (personalInfo) updateData.personal_info = personalInfo;
-    if (bankAccount) updateData.bank_account = bankAccount;
-
-    // Update progress tracking
-    const { error: progressError } = await supabase
-      .from('stripe_onboarding_progress')
-      .update(updateData)
-      .eq('stripe_account_id', accountId);
-
-    if (progressError) {
-      console.warn('Failed to update onboarding progress:', progressError);
+    // Use simpler update with just the fields we need
+    if (businessInfo) {
+      await sql`
+        UPDATE stripe_onboarding_progress
+        SET
+          updated_at = NOW(),
+          current_step = COALESCE(${currentStep ?? null}, current_step),
+          business_info = ${JSON.stringify(businessInfo)}::jsonb
+        WHERE stripe_account_id = ${accountId}
+      `;
+    } else if (personalInfo) {
+      await sql`
+        UPDATE stripe_onboarding_progress
+        SET
+          updated_at = NOW(),
+          current_step = COALESCE(${currentStep ?? null}, current_step),
+          personal_info = ${JSON.stringify(personalInfo)}::jsonb
+        WHERE stripe_account_id = ${accountId}
+      `;
+    } else if (bankAccount) {
+      await sql`
+        UPDATE stripe_onboarding_progress
+        SET
+          updated_at = NOW(),
+          current_step = COALESCE(${currentStep ?? null}, current_step),
+          bank_account = ${JSON.stringify(bankAccount)}::jsonb
+        WHERE stripe_account_id = ${accountId}
+      `;
+    } else if (currentStep !== undefined) {
+      await sql`
+        UPDATE stripe_onboarding_progress
+        SET
+          updated_at = NOW(),
+          current_step = ${currentStep}
+        WHERE stripe_account_id = ${accountId}
+      `;
     }
 
     // Get updated account status
     const updatedAccount = await stripe.accounts.retrieve(accountId);
-    
+
     return NextResponse.json({
       success: true,
       accountId: accountId,
@@ -259,17 +299,17 @@ export async function PUT(
 
   } catch (error: any) {
     console.error('Error updating custom Stripe account:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to update account information' },
       { status: 500 }
     );
   }
-} 
+}

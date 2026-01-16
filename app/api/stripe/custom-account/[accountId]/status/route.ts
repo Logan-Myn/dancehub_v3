@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+
+interface OnboardingProgress {
+  current_step: number;
+  completed_steps: number[];
+  business_info: Record<string, unknown>;
+  personal_info: Record<string, unknown>;
+  bank_account: Record<string, unknown>;
+  documents: unknown[];
+  updated_at: string;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { accountId: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { accountId } = params;
 
     // Get Stripe account information
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (!account) {
       return NextResponse.json(
         { error: 'Stripe account not found' },
@@ -22,15 +30,11 @@ export async function GET(
     }
 
     // Get onboarding progress from database
-    const { data: progress, error: progressError } = await supabase
-      .from('stripe_onboarding_progress')
-      .select('*')
-      .eq('stripe_account_id', accountId)
-      .single();
-
-    if (progressError && progressError.code !== 'PGRST116') { // Not found error
-      console.warn('Failed to fetch onboarding progress:', progressError);
-    }
+    const progress = await queryOne<OnboardingProgress>`
+      SELECT *
+      FROM stripe_onboarding_progress
+      WHERE stripe_account_id = ${accountId}
+    `;
 
     // Map requirements to more user-friendly messages
     const requirementMessages = {
@@ -62,22 +66,22 @@ export async function GET(
       currentlyDue: account.requirements?.currently_due?.map(req => ({
         code: req,
         message: requirementMessages[req as keyof typeof requirementMessages] || req,
-        category: req.startsWith('individual.') ? 'personal' : 
-                 req.startsWith('company.') ? 'business' : 
+        category: req.startsWith('individual.') ? 'personal' :
+                 req.startsWith('company.') ? 'business' :
                  req.includes('external_account') ? 'banking' : 'other'
       })) || [],
       pastDue: account.requirements?.past_due?.map(req => ({
         code: req,
         message: requirementMessages[req as keyof typeof requirementMessages] || req,
-        category: req.startsWith('individual.') ? 'personal' : 
-                 req.startsWith('company.') ? 'business' : 
+        category: req.startsWith('individual.') ? 'personal' :
+                 req.startsWith('company.') ? 'business' :
                  req.includes('external_account') ? 'banking' : 'other'
       })) || [],
       eventuallyDue: account.requirements?.eventually_due?.map(req => ({
         code: req,
         message: requirementMessages[req as keyof typeof requirementMessages] || req,
-        category: req.startsWith('individual.') ? 'personal' : 
-                 req.startsWith('company.') ? 'business' : 
+        category: req.startsWith('individual.') ? 'personal' :
+                 req.startsWith('company.') ? 'business' :
                  req.includes('external_account') ? 'banking' : 'other'
       })) || [],
       currentDeadline: account.requirements?.current_deadline,
@@ -85,13 +89,13 @@ export async function GET(
     };
 
     // Determine onboarding completion status
-    const isFullyVerified = account.charges_enabled && 
-      account.payouts_enabled && 
-      account.details_submitted && 
-      !(account.requirements?.currently_due || []).length && 
+    const isFullyVerified = account.charges_enabled &&
+      account.payouts_enabled &&
+      account.details_submitted &&
+      !(account.requirements?.currently_due || []).length &&
       !(account.requirements?.past_due || []).length;
 
-    const needsAttention = (account.requirements?.currently_due || []).length > 0 || 
+    const needsAttention = (account.requirements?.currently_due || []).length > 0 ||
       (account.requirements?.past_due || []).length > 0;
 
     // Calculate completion percentage based on steps completed
@@ -118,7 +122,7 @@ export async function GET(
       }
 
       // Step 4: Documents (check if verification documents are uploaded)
-      if ((progress.documents && progress.documents.length > 0) || 
+      if ((progress.documents && progress.documents.length > 0) ||
           account.individual?.verification?.document?.front) {
         completedSteps++;
       }
@@ -156,16 +160,16 @@ export async function GET(
       country: account.country,
       default_currency: account.default_currency,
       email: account.email,
-      
+
       // Onboarding status
       isFullyVerified,
       needsAttention,
       completionPercentage,
       suggestedNextStep,
-      
+
       // Requirements
       requirements,
-      
+
       // Progress tracking
       progress: progress ? {
         currentStep: progress.current_step,
@@ -176,10 +180,10 @@ export async function GET(
         documents: progress.documents || [],
         updatedAt: progress.updated_at
       } : null,
-      
+
       // Account capabilities
       capabilities: account.capabilities,
-      
+
       // External accounts (bank accounts)
       bankAccounts: account.external_accounts?.data?.map(extAccount => {
         // Type guard to check if it's a bank account
@@ -201,17 +205,17 @@ export async function GET(
 
   } catch (error: any) {
     console.error('Error fetching custom Stripe account status:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to fetch account status' },
       { status: 500 }
     );
   }
-} 
+}

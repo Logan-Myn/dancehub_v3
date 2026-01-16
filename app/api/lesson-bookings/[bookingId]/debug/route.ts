@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
 import { generateRoomName, calculateRoomExpiration } from "@/lib/daily";
 
-const supabase = createAdminClient();
+interface BookingWithLesson {
+  id: string;
+  payment_status: string;
+  daily_room_name: string | null;
+  student_id: string;
+  lesson_title: string;
+  lesson_duration_minutes: number;
+  lesson_location_type: string;
+  community_slug: string;
+  community_created_by: string;
+}
 
 export async function GET(
   request: Request,
@@ -11,36 +21,31 @@ export async function GET(
   try {
     const { bookingId } = params;
 
-    // Get booking details
-    const { data: booking, error: bookingError } = await supabase
-      .from("lesson_bookings")
-      .select(`
-        id,
-        payment_status,
-        daily_room_name,
-        student_id,
-        private_lessons!inner(
-          title,
-          duration_minutes,
-          location_type,
-          communities!inner(
-            slug,
-            created_by
-          )
-        )
-      `)
-      .eq("id", bookingId)
-      .single();
+    // Get booking details with lesson and community info
+    const booking = await queryOne<BookingWithLesson>`
+      SELECT
+        lb.id,
+        lb.payment_status,
+        lb.daily_room_name,
+        lb.student_id,
+        pl.title as lesson_title,
+        pl.duration_minutes as lesson_duration_minutes,
+        pl.location_type as lesson_location_type,
+        c.slug as community_slug,
+        c.created_by as community_created_by
+      FROM lesson_bookings lb
+      INNER JOIN private_lessons pl ON pl.id = lb.private_lesson_id
+      INNER JOIN communities c ON c.id = pl.community_id
+      WHERE lb.id = ${bookingId}
+    `;
 
-    if (bookingError || !booking) {
+    if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
-    const lesson = booking.private_lessons as any;
-    
     // Generate what would be sent to Daily.co
-    const roomName = generateRoomName(booking.id, lesson.communities.slug);
-    const roomExpiration = calculateRoomExpiration(lesson.duration_minutes);
+    const roomName = generateRoomName(booking.id, booking.community_slug);
+    const roomExpiration = calculateRoomExpiration(booking.lesson_duration_minutes);
 
     const roomConfig = {
       name: roomName,
@@ -60,7 +65,21 @@ export async function GET(
     };
 
     return NextResponse.json({
-      booking,
+      booking: {
+        id: booking.id,
+        payment_status: booking.payment_status,
+        daily_room_name: booking.daily_room_name,
+        student_id: booking.student_id,
+        private_lessons: {
+          title: booking.lesson_title,
+          duration_minutes: booking.lesson_duration_minutes,
+          location_type: booking.lesson_location_type,
+          communities: {
+            slug: booking.community_slug,
+            created_by: booking.community_created_by
+          }
+        }
+      },
       roomConfig,
       roomName,
       roomExpiration,
