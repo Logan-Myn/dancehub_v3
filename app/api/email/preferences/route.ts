@@ -1,57 +1,58 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 
-export async function GET(request: NextRequest) {
+interface EmailPreferences {
+  id: string;
+  user_id: string;
+  email: string;
+  unsubscribe_token: string;
+  marketing_emails: boolean;
+  course_announcements: boolean;
+  community_updates: boolean;
+  weekly_digest: boolean;
+  unsubscribed_all: boolean;
+  unsubscribed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function GET() {
   try {
-    const supabase = await createClient();
-    
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    const session = await getSession();
+
+    if (!session) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
+    const user = session.user;
+
     // Get user's email preferences
-    const { data: preferences, error: fetchError } = await supabase
-      .from('email_preferences')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    let preferences = await queryOne<EmailPreferences>`
+      SELECT *
+      FROM email_preferences
+      WHERE user_id = ${user.id}
+    `;
 
-    if (fetchError) {
+    if (!preferences) {
       // If no preferences exist, create default ones
-      if (fetchError.code === 'PGRST116') {
-        const adminSupabase = createAdminClient();
-        const { data: newPreferences, error: createError } = await adminSupabase
-          .from('email_preferences')
-          .insert({
-            user_id: user.id,
-            email: user.email,
-          })
-          .select()
-          .single();
+      preferences = await queryOne<EmailPreferences>`
+        INSERT INTO email_preferences (user_id, email)
+        VALUES (${user.id}, ${user.email})
+        RETURNING *
+      `;
 
-        if (createError) {
-          console.error('Error creating preferences:', createError);
-          return NextResponse.json(
-            { error: "Failed to create preferences" },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({ preferences: newPreferences });
+      if (!preferences) {
+        console.error('Error creating preferences: no row returned');
+        return NextResponse.json(
+          { error: "Failed to create preferences" },
+          { status: 500 }
+        );
       }
-
-      console.error('Error fetching preferences:', fetchError);
-      return NextResponse.json(
-        { error: "Failed to fetch preferences" },
-        { status: 500 }
-      );
     }
 
     return NextResponse.json({ preferences });
@@ -66,18 +67,17 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    const session = await getSession();
+
+    if (!session) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
+    const user = session.user;
     const updates = await request.json();
 
     // Remove fields that shouldn't be updated directly
@@ -87,19 +87,22 @@ export async function PUT(request: NextRequest) {
     delete updates.unsubscribe_token;
     delete updates.created_at;
 
-    // Update preferences
-    const { data: preferences, error: updateError } = await supabase
-      .from('email_preferences')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
-      .select()
-      .single();
+    // Build dynamic update query based on provided fields
+    const preferences = await queryOne<EmailPreferences>`
+      UPDATE email_preferences
+      SET
+        marketing_emails = COALESCE(${updates.marketing_emails ?? null}, marketing_emails),
+        course_announcements = COALESCE(${updates.course_announcements ?? null}, course_announcements),
+        community_updates = COALESCE(${updates.community_updates ?? null}, community_updates),
+        weekly_digest = COALESCE(${updates.weekly_digest ?? null}, weekly_digest),
+        unsubscribed_all = COALESCE(${updates.unsubscribed_all ?? null}, unsubscribed_all),
+        updated_at = NOW()
+      WHERE user_id = ${user.id}
+      RETURNING *
+    `;
 
-    if (updateError) {
-      console.error('Error updating preferences:', updateError);
+    if (!preferences) {
+      console.error('Error updating preferences: no row returned');
       return NextResponse.json(
         { error: "Failed to update preferences" },
         { status: 500 }
@@ -107,16 +110,16 @@ export async function PUT(request: NextRequest) {
     }
 
     // Log the preference update
-    const adminSupabase = createAdminClient();
-    await adminSupabase
-      .from('email_events')
-      .insert({
-        user_id: user.id,
-        email: user.email,
-        event_type: 'preferences_updated',
-        email_type: 'preferences',
-        metadata: { updates },
-      });
+    await sql`
+      INSERT INTO email_events (user_id, email, event_type, email_type, metadata)
+      VALUES (
+        ${user.id},
+        ${user.email},
+        'preferences_updated',
+        'preferences',
+        ${JSON.stringify({ updates })}::jsonb
+      )
+    `;
 
     return NextResponse.json({
       message: "Preferences updated successfully",

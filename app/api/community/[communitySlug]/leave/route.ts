@@ -1,24 +1,39 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne, sql } from '@/lib/db';
 import { stripe } from "@/lib/stripe";
+
+interface Community {
+  id: string;
+  stripe_account_id: string | null;
+}
+
+interface Member {
+  user_id: string;
+  community_id: string;
+  role: string;
+  status: string;
+  joined_at: string;
+  subscription_status: string | null;
+  payment_intent_id: string | null;
+  stripe_subscription_id: string | null;
+  current_period_end: string | null;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { userId } = await request.json();
 
     // Get community with stripe account id
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id, stripe_account_id')
-      .eq('slug', params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, stripe_account_id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
@@ -26,12 +41,12 @@ export async function POST(
     }
 
     // Check if user is a member and get their subscription info
-    const { data: member } = await supabase
-      .from('community_members')
-      .select('*, stripe_subscription_id, current_period_end')
-      .eq('community_id', community.id)
-      .eq('user_id', userId)
-      .single();
+    const member = await queryOne<Member>`
+      SELECT *
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (!member) {
       return NextResponse.json(
@@ -58,20 +73,14 @@ export async function POST(
         accessEndDate = new Date(subscription.current_period_end * 1000);
 
         // Update member status to indicate pending cancellation
-        const { error: updateError } = await supabase
-          .from('community_members')
-          .update({
-            status: 'inactive',
-            subscription_status: 'canceled'
-          })
-          .eq('community_id', community.id)
-          .eq('user_id', userId);
+        await sql`
+          UPDATE community_members
+          SET status = 'inactive', subscription_status = 'canceled'
+          WHERE community_id = ${community.id}
+            AND user_id = ${userId}
+        `;
 
-        if (updateError) {
-          console.error('Error updating member status:', updateError);
-        }
-
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
           accessEndDate: accessEndDate.toISOString(),
           gracePeriod: true
@@ -82,42 +91,41 @@ export async function POST(
     }
 
     // For free members or if there's no subscription, remove immediately
-    const { error: deleteError } = await supabase
-      .from('community_members')
-      .delete()
-      .eq('community_id', community.id)
-      .eq('user_id', userId);
-
-    if (deleteError) {
-      console.error('Error removing member:', deleteError);
-      return NextResponse.json(
-        { error: 'Failed to remove member' },
-        { status: 500 }
-      );
-    }
+    await sql`
+      DELETE FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     // Update members_count in communities table
-    const { error: updateError } = await supabase.rpc(
-      'decrement_members_count',
-      { community_id: community.id }
-    );
-
-    if (updateError) {
-      console.error('Error updating members count:', updateError);
+    try {
+      await sql`SELECT decrement_members_count(${community.id})`;
+    } catch (rpcError) {
+      console.error('Error updating members count:', rpcError);
       // Try to rollback the member deletion
-      await supabase
-        .from('community_members')
-        .insert({
-          community_id: community.id,
-          user_id: userId,
-          role: member.role,
-          status: member.status,
-          joined_at: member.joined_at,
-          subscription_status: member.subscription_status,
-          payment_intent_id: member.payment_intent_id,
-          stripe_subscription_id: member.stripe_subscription_id,
-          current_period_end: member.current_period_end
-        });
+      await sql`
+        INSERT INTO community_members (
+          community_id,
+          user_id,
+          role,
+          status,
+          joined_at,
+          subscription_status,
+          payment_intent_id,
+          stripe_subscription_id,
+          current_period_end
+        ) VALUES (
+          ${community.id},
+          ${userId},
+          ${member.role},
+          ${member.status},
+          ${member.joined_at},
+          ${member.subscription_status},
+          ${member.payment_intent_id},
+          ${member.stripe_subscription_id},
+          ${member.current_period_end}
+        )
+      `;
 
       return NextResponse.json(
         { error: 'Failed to update members count' },
@@ -125,7 +133,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       gracePeriod: false
     });
@@ -136,4 +144,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}
