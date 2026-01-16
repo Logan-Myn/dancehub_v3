@@ -1,5 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne, sql } from '@/lib/db';
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
+interface Thread {
+  id: string;
+  comments: any[] | null;
+}
 
 export async function POST(
   request: Request,
@@ -8,14 +19,13 @@ export async function POST(
   try {
     const { content, userId } = await request.json();
     const { threadId, commentId } = params;
-    const supabase = createAdminClient();
 
     // Get user data
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const userData = await queryOne<Profile>`
+      SELECT *
+      FROM profiles
+      WHERE id = ${userId}
+    `;
 
     const reply = {
       id: crypto.randomUUID(),
@@ -32,11 +42,11 @@ export async function POST(
     };
 
     // Get current thread comments
-    const { data: thread } = await supabase
-      .from('threads')
-      .select('comments')
-      .eq('id', threadId)
-      .single();
+    const thread = await queryOne<Thread>`
+      SELECT comments
+      FROM threads
+      WHERE id = ${threadId}
+    `;
 
     if (!thread) {
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
@@ -46,15 +56,13 @@ export async function POST(
     const updatedComments = [...comments, reply];
 
     // Update thread with new reply
-    const { error } = await supabase
-      .from('threads')
-      .update({
-        comments: updatedComments,
-        comments_count: updatedComments.length,
-      })
-      .eq('id', threadId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE threads
+      SET
+        comments = ${JSON.stringify(updatedComments)}::jsonb,
+        comments_count = ${updatedComments.length}
+      WHERE id = ${threadId}
+    `;
 
     return NextResponse.json(reply);
   } catch (error) {
@@ -64,4 +72,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

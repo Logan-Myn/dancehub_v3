@@ -1,31 +1,35 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
 
-type CommunityUpdate = {
+interface Community {
+  id: string;
+}
+
+interface UpdatedCommunity {
+  id: string;
   name: string;
-  description: string;
-  image_url: string;
-  custom_links: any[];
+  description: string | null;
+  image_url: string | null;
+  custom_links: any[] | null;
   slug: string;
-};
+}
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { communitySlug } = params;
     const updates = await request.json();
 
     // Get the community by slug
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id')
-      .eq('slug', communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
@@ -34,12 +38,12 @@ export async function PUT(
 
     // If slug is being updated, check if it's already taken
     if (updates.slug && updates.slug !== communitySlug) {
-      const { data: existingCommunity } = await supabase
-        .from('communities')
-        .select('id')
-        .eq('slug', updates.slug)
-        .neq('id', community.id)
-        .single();
+      const existingCommunity = await queryOne<Community>`
+        SELECT id
+        FROM communities
+        WHERE slug = ${updates.slug}
+          AND id != ${community.id}
+      `;
 
       if (existingCommunity) {
         return NextResponse.json(
@@ -50,31 +54,30 @@ export async function PUT(
     }
 
     // Update the community
-    const { data: updatedCommunity, error: updateError } = await supabase
-      .from('communities')
-      .update({
-        name: updates.name,
-        description: updates.description,
-        image_url: updates.imageUrl,
-        custom_links: updates.customLinks || [],
-        slug: updates.slug,
-        status: updates.status,
-        opening_date: updates.opening_date,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', community.id)
-      .select()
-      .single();
+    const updatedCommunity = await queryOne<UpdatedCommunity>`
+      UPDATE communities
+      SET
+        name = ${updates.name},
+        description = ${updates.description},
+        image_url = ${updates.imageUrl},
+        custom_links = ${JSON.stringify(updates.customLinks || [])}::jsonb,
+        slug = ${updates.slug},
+        status = ${updates.status},
+        opening_date = ${updates.opening_date},
+        updated_at = NOW()
+      WHERE id = ${community.id}
+      RETURNING *
+    `;
 
-    if (updateError) {
-      console.error('Error updating community:', updateError);
+    if (!updatedCommunity) {
+      console.error('Error updating community: No rows returned');
       return NextResponse.json(
         { error: 'Failed to update community' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       data: {
         name: updatedCommunity.name,
@@ -91,4 +94,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-} 
+}

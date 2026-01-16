@@ -1,30 +1,33 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne, sql } from '@/lib/db';
 
 const ALLOWED_FILE_TYPES = [
   'image/jpeg',
-  'image/png', 
+  'image/png',
   'image/gif',
   'application/pdf'
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
 
+interface OnboardingProgress {
+  stripe_account_id: string;
+  documents: any[] | null;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: { accountId: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { accountId } = params;
     const formData = await request.formData();
-    
+
     const file = formData.get('file') as File;
     const documentType = formData.get('documentType') as string;
     const purpose = formData.get('purpose') as string || 'identity_document';
-    
+
     if (!file) {
       return NextResponse.json(
         { error: 'No file provided' },
@@ -57,7 +60,7 @@ export async function POST(
 
     // Verify the account exists and belongs to a community
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (!account) {
       return NextResponse.json(
         { error: 'Stripe account not found' },
@@ -89,7 +92,7 @@ export async function POST(
 
     // Map document types to Stripe account update parameters
     let updateParams: any = {};
-    
+
     switch (documentType) {
       case 'identity_document':
         updateParams = {
@@ -102,7 +105,7 @@ export async function POST(
           }
         };
         break;
-        
+
       case 'identity_document_back':
         updateParams = {
           individual: {
@@ -114,7 +117,7 @@ export async function POST(
           }
         };
         break;
-        
+
       case 'additional_document':
         updateParams = {
           individual: {
@@ -126,7 +129,7 @@ export async function POST(
           }
         };
         break;
-        
+
       case 'additional_document_back':
         updateParams = {
           individual: {
@@ -138,7 +141,7 @@ export async function POST(
           }
         };
         break;
-        
+
       case 'company_document':
         updateParams = {
           company: {
@@ -150,7 +153,7 @@ export async function POST(
           }
         };
         break;
-        
+
       default:
         return NextResponse.json(
           { error: 'Invalid document type' },
@@ -170,11 +173,11 @@ export async function POST(
     }
 
     // Update document tracking in database
-    const { data: existingProgress } = await supabase
-      .from('stripe_onboarding_progress')
-      .select('documents')
-      .eq('stripe_account_id', accountId)
-      .single();
+    const existingProgress = await queryOne<OnboardingProgress>`
+      SELECT stripe_account_id, documents
+      FROM stripe_onboarding_progress
+      WHERE stripe_account_id = ${accountId}
+    `;
 
     const currentDocuments = existingProgress?.documents || [];
     const newDocument = {
@@ -188,21 +191,17 @@ export async function POST(
 
     const updatedDocuments = [...currentDocuments, newDocument];
 
-    const { error: progressError } = await supabase
-      .from('stripe_onboarding_progress')
-      .update({
-        documents: updatedDocuments,
-        updated_at: new Date().toISOString()
-      })
-      .eq('stripe_account_id', accountId);
-
-    if (progressError) {
-      console.warn('Failed to update document progress:', progressError);
-    }
+    await sql`
+      UPDATE stripe_onboarding_progress
+      SET
+        documents = ${JSON.stringify(updatedDocuments)}::jsonb,
+        updated_at = NOW()
+      WHERE stripe_account_id = ${accountId}
+    `;
 
     // Get updated account status to check requirements
     const updatedAccount = await stripe.accounts.retrieve(accountId);
-    
+
     return NextResponse.json({
       success: true,
       file: {
@@ -225,17 +224,17 @@ export async function POST(
 
   } catch (error: any) {
     console.error('Error uploading document:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to upload document' },
       { status: 500 }
     );
   }
-} 
+}

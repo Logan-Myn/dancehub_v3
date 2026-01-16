@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+
+interface Community {
+  id: string;
+  name: string;
+  created_by: string;
+  stripe_product_id: string | null;
+  stripe_account_id: string | null;
+}
 
 export async function POST(
   request: Request,
@@ -9,23 +17,16 @@ export async function POST(
   try {
     const { price, enabled } = await request.json();
     const { communitySlug } = params;
-    const supabase = createAdminClient();
 
     // Get community by slug with stripe details
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select(`
-        id,
-        name,
-        created_by,
-        stripe_product_id,
-        stripe_account_id
-      `)
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, created_by, stripe_product_id, stripe_account_id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
-      console.error("Community error:", communityError);
+    if (!community) {
+      console.error("Community not found");
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -76,42 +77,26 @@ export async function POST(
       stripe_price_id = stripePrice.id;
 
       // Update community with both product and price IDs
-      const { error: updateError } = await supabase
-        .from("communities")
-        .update({
-          membership_enabled: enabled,
-          membership_price: price,
-          stripe_product_id: product_id,
-          stripe_price_id: stripe_price_id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", community.id);
-
-      if (updateError) {
-        console.error("Error updating community:", updateError);
-        return NextResponse.json(
-          { error: "Failed to update community" },
-          { status: 500 }
-        );
-      }
+      await sql`
+        UPDATE communities
+        SET
+          membership_enabled = ${enabled},
+          membership_price = ${price},
+          stripe_product_id = ${product_id},
+          stripe_price_id = ${stripe_price_id},
+          updated_at = NOW()
+        WHERE id = ${community.id}
+      `;
     } else {
       // If disabling membership or price is 0, just update the membership status
-      const { error: updateError } = await supabase
-        .from("communities")
-        .update({
-          membership_enabled: enabled,
-          membership_price: price,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", community.id);
-
-      if (updateError) {
-        console.error("Error updating community:", updateError);
-        return NextResponse.json(
-          { error: "Failed to update community" },
-          { status: 500 }
-        );
-      }
+      await sql`
+        UPDATE communities
+        SET
+          membership_enabled = ${enabled},
+          membership_price = ${price},
+          updated_at = NOW()
+        WHERE id = ${community.id}
+      `;
     }
 
     return NextResponse.json({

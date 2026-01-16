@@ -1,24 +1,34 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne, sql } from '@/lib/db';
 import { stripe } from "@/lib/stripe";
+
+interface Community {
+  id: string;
+  stripe_account_id: string | null;
+}
+
+interface Member {
+  id: string;
+  user_id: string;
+  community_id: string;
+  stripe_subscription_id: string | null;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { userId } = await request.json();
 
     // Get community with stripe account id
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id, stripe_account_id')
-      .eq('slug', params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, stripe_account_id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
@@ -26,14 +36,14 @@ export async function POST(
     }
 
     // Get member's subscription info
-    const { data: member, error: memberError } = await supabase
-      .from('community_members')
-      .select('*, stripe_subscription_id')
-      .eq('community_id', community.id)
-      .eq('user_id', userId)
-      .single();
+    const member = await queryOne<Member>`
+      SELECT *, stripe_subscription_id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
-    if (memberError || !member) {
+    if (!member) {
       return NextResponse.json(
         { error: 'Member not found' },
         { status: 404 }
@@ -53,22 +63,14 @@ export async function POST(
       );
 
       // Update member status back to active
-      const { error: updateError } = await supabase
-        .from('community_members')
-        .update({
-          status: 'active',
-          subscription_status: 'active'
-        })
-        .eq('community_id', community.id)
-        .eq('user_id', userId);
-
-      if (updateError) {
-        console.error('Error updating member status:', updateError);
-        return NextResponse.json(
-          { error: 'Failed to update member status' },
-          { status: 500 }
-        );
-      }
+      await sql`
+        UPDATE community_members
+        SET
+          status = 'active',
+          subscription_status = 'active'
+        WHERE community_id = ${community.id}
+          AND user_id = ${userId}
+      `;
 
       return NextResponse.json({ success: true });
     }
@@ -84,4 +86,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}
