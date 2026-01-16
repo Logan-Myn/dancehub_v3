@@ -1,45 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { query, queryOne, sql } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
 import { TeacherAvailabilitySlot } from '@/types/private-lessons';
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+}
+
+interface AvailabilitySlot {
+  id: string;
+  teacher_id: string;
+  community_id: string;
+  availability_date: string;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SlotWithBookings extends AvailabilitySlot {
+  booking_id: string | null;
+  payment_status: string | null;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get community ID
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id')
-      .eq('slug', params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
-    // Get teacher availability slots 
+    // Get teacher availability slots
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate'); // Optional: filter from this date
     const endDate = searchParams.get('endDate'); // Optional: filter to this date
@@ -49,51 +61,79 @@ export async function GET(
     // Otherwise, get the current user's availability (for teachers managing their own)
     const targetTeacherId = teacherId || user.id;
 
-    // Build query to get available slots (excluding those with confirmed bookings)
-    let query = supabase
-      .from('teacher_availability_slots')
-      .select(`
-        *,
-        lesson_bookings!left(id, payment_status)
-      `)
-      .eq('teacher_id', targetTeacherId)
-      .eq('community_id', community.id)
-      .eq('is_active', true)
-      .order('availability_date', { ascending: true })
-      .order('start_time', { ascending: true });
+    // Build query to get available slots with booking info
+    let slots: SlotWithBookings[];
 
-    // Add date filters if provided
-    if (startDate) {
-      query = query.gte('availability_date', startDate);
-    }
-    if (endDate) {
-      query = query.lte('availability_date', endDate);
-    }
-
-    const { data: slots, error: slotsError } = await query;
-
-    if (slotsError) {
-      console.error('Error fetching availability slots:', slotsError);
-      return NextResponse.json({ error: 'Failed to fetch availability' }, { status: 500 });
+    if (startDate && endDate) {
+      slots = await query<SlotWithBookings>`
+        SELECT
+          tas.*,
+          lb.id as booking_id,
+          lb.payment_status
+        FROM teacher_availability_slots tas
+        LEFT JOIN lesson_bookings lb ON lb.availability_slot_id = tas.id
+        WHERE tas.teacher_id = ${targetTeacherId}
+          AND tas.community_id = ${community.id}
+          AND tas.is_active = true
+          AND tas.availability_date >= ${startDate}
+          AND tas.availability_date <= ${endDate}
+        ORDER BY tas.availability_date ASC, tas.start_time ASC
+      `;
+    } else if (startDate) {
+      slots = await query<SlotWithBookings>`
+        SELECT
+          tas.*,
+          lb.id as booking_id,
+          lb.payment_status
+        FROM teacher_availability_slots tas
+        LEFT JOIN lesson_bookings lb ON lb.availability_slot_id = tas.id
+        WHERE tas.teacher_id = ${targetTeacherId}
+          AND tas.community_id = ${community.id}
+          AND tas.is_active = true
+          AND tas.availability_date >= ${startDate}
+        ORDER BY tas.availability_date ASC, tas.start_time ASC
+      `;
+    } else if (endDate) {
+      slots = await query<SlotWithBookings>`
+        SELECT
+          tas.*,
+          lb.id as booking_id,
+          lb.payment_status
+        FROM teacher_availability_slots tas
+        LEFT JOIN lesson_bookings lb ON lb.availability_slot_id = tas.id
+        WHERE tas.teacher_id = ${targetTeacherId}
+          AND tas.community_id = ${community.id}
+          AND tas.is_active = true
+          AND tas.availability_date <= ${endDate}
+        ORDER BY tas.availability_date ASC, tas.start_time ASC
+      `;
+    } else {
+      slots = await query<SlotWithBookings>`
+        SELECT
+          tas.*,
+          lb.id as booking_id,
+          lb.payment_status
+        FROM teacher_availability_slots tas
+        LEFT JOIN lesson_bookings lb ON lb.availability_slot_id = tas.id
+        WHERE tas.teacher_id = ${targetTeacherId}
+          AND tas.community_id = ${community.id}
+          AND tas.is_active = true
+        ORDER BY tas.availability_date ASC, tas.start_time ASC
+      `;
     }
 
     // Filter out slots that have confirmed bookings (payment_status = 'succeeded')
     const availableSlots = (slots || []).filter(slot => {
-      // If there are no bookings for this slot, it's available
-      if (!slot.lesson_bookings || slot.lesson_bookings.length === 0) {
+      // If there's no booking for this slot, it's available
+      if (!slot.booking_id) {
         return true;
       }
-      
-      // Check if any booking for this slot has succeeded payment status
-      const hasConfirmedBooking = slot.lesson_bookings.some(
-        (booking: any) => booking.payment_status === 'succeeded'
-      );
-      
-      // Slot is available only if it doesn't have any confirmed bookings
-      return !hasConfirmedBooking;
+
+      // Slot is available only if it doesn't have a confirmed booking
+      return slot.payment_status !== 'succeeded';
     }).map(slot => {
-      // Remove the lesson_bookings data from the response to keep it clean
-      const { lesson_bookings, ...cleanSlot } = slot;
+      // Remove the booking data from the response to keep it clean
+      const { booking_id, payment_status, ...cleanSlot } = slot;
       return cleanSlot;
     });
 
@@ -110,33 +150,25 @@ export async function POST(
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get community ID
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id')
-      .eq('slug', params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
@@ -178,18 +210,14 @@ export async function POST(
     }
 
     // Check for overlapping slots on the same date
-    const { data: existingSlots, error: checkError } = await supabase
-      .from('teacher_availability_slots')
-      .select('*')
-      .eq('teacher_id', user.id)
-      .eq('community_id', community.id)
-      .eq('availability_date', date)
-      .eq('is_active', true);
-
-    if (checkError) {
-      console.error('Error checking existing slots:', checkError);
-      return NextResponse.json({ error: 'Failed to check availability' }, { status: 500 });
-    }
+    const existingSlots = await query<AvailabilitySlot>`
+      SELECT *
+      FROM teacher_availability_slots
+      WHERE teacher_id = ${user.id}
+        AND community_id = ${community.id}
+        AND availability_date = ${date}
+        AND is_active = true
+    `;
 
     // Check for overlaps
     const hasOverlap = existingSlots?.some((slot: TeacherAvailabilitySlot) => {
@@ -207,21 +235,26 @@ export async function POST(
     }
 
     // Create new availability slot
-    const { data: newSlot, error: insertError } = await supabase
-      .from('teacher_availability_slots')
-      .insert({
-        teacher_id: user.id,
-        community_id: community.id,
-        availability_date: date,
+    const newSlot = await queryOne<AvailabilitySlot>`
+      INSERT INTO teacher_availability_slots (
+        teacher_id,
+        community_id,
+        availability_date,
         start_time,
         end_time,
-        is_active: true
-      })
-      .select()
-      .single();
+        is_active
+      ) VALUES (
+        ${user.id},
+        ${community.id},
+        ${date},
+        ${start_time},
+        ${end_time},
+        true
+      )
+      RETURNING *
+    `;
 
-    if (insertError) {
-      console.error('Error creating availability slot:', insertError);
+    if (!newSlot) {
       return NextResponse.json({ error: 'Failed to create availability slot' }, { status: 500 });
     }
 
@@ -238,24 +271,16 @@ export async function DELETE(
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     const { searchParams } = new URL(request.url);
     const slotId = searchParams.get('slotId');
@@ -265,16 +290,12 @@ export async function DELETE(
     }
 
     // Delete the availability slot (soft delete by setting is_active to false)
-    const { error: deleteError } = await supabase
-      .from('teacher_availability_slots')
-      .update({ is_active: false })
-      .eq('id', slotId)
-      .eq('teacher_id', user.id); // Ensure teacher can only delete their own slots
-
-    if (deleteError) {
-      console.error('Error deleting availability slot:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete availability slot' }, { status: 500 });
-    }
+    await sql`
+      UPDATE teacher_availability_slots
+      SET is_active = false
+      WHERE id = ${slotId}
+        AND teacher_id = ${user.id}
+    `;
 
     return NextResponse.json({ success: true });
 
