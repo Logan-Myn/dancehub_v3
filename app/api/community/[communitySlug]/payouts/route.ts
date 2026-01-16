@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
-const supabase = createAdminClient();
+interface CommunityStripeAccount {
+  stripe_account_id: string | null;
+}
 
 export async function GET(
   request: Request,
@@ -16,18 +18,18 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get community data to fetch stripe_account_id
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("stripe_account_id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<CommunityStripeAccount>`
+      SELECT stripe_account_id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
     if (!community.stripe_account_id) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Stripe account not connected",
         payouts: [],
         balance: null,
@@ -73,4 +75,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
 
 export async function POST(
   request: Request,
   { params }: { params: { accountId: string } }
 ) {
-  const supabase = createAdminClient();
-  
   try {
     const { accountId } = params;
     const { refreshUrl, returnUrl } = await request.json();
@@ -16,7 +13,7 @@ export async function POST(
 
     // Verify the account exists and belongs to a community
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (!account) {
       return NextResponse.json(
         { error: 'Stripe account not found' },
@@ -49,17 +46,17 @@ export async function POST(
 
   } catch (error: any) {
     console.error('Error creating account link:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to create account link' },
       { status: 500 }
     );
   }
-} 
+}

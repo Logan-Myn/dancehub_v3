@@ -1,5 +1,23 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+
+interface CommunityWithMembersCount {
+  id: string;
+  created_at: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image_url: string | null;
+  created_by: string;
+  price: number | null;
+  currency: string | null;
+  membership_enabled: boolean;
+  membership_price: number | null;
+  stripe_account_id: string | null;
+  stripe_price_id: string | null;
+  stripe_onboarding_type: string | null;
+  members_count: number;
+}
 
 export async function GET(
   request: Request,
@@ -7,32 +25,29 @@ export async function GET(
 ) {
   try {
     const { communitySlug } = params;
-    const supabase = createAdminClient();
 
-    // Get community by slug
-    const { data: community, error } = await supabase
-      .from('communities')
-      .select(`
-        id,
-        created_at,
-        name,
-        slug,
-        description,
-        image_url,
-        created_by,
-        price,
-        currency,
-        membership_enabled,
-        membership_price,
-        stripe_account_id,
-        stripe_price_id,
-        stripe_onboarding_type,
-        community_members:community_members(count)
-      `)
-      .eq('slug', communitySlug)
-      .single();
+    // Get community by slug with members count
+    const community = await queryOne<CommunityWithMembersCount>`
+      SELECT
+        c.id,
+        c.created_at,
+        c.name,
+        c.slug,
+        c.description,
+        c.image_url,
+        c.created_by,
+        c.price,
+        c.currency,
+        c.membership_enabled,
+        c.membership_price,
+        c.stripe_account_id,
+        c.stripe_price_id,
+        c.stripe_onboarding_type,
+        (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id)::int as members_count
+      FROM communities c
+      WHERE c.slug = ${communitySlug}
+    `;
 
-    if (error) throw error;
     if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
@@ -43,12 +58,10 @@ export async function GET(
     console.log('Raw community data from DB:', community);
     console.log('stripe_account_id value:', community.stripe_account_id);
 
-    // Get the count of members
-    const membersCount = community.community_members[0]?.count || 0;
-
     const communityData = {
       ...community,
-      membersCount,
+      membersCount: community.members_count,
+      community_members: [{ count: community.members_count }],
     };
 
     console.log('Final community data being returned:', communityData);
@@ -62,4 +75,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

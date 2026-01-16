@@ -1,29 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getMuxAsset } from '@/lib/mux';
-import { createAdminClient } from '@/lib/supabase';
+import { getSession } from '@/lib/auth-session';
 
 export async function GET(
   req: Request,
   { params }: { params: { assetId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
-    
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Verify authentication using Better Auth session
+    const session = await getSession();
 
-    const token = authHeader.split('Bearer ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const asset = await getMuxAsset(params.assetId);
-    
+
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found or not ready' }, { status: 404 });
     }
@@ -36,4 +28,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

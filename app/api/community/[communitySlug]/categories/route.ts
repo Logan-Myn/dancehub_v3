@@ -1,28 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { sql } from '@/lib/db';
 
 export async function PUT(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { categories } = await request.json();
     const { communitySlug } = params;
 
     // Update community categories
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .update({
-        thread_categories: categories,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('slug', communitySlug)
-      .select()
-      .single();
+    const result = await sql`
+      UPDATE communities
+      SET
+        thread_categories = ${JSON.stringify(categories)}::jsonb,
+        updated_at = NOW()
+      WHERE slug = ${communitySlug}
+      RETURNING id
+    `;
 
-    if (communityError) {
-      console.error('Error updating community:', communityError);
+    if (result.length === 0) {
+      console.error('Error updating community: not found');
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
@@ -37,4 +35,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-} 
+}

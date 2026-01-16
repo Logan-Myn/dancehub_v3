@@ -1,26 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createMuxUploadUrl } from '@/lib/mux';
-import { createAdminClient } from '@/lib/supabase';
-import { headers } from 'next/headers';
+import { getSession } from '@/lib/auth-session';
 
 export async function POST() {
   try {
-    // Get the authorization header
-    const headersList = headers();
-    const authorization = headersList.get('authorization');
-    if (!authorization?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    // Verify authentication using Better Auth session
+    const session = await getSession();
 
-    // Verify the token
-    const token = authorization.split(' ')[1];
-    const supabase = createAdminClient();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -36,4 +23,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-} 
+}

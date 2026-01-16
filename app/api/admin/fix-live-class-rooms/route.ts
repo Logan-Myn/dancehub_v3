@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { query } from "@/lib/db";
 import { videoRoomService } from "@/lib/video-room-service";
+
+interface LiveClassWithoutRoom {
+  id: string;
+  title: string;
+  scheduled_start_time: string;
+}
 
 /**
  * Admin endpoint to retroactively create Daily.co rooms for live classes that don't have them
@@ -8,22 +14,13 @@ import { videoRoomService } from "@/lib/video-room-service";
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createAdminClient();
-
     // Get all live classes without Daily.co rooms
-    const { data: classesWithoutRooms, error } = await supabase
-      .from("live_classes")
-      .select("id, title, scheduled_start_time")
-      .is("daily_room_name", null)
-      .eq("status", "scheduled");
-
-    if (error) {
-      console.error("Error fetching classes:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch classes" },
-        { status: 500 }
-      );
-    }
+    const classesWithoutRooms = await query<LiveClassWithoutRoom>`
+      SELECT id, title, scheduled_start_time
+      FROM live_classes
+      WHERE daily_room_name IS NULL
+        AND status = 'scheduled'
+    `;
 
     if (!classesWithoutRooms || classesWithoutRooms.length === 0) {
       return NextResponse.json({
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
 
       if (result.success) {
         results.fixed++;
-        console.log(`✅ Successfully created room for class: ${liveClass.title}`);
+        console.log(`Successfully created room for class: ${liveClass.title}`);
       } else {
         results.failed++;
         results.errors.push({
@@ -56,7 +53,7 @@ export async function POST(request: NextRequest) {
           title: liveClass.title,
           error: result.error || "Unknown error",
         });
-        console.error(`❌ Failed to create room for class: ${liveClass.title}`, result.error);
+        console.error(`Failed to create room for class: ${liveClass.title}`, result.error);
       }
     }
 

@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { query } from '@/lib/db';
 import { Stripe } from 'stripe';
+
+interface CommunityStripeAccount {
+  stripe_account_id: string | null;
+}
 
 export async function GET() {
   // Add debug logging
@@ -14,13 +18,12 @@ export async function GET() {
   }
 
   try {
-    const supabase = await createAdminClient();
-
     // Get all connected accounts
-    const { data: communities } = await supabase
-      .from('communities')
-      .select('stripe_account_id')
-      .not('stripe_account_id', 'is', null);
+    const communities = await query<CommunityStripeAccount>`
+      SELECT stripe_account_id
+      FROM communities
+      WHERE stripe_account_id IS NOT NULL
+    `;
 
     // Fetch main account subscriptions
     const mainAccountSubscriptions = await stripe.subscriptions.list({
@@ -40,26 +43,26 @@ export async function GET() {
     });
 
     // Calculate total platform fees for the current month
-    const platformRevenue = applicationFees.data.reduce((acc: number, fee) => 
+    const platformRevenue = applicationFees.data.reduce((acc: number, fee) =>
       acc + (fee.amount / 100), 0
     );
 
     // Fetch connected accounts subscriptions
     const connectedAccountsSubscriptions = await Promise.all(
       (communities || [])
-        .filter((c: { stripe_account_id: string | null }) => c.stripe_account_id)
-        .map(async ({ stripe_account_id }: { stripe_account_id: string }) => {
+        .filter((c) => c.stripe_account_id)
+        .map(async ({ stripe_account_id }) => {
           const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
             apiVersion: '2024-10-28.acacia',
-            stripeAccount: stripe_account_id
+            stripeAccount: stripe_account_id!
           });
-          
+
           const accountSubscriptions = await connectedStripe.subscriptions.list({
             limit: 100,
             status: 'active',
             expand: ['data.customer']
           });
-          
+
           return {
             account_id: stripe_account_id,
             subscriptions: accountSubscriptions.data
@@ -68,15 +71,15 @@ export async function GET() {
     );
 
     // Calculate totals
-    const totalActiveSubscriptions = mainAccountSubscriptions.data.length + 
-      connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: any[] }) => 
+    const totalActiveSubscriptions = mainAccountSubscriptions.data.length +
+      connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: any[] }) =>
         acc + curr.subscriptions.length, 0);
 
     // Calculate total recurring revenue (including main account)
-    const totalRecurringRevenue = mainAccountSubscriptions.data.reduce((acc: number, sub) => 
+    const totalRecurringRevenue = mainAccountSubscriptions.data.reduce((acc: number, sub) =>
       acc + (sub.items.data[0]?.price?.unit_amount || 0) / 100, 0
-    ) + connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: Stripe.Subscription[] }) => 
-      acc + curr.subscriptions.reduce((subAcc: number, sub: Stripe.Subscription) => 
+    ) + connectedAccountsSubscriptions.reduce((acc: number, curr: { subscriptions: Stripe.Subscription[] }) =>
+      acc + curr.subscriptions.reduce((subAcc: number, sub: Stripe.Subscription) =>
         subAcc + (sub.items.data[0]?.price?.unit_amount || 0) / 100, 0
       ), 0
     );
@@ -96,4 +99,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-} 
+}

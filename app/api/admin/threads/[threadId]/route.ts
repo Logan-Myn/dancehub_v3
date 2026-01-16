@@ -1,21 +1,18 @@
-import { createAdminClient } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { sql } from "@/lib/db";
 
 export async function DELETE(
   request: Request,
   { params }: { params: { threadId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { threadId } = params;
 
     // Delete the thread (comments will be deleted automatically due to CASCADE)
-    const { error } = await supabase
-      .from("threads")
-      .delete()
-      .eq("id", threadId);
-
-    if (error) throw error;
+    await sql`
+      DELETE FROM threads
+      WHERE id = ${threadId}
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -25,4 +22,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}
