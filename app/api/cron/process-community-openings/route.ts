@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { query, sql } from '@/lib/db';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-10-28.acacia',
 });
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  name: string;
+  stripe_account_id: string | null;
+  [key: string]: unknown;
+}
+
+interface Member {
+  id: string;
+  user_id: string;
+  stripe_invoice_id: string | null;
+}
 
 // Prevent caching
 export const dynamic = 'force-dynamic';
@@ -22,16 +33,12 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString();
 
     // Find all communities in pre_registration status with opening_date <= now
-    const { data: communities, error: communitiesError } = await supabase
-      .from('communities')
-      .select('*')
-      .eq('status', 'pre_registration')
-      .lte('opening_date', now);
-
-    if (communitiesError) {
-      console.error('Error fetching communities:', communitiesError);
-      return NextResponse.json({ error: 'Failed to fetch communities' }, { status: 500 });
-    }
+    const communities = await query<Community>`
+      SELECT *
+      FROM communities
+      WHERE status = 'pre_registration'
+        AND opening_date <= ${now}
+    `;
 
     if (!communities || communities.length === 0) {
       return NextResponse.json({
@@ -45,22 +52,12 @@ export async function GET(request: NextRequest) {
     for (const community of communities) {
       try {
         // Get all pre-registered members for this community
-        const { data: members, error: membersError } = await supabase
-          .from('community_members')
-          .select('*')
-          .eq('community_id', community.id)
-          .eq('status', 'pre_registered');
-
-        if (membersError) {
-          console.error(`Error fetching members for community ${community.id}:`, membersError);
-          results.push({
-            communityId: community.id,
-            communityName: community.name,
-            success: false,
-            error: 'Failed to fetch members'
-          });
-          continue;
-        }
+        const members = await query<Member>`
+          SELECT *
+          FROM community_members
+          WHERE community_id = ${community.id}
+            AND status = 'pre_registered'
+        `;
 
         let successCount = 0;
         let failCount = 0;
@@ -70,7 +67,7 @@ export async function GET(request: NextRequest) {
         for (const member of members || []) {
           try {
             // The invoice should auto-finalize and charge, but we check its status
-            if (member.stripe_invoice_id) {
+            if (member.stripe_invoice_id && community.stripe_account_id) {
               const invoice = await stripe.invoices.retrieve(
                 member.stripe_invoice_id,
                 {
@@ -102,10 +99,11 @@ export async function GET(request: NextRequest) {
               console.error(`No invoice found for member ${member.user_id}`);
 
               // Update member to inactive
-              await supabase
-                .from('community_members')
-                .update({ status: 'inactive' })
-                .eq('id', member.id);
+              await sql`
+                UPDATE community_members
+                SET status = 'inactive'
+                WHERE id = ${member.id}
+              `;
 
               memberResults.push({
                 userId: member.user_id,
@@ -126,14 +124,11 @@ export async function GET(request: NextRequest) {
         }
 
         // Update community status to active
-        const { error: updateError } = await supabase
-          .from('communities')
-          .update({ status: 'active' })
-          .eq('id', community.id);
-
-        if (updateError) {
-          console.error(`Error updating community ${community.id} status:`, updateError);
-        }
+        await sql`
+          UPDATE communities
+          SET status = 'active'
+          WHERE id = ${community.id}
+        `;
 
         results.push({
           communityId: community.id,

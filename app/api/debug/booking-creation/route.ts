@@ -1,148 +1,181 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { sql, queryOne } from '@/lib/db';
 import { createVideoRoomForBooking } from '@/lib/video-room-creation';
 
-const supabase = createAdminClient();
+interface Lesson {
+  id: string;
+  title: string;
+  community_id: string;
+}
+
+interface Community {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Booking {
+  id: string;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  [key: string]: unknown;
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('🔧 Debug booking creation endpoint hit with body:', JSON.stringify(body, null, 2));
-    
+    console.log('Debug booking creation endpoint hit with body:', JSON.stringify(body, null, 2));
+
     // Validate required fields
     const requiredFields = ['lesson_id', 'community_id', 'student_id', 'student_email', 'price_paid'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
-          { 
+          {
             error: `Missing required field: ${field}`,
             receivedFields: Object.keys(body)
-          }, 
+          },
           { status: 400 }
         );
       }
     }
 
     // Check if lesson exists
-    const { data: lesson, error: lessonError } = await supabase
-      .from('private_lessons')
-      .select('id, title, community_id')
-      .eq('id', body.lesson_id)
-      .single();
+    const lesson = await queryOne<Lesson>`
+      SELECT id, title, community_id
+      FROM private_lessons
+      WHERE id = ${body.lesson_id}
+    `;
 
-    if (lessonError || !lesson) {
+    if (!lesson) {
       return NextResponse.json(
-        { 
+        {
           error: 'Private lesson not found',
-          lesson_id: body.lesson_id,
-          lessonError 
-        }, 
+          lesson_id: body.lesson_id
+        },
         { status: 404 }
       );
     }
 
-    console.log('✅ Found lesson:', lesson);
+    console.log('Found lesson:', lesson);
 
     // Check if community exists
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id, name, slug')
-      .eq('id', body.community_id)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, slug
+      FROM communities
+      WHERE id = ${body.community_id}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
-        { 
+        {
           error: 'Community not found',
-          community_id: body.community_id,
-          communityError 
-        }, 
+          community_id: body.community_id
+        },
         { status: 404 }
       );
     }
 
-    console.log('✅ Found community:', community);
+    console.log('Found community:', community);
 
     // Parse contact_info JSON if provided
     let contactInfo = {};
     if (body.contact_info) {
       try {
-        contactInfo = typeof body.contact_info === 'string' 
-          ? JSON.parse(body.contact_info) 
+        contactInfo = typeof body.contact_info === 'string'
+          ? JSON.parse(body.contact_info)
           : body.contact_info;
       } catch (e) {
         console.warn('Failed to parse contact_info, using empty object');
       }
     }
 
-    // Create the booking record
-    const bookingData = {
-      private_lesson_id: body.lesson_id,
+    console.log('Creating booking with data:', JSON.stringify({
+      lesson_id: body.lesson_id,
       community_id: body.community_id,
       student_id: body.student_id,
-      student_email: body.student_email,
-      student_name: body.student_name || '',
-      is_community_member: body.is_member === 'true' || body.is_member === true,
-      price_paid: parseFloat(body.price_paid),
-      stripe_payment_intent_id: body.payment_intent_id || `debug_${Date.now()}`,
-      payment_status: 'succeeded',
-      lesson_status: 'scheduled',
-      scheduled_at: body.scheduled_at || null,
-      student_message: body.student_message || '',
-      contact_info: contactInfo,
-      // Video room fields
-      daily_room_name: null,
-      daily_room_url: null,
-      daily_room_expires_at: null,
-      teacher_daily_token: null,
-      student_daily_token: null,
-      video_call_started_at: null,
-      video_call_ended_at: null
-    };
+      price_paid: body.price_paid
+    }, null, 2));
 
-    console.log('📝 Creating booking with data:', JSON.stringify(bookingData, null, 2));
+    // Create the booking record
+    const newBooking = await queryOne<Booking>`
+      INSERT INTO lesson_bookings (
+        private_lesson_id,
+        community_id,
+        student_id,
+        student_email,
+        student_name,
+        is_community_member,
+        price_paid,
+        stripe_payment_intent_id,
+        payment_status,
+        lesson_status,
+        scheduled_at,
+        student_message,
+        contact_info,
+        daily_room_name,
+        daily_room_url,
+        daily_room_expires_at,
+        teacher_daily_token,
+        student_daily_token,
+        video_call_started_at,
+        video_call_ended_at
+      ) VALUES (
+        ${body.lesson_id},
+        ${body.community_id},
+        ${body.student_id},
+        ${body.student_email},
+        ${body.student_name || ''},
+        ${body.is_member === 'true' || body.is_member === true},
+        ${parseFloat(body.price_paid)},
+        ${body.payment_intent_id || `debug_${Date.now()}`},
+        'succeeded',
+        'scheduled',
+        ${body.scheduled_at || null},
+        ${body.student_message || ''},
+        ${JSON.stringify(contactInfo)}::jsonb,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+      )
+      RETURNING *
+    `;
 
-    const { data: newBooking, error: bookingCreateError } = await supabase
-      .from('lesson_bookings')
-      .insert(bookingData)
-      .select('*')
-      .single();
-
-    if (bookingCreateError) {
-      console.error('❌ Error creating booking record:', bookingCreateError);
+    if (!newBooking) {
+      console.error('Error creating booking record');
       return NextResponse.json(
-        { 
-          error: 'Failed to create booking', 
-          details: bookingCreateError,
-          attemptedData: bookingData
-        }, 
+        {
+          error: 'Failed to create booking'
+        },
         { status: 500 }
       );
     }
 
-    console.log('✅ Successfully created booking:', newBooking);
+    console.log('Successfully created booking:', newBooking);
 
     // Create video room
     let videoRoomResult = null;
     try {
-      console.log('🎬 Creating video room for booking:', newBooking.id);
+      console.log('Creating video room for booking:', newBooking.id);
       await createVideoRoomForBooking(newBooking.id);
-      console.log('✅ Video room created successfully');
-      
+      console.log('Video room created successfully');
+
       // Fetch updated booking with video room data
-      const { data: updatedBooking } = await supabase
-        .from('lesson_bookings')
-        .select('*')
-        .eq('id', newBooking.id)
-        .single();
-      
+      const updatedBooking = await queryOne<Booking>`
+        SELECT * FROM lesson_bookings WHERE id = ${newBooking.id}
+      `;
+
       videoRoomResult = {
         success: true,
         room_name: updatedBooking?.daily_room_name,
         room_url: updatedBooking?.daily_room_url
       };
     } catch (videoError) {
-      console.error('❌ Error creating video room:', videoError);
+      console.error('Error creating video room:', videoError);
       videoRoomResult = {
         success: false,
         error: videoError instanceof Error ? videoError.message : String(videoError)
@@ -158,13 +191,13 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error('❌ Debug endpoint error:', error);
+    console.error('Debug endpoint error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Internal server error',
         details: error instanceof Error ? error.message : String(error),
         stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
-      }, 
+      },
       { status: 500 }
     );
   }

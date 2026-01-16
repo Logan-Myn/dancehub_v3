@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne, sql } from "@/lib/db";
 import { slugify } from "@/lib/utils";
 import { uploadFile, generateFileKey, deleteFile } from "@/lib/storage";
 
-const supabase = createAdminClient();
+interface Course {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  slug: string;
+  community_id: string;
+  created_at: string;
+  updated_at: string;
+  is_public: boolean;
+}
+
+interface CommunityId {
+  id: string;
+}
 
 export async function GET(
   request: Request,
@@ -12,23 +26,25 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get community and its courses
-    const { data: courses, error } = await supabase
-      .from("courses")
-      .select(`
-        *,
-        community:communities!inner(slug)
-      `)
-      .eq("community.slug", communitySlug)
-      .order("created_at", { ascending: false });
+    // Get community ID first
+    const community = await queryOne<CommunityId>`
+      SELECT id FROM communities WHERE slug = ${communitySlug}
+    `;
 
-    if (error) {
-      console.error("Error fetching courses:", error);
+    if (!community) {
       return NextResponse.json(
-        { error: "Failed to fetch courses" },
-        { status: 500 }
+        { error: "Community not found" },
+        { status: 404 }
       );
     }
+
+    // Get courses for this community
+    const courses = await query<Course>`
+      SELECT *
+      FROM courses
+      WHERE community_id = ${community.id}
+      ORDER BY created_at DESC
+    `;
 
     return NextResponse.json(courses);
   } catch (error) {
@@ -48,13 +64,11 @@ export async function POST(
     const { communitySlug } = params;
 
     // Get the community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<CommunityId>`
+      SELECT id FROM communities WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -97,23 +111,31 @@ export async function POST(
     }
 
     // Create a new course
-    const { data: newCourse, error: courseError } = await supabase
-      .from("courses")
-      .insert({
+    const newCourse = await queryOne<Course>`
+      INSERT INTO courses (
         title,
         description,
-        image_url: imageUrl,
+        image_url,
         slug,
-        community_id: community.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_public: isPublic,
-      })
-      .select()
-      .single();
+        community_id,
+        created_at,
+        updated_at,
+        is_public
+      ) VALUES (
+        ${title},
+        ${description},
+        ${imageUrl},
+        ${slug},
+        ${community.id},
+        NOW(),
+        NOW(),
+        ${isPublic}
+      )
+      RETURNING *
+    `;
 
-    if (courseError) {
-      console.error("Error creating course:", courseError);
+    if (!newCourse) {
+      console.error("Error creating course");
       // Clean up the uploaded image if course creation fails
       if (fileKey) {
         try {

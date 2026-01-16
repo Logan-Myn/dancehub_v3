@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { sql, query, queryOne } from '@/lib/db';
+
+interface ExistingCommunity {
+  name: string;
+  slug: string;
+}
+
+interface NewCommunity {
+  id: string;
+  slug: string;
+}
 
 export async function POST(request: Request) {
-  const supabase = createAdminClient();
-  
   try {
     const body = await request.json();
     const { name, description, imageUrl, createdBy } = body;
@@ -15,19 +23,13 @@ export async function POST(request: Request) {
       .replace(/(^-|-$)+/g, '');
 
     // Check if name or slug already exists
-    const { data: existingCommunities, error: checkError } = await supabase
-      .from('communities')
-      .select('name, slug')
-      .or(`name.ilike.${name},slug.eq.${slug}`)
-      .limit(1);
-
-    if (checkError) {
-      console.error('Error checking community existence:', checkError);
-      return NextResponse.json(
-        { error: 'Failed to validate community name' },
-        { status: 500 }
-      );
-    }
+    const existingCommunities = await query<ExistingCommunity>`
+      SELECT name, slug
+      FROM communities
+      WHERE LOWER(name) = LOWER(${name})
+         OR slug = ${slug}
+      LIMIT 1
+    `;
 
     if (existingCommunities && existingCommunities.length > 0) {
       const community = existingCommunities[0];
@@ -44,48 +46,55 @@ export async function POST(request: Request) {
       }
     }
 
-    // Start a transaction
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .insert({
+    // Create the community
+    const community = await queryOne<NewCommunity>`
+      INSERT INTO communities (
         name,
         slug,
         description,
-        image_url: imageUrl,
-        created_by: createdBy,
-      })
-      .select()
-      .single();
+        image_url,
+        created_by
+      ) VALUES (
+        ${name},
+        ${slug},
+        ${description},
+        ${imageUrl},
+        ${createdBy}
+      )
+      RETURNING id, slug
+    `;
 
-    if (communityError) {
-      console.error('Community creation error:', communityError);
+    if (!community) {
+      console.error('Community creation error');
       return NextResponse.json(
-        { error: communityError.message },
+        { error: 'Failed to create community' },
         { status: 400 }
       );
     }
 
     // Add creator as a member with admin role
-    const { error: memberError } = await supabase
-      .from('community_members')
-      .insert({
-        user_id: createdBy,
-        community_id: community.id,
-        role: 'admin',
-        status: 'active',
-        joined_at: new Date().toISOString(),
-      });
-
-    if (memberError) {
+    try {
+      await sql`
+        INSERT INTO community_members (
+          user_id,
+          community_id,
+          role,
+          status,
+          joined_at
+        ) VALUES (
+          ${createdBy},
+          ${community.id},
+          'admin',
+          'active',
+          NOW()
+        )
+      `;
+    } catch (memberError) {
       // If member creation fails, delete the community
-      const { error: deleteError } = await supabase
-        .from('communities')
-        .delete()
-        .eq('id', community.id);
-
-      if (deleteError) {
-        console.error('Failed to rollback community creation:', deleteError);
-      }
+      await sql`
+        DELETE FROM communities
+        WHERE id = ${community.id}
+      `;
 
       console.error('Member creation error:', memberError);
       return NextResponse.json(
@@ -94,9 +103,9 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Community created successfully',
-      slug: community.slug 
+      slug: community.slug
     });
 
   } catch (error) {
@@ -106,4 +115,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

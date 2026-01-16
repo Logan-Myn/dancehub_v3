@@ -1,7 +1,29 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne } from "@/lib/db";
 
 export const dynamic = 'force-dynamic';
+
+interface Community {
+  id: string;
+  name: string;
+  created_by: string;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string | null;
+}
+
+interface Member {
+  user_id: string;
+}
+
+interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+}
 
 export async function POST(
   req: Request,
@@ -12,17 +34,15 @@ export async function POST(
   }
 ) {
   try {
-    const supabase = createAdminClient();
-
     // Get community details
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, name, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
-      console.error("Error fetching community:", communityError);
+    if (!community) {
+      console.error("Error fetching community");
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -30,15 +50,15 @@ export async function POST(
     }
 
     // Get course details
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id, title, description")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id, title, description
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
-      console.error("Error fetching course:", courseError);
+    if (!course) {
+      console.error("Error fetching course");
       return NextResponse.json(
         { error: "Course not found" },
         { status: 404 }
@@ -46,33 +66,29 @@ export async function POST(
     }
 
     // Get all community members except the creator
-    const { data: members, error: membersError } = await supabase
-      .from("community_members")
-      .select("user_id")
-      .eq("community_id", community.id)
-      .neq("user_id", community.created_by); // Exclude the creator
+    const members = await query<Member>`
+      SELECT user_id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id != ${community.created_by}
+    `;
 
-    if (membersError) {
-      console.error('Error fetching members:', membersError);
-      return NextResponse.json(
-        { error: "Failed to fetch members" },
-        { status: 500 }
-      );
+    if (!members || members.length === 0) {
+      return NextResponse.json({
+        success: true,
+        totalEmails: 0,
+        successfulEmails: 0,
+        failedEmails: 0
+      });
     }
 
     // Get member profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, email, full_name")
-      .in("id", members.map(m => m.user_id));
-
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      return NextResponse.json(
-        { error: "Failed to fetch profiles" },
-        { status: 500 }
-      );
-    }
+    const memberIds = members.map(m => m.user_id);
+    const profiles = await query<Profile>`
+      SELECT id, email, full_name
+      FROM profiles
+      WHERE id = ANY(${memberIds}::uuid[])
+    `;
 
     console.log('Sending notifications to members:', profiles.map(p => ({ id: p.id, email: p.email })));
 
@@ -136,4 +152,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}
