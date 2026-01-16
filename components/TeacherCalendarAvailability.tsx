@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Plus, Clock, X, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { createClient } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TimeSlot {
   id?: string;
@@ -29,11 +29,12 @@ interface TeacherCalendarAvailabilityProps {
 }
 
 
-export default function TeacherCalendarAvailability({ 
-  communitySlug, 
-  availability, 
-  onAvailabilityUpdate 
+export default function TeacherCalendarAvailability({
+  communitySlug,
+  availability,
+  onAvailabilityUpdate
 }: TeacherCalendarAvailabilityProps) {
+  const { session } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -123,9 +124,6 @@ export default function TeacherCalendarAvailability({
 
     setIsLoading(true);
     try {
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please sign in to continue');
         return;
@@ -135,7 +133,6 @@ export default function TeacherCalendarAvailability({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           date: selectedDate,
@@ -182,9 +179,6 @@ export default function TeacherCalendarAvailability({
 
     setIsLoading(true);
     try {
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please sign in to continue');
         return;
@@ -194,9 +188,6 @@ export default function TeacherCalendarAvailability({
         `/api/community/${communitySlug}/teacher-availability?slotId=${slotId}`,
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
         }
       );
 

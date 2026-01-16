@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -6,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Trash2, Plus, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { TeacherAvailabilitySlot } from '@/types/private-lessons';
-import { createClient } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TeacherAvailabilityProps {
   communitySlug: string;
@@ -15,11 +17,12 @@ interface TeacherAvailabilityProps {
 }
 
 
-export default function TeacherAvailability({ 
-  communitySlug, 
-  slots, 
-  onSlotsUpdate 
+export default function TeacherAvailability({
+  communitySlug,
+  slots,
+  onSlotsUpdate
 }: TeacherAvailabilityProps) {
+  const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [newSlot, setNewSlot] = useState({
     date: '',
@@ -36,7 +39,7 @@ export default function TeacherAvailability({
   };
 
 
-    const handleAddSlot = async () => {
+  const handleAddSlot = async () => {
     if (!newSlot.date || !newSlot.start_time || !newSlot.end_time) {
       toast.error('Please fill all fields');
       return;
@@ -49,9 +52,6 @@ export default function TeacherAvailability({
 
     setIsLoading(true);
     try {
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please sign in to continue');
         return;
@@ -61,7 +61,6 @@ export default function TeacherAvailability({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           date: newSlot.date,
@@ -101,9 +100,6 @@ export default function TeacherAvailability({
 
     setIsLoading(true);
     try {
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please sign in to continue');
         return;
@@ -113,9 +109,6 @@ export default function TeacherAvailability({
         `/api/community/${communitySlug}/teacher-availability?slotId=${slotId}`,
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
         }
       );
 

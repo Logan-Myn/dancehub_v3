@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Loader2, Calendar, CreditCard } from "lucide-react";
-import { createClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PreRegistrationPaymentModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ function PaymentForm({
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-  const supabase = createClient();
+  const { user } = useAuth();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -57,8 +57,6 @@ function PaymentForm({
     setIsProcessing(true);
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       // Confirm the SetupIntent (saves payment method without charging)

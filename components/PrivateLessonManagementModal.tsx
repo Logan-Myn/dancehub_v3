@@ -13,7 +13,6 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import { Loader2, Edit } from "lucide-react";
-import { createClient } from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -33,8 +32,7 @@ export default function PrivateLessonManagementModal({
   communitySlug,
 }: PrivateLessonManagementModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('details');
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, session } = useAuth();
 
   // Private lessons state
   const [privateLessons, setPrivateLessons] = useState<any[]>([]);
@@ -106,23 +104,12 @@ export default function PrivateLessonManagementModal({
       if (isOpen) {
         setIsLoadingBookings(true);
         try {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) {
-            console.error('Session error:', sessionError);
+          if (!session) {
+            console.error('No active session');
             return;
           }
 
-          if (!session?.access_token) {
-            console.error('No access token available');
-            return;
-          }
-
-          const response = await fetch(`/api/community/${communitySlug}/lesson-bookings`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          });
+          const response = await fetch(`/api/community/${communitySlug}/lesson-bookings`);
 
           if (!response.ok) {
             throw new Error(`Failed to fetch lesson bookings: ${response.status}`);
@@ -140,20 +127,18 @@ export default function PrivateLessonManagementModal({
     }
 
     fetchLessonBookings();
-  }, [communitySlug, isOpen, supabase.auth]);
+  }, [communitySlug, isOpen, session]);
 
   // Handle lesson status toggle
   const handleToggleLessonStatus = async (lessonId: string, currentStatus: boolean) => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
+      if (!session) {
         throw new Error('Authentication required');
       }
 
       const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lessonId}/toggle`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ is_active: !currentStatus }),
@@ -182,16 +167,12 @@ export default function PrivateLessonManagementModal({
     }
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
+      if (!session) {
         throw new Error('Authentication required');
       }
 
       const response = await fetch(`/api/community/${communitySlug}/private-lessons/${lessonId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
       });
 
       if (!response.ok) throw new Error('Failed to delete lesson');
@@ -208,15 +189,13 @@ export default function PrivateLessonManagementModal({
   // Handle video session join
   const handleJoinVideoSession = async (booking: any) => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
+      if (!session) {
         throw new Error('Authentication required');
       }
 
       const response = await fetch(`/api/bookings/${booking.id}/video-token`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });

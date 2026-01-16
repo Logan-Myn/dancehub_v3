@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { X, Plus } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreatePrivateLessonModalProps {
   isOpen: boolean;
@@ -27,6 +27,7 @@ export default function CreatePrivateLessonModal({
   onSuccess,
   editingLesson,
 }: CreatePrivateLessonModalProps) {
+  const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -99,26 +100,21 @@ export default function CreatePrivateLessonModal({
         member_price: formData.member_price ? parseFloat(formData.member_price) : null,
       };
 
-      // Get the user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
       if (!session) {
         toast.error(`You must be logged in to ${editingLesson ? 'update' : 'create'} private lessons`);
         return;
       }
 
-      const url = editingLesson 
+      const url = editingLesson
         ? `/api/community/${communitySlug}/private-lessons/${editingLesson.id}`
         : `/api/community/${communitySlug}/private-lessons`;
-      
+
       const method = editingLesson ? "PATCH" : "POST";
 
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(payload),
       });
