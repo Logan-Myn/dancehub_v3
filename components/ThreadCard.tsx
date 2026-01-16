@@ -6,7 +6,6 @@ import { formatDisplayName } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase";
 
 interface ThreadCardProps {
   title: string;
@@ -46,10 +45,9 @@ export default function ThreadCard({
   pinned = false,
   onLikeUpdate,
 }: ThreadCardProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
   const isLiked = user ? likes.includes(user.id) : false;
-  const supabase = createClient();
 
   const iconConfig = CATEGORY_ICONS.find((i) => i.label === category_type);
   const IconComponent = iconConfig?.icon || MessageCircle;
@@ -66,9 +64,6 @@ export default function ThreadCard({
 
     setIsLiking(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       if (!session) {
         throw new Error("No active session");
       }
@@ -77,7 +72,6 @@ export default function ThreadCard({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ userId: user.id }),
       });

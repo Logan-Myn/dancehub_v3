@@ -19,7 +19,6 @@ import Editor from "./Editor";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { createClient } from "@/lib/supabase";
 import { formatDisplayName } from "@/lib/utils";
 
 interface ThreadProps {
@@ -43,10 +42,9 @@ export default function Thread({
   const [title, setTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isPinned, setIsPinned] = useState(false);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [content, setContent] = useState("");
   const [profile, setProfile] = useState<any>(null);
-  const supabase = createClient();
 
   const isCreator = user?.id === community.created_by;
 
@@ -54,18 +52,20 @@ export default function Thread({
   useEffect(() => {
     async function fetchProfile() {
       if (!user) return;
-      
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      setProfile(data);
+
+      try {
+        const response = await fetch(`/api/profile?userId=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfile(data);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
     }
-    
+
     fetchProfile();
-  }, [user, supabase]);
+  }, [user]);
 
   const editor = useEditor({
     extensions: [
@@ -101,7 +101,6 @@ export default function Thread({
     setIsSubmitting(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('No active session');
       }
@@ -110,7 +109,6 @@ export default function Thread({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           title: title.trim(),
@@ -125,7 +123,7 @@ export default function Thread({
           author: {
             id: user.id,
             name: profile?.display_name || profile?.full_name || 'Anonymous',
-            avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url,
+            avatar_url: profile?.avatar_url || user?.image,
           },
         }),
       });
@@ -162,7 +160,7 @@ export default function Thread({
   };
 
   const userDisplayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Anonymous';
-  const userAvatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url;
+  const userAvatarUrl = profile?.avatar_url || user?.image;
   const userInitial = userDisplayName[0]?.toUpperCase() || 'A';
 
   return (

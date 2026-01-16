@@ -9,7 +9,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { createClient } from "@/lib/supabase";
 
 interface CommentProps {
   id: string;
@@ -41,8 +40,7 @@ export default function Comment({
   onLike,
   onReply
 }: CommentProps) {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, session } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
@@ -71,7 +69,6 @@ export default function Comment({
     setLocalLikesCount(newLikesCount);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('No active session');
       }
@@ -80,7 +77,6 @@ export default function Comment({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ userId: user.id }),
       });

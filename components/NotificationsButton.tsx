@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Check } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Notification {
   id: string;
@@ -23,78 +23,79 @@ interface Notification {
   type: 'course_published' | 'course_updated' | 'announcement' | 'other';
 }
 
+const POLL_INTERVAL = 30000; // Poll every 30 seconds
+
 export default function NotificationsButton() {
+  const { session } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
-  const supabase = createClient();
+
+  const fetchNotifications = useCallback(async () => {
+    if (!session) return;
+
+    try {
+      const response = await fetch('/api/notifications');
+      if (!response.ok) {
+        console.error('Error fetching notifications:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      setNotifications(data || []);
+      setUnreadCount(data?.filter((n: Notification) => !n.read).length || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  }, [session]);
 
   useEffect(() => {
     fetchNotifications();
-    
-    // Subscribe to new notifications
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-        },
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
+
+    // Set up polling for notifications (replaces real-time subscription)
+    const pollInterval = setInterval(fetchNotifications, POLL_INTERVAL);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, []);
-
-  const fetchNotifications = async () => {
-    const { data: notifications, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error('Error fetching notifications:', error);
-      return;
-    }
-
-    setNotifications(notifications || []);
-    setUnreadCount(notifications?.filter(n => !n.read).length || 0);
-  };
+  }, [fetchNotifications]);
 
   const handleMarkAsRead = async (notificationId: string) => {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', notificationId);
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId }),
+      });
 
-    if (error) {
+      if (!response.ok) {
+        console.error('Error marking notification as read:', response.status);
+        return;
+      }
+
+      await fetchNotifications();
+    } catch (error) {
       console.error('Error marking notification as read:', error);
-      return;
     }
-
-    await fetchNotifications();
   };
 
   const handleMarkAllAsRead = async () => {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('read', false);
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAllRead: true }),
+      });
 
-    if (error) {
+      if (!response.ok) {
+        console.error('Error marking all notifications as read:', response.status);
+        return;
+      }
+
+      await fetchNotifications();
+    } catch (error) {
       console.error('Error marking all notifications as read:', error);
-      return;
     }
-
-    await fetchNotifications();
   };
 
   return (
