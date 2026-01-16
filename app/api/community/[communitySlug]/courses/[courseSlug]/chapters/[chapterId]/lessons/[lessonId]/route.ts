@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { deleteMuxAsset } from "@/lib/mux";
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface Course {
+  id: string;
+}
+
+interface Chapter {
+  id: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  content: string | null;
+  video_asset_id: string | null;
+  playback_id: string | null;
+  chapter_id: string;
+  lesson_position: number;
+  created_at: string;
+  updated_at: string;
+}
 
 export async function PUT(
   request: Request,
@@ -15,20 +41,18 @@ export async function PUT(
     };
   }
 ) {
-  const supabase = createAdminClient();
-
   try {
     const body = await request.json();
     const { title, content, videoAssetId, playbackId } = body;
 
     // First, verify the community exists and get its ID
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<{ id: string }>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -36,57 +60,51 @@ export async function PUT(
     }
 
     // Get the course ID
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Verify the chapter exists
-    const { data: chapter, error: chapterError } = await supabase
-      .from("chapters")
-      .select("id")
-      .eq("course_id", course.id)
-      .eq("id", params.chapterId)
-      .single();
+    const chapter = await queryOne<Chapter>`
+      SELECT id
+      FROM chapters
+      WHERE course_id = ${course.id}
+        AND id = ${params.chapterId}
+    `;
 
-    if (chapterError || !chapter) {
+    if (!chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    // Update data
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-    };
+    // Update the lesson using COALESCE for partial updates
+    const updatedLesson = await queryOne<Lesson>`
+      UPDATE lessons
+      SET
+        title = COALESCE(${title ?? null}, title),
+        content = COALESCE(${content ?? null}, content),
+        video_asset_id = COALESCE(${videoAssetId ?? null}, video_asset_id),
+        playback_id = COALESCE(${playbackId ?? null}, playback_id),
+        updated_at = NOW()
+      WHERE id = ${params.lessonId}
+        AND chapter_id = ${params.chapterId}
+      RETURNING *
+    `;
 
-    if (title !== undefined) updateData.title = title;
-    if (content !== undefined) updateData.content = content;
-    if (videoAssetId !== undefined) updateData.video_asset_id = videoAssetId;
-    if (playbackId !== undefined) updateData.playback_id = playbackId;
-
-    // Update the lesson
-    const { data: updatedLesson, error: updateError } = await supabase
-      .from("lessons")
-      .update(updateData)
-      .eq("id", params.lessonId)
-      .eq("chapter_id", params.chapterId)
-      .select("*")
-      .single();
-
-    if (updateError) {
-      console.error("Error updating lesson:", updateError);
+    if (!updatedLesson) {
       return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
     }
 
     // Transform the response for frontend compatibility
     const transformedLesson = {
       ...updatedLesson,
-      order: updatedLesson.position,
+      order: updatedLesson.lesson_position,
       videoAssetId: updatedLesson.video_asset_id,
       playbackId: updatedLesson.playback_id,
     };
@@ -114,33 +132,24 @@ export async function DELETE(
     };
   }
 ) {
-  const supabase = createAdminClient();
-
   try {
-    // Verify auth token
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Verify auth session
+    const session = await getSession();
+
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = session.user;
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -153,50 +162,50 @@ export async function DELETE(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Verify chapter exists
-    const { data: chapter, error: chapterError } = await supabase
-      .from("chapters")
-      .select("id")
-      .eq("course_id", course.id)
-      .eq("id", params.chapterId)
-      .single();
+    const chapter = await queryOne<Chapter>`
+      SELECT id
+      FROM chapters
+      WHERE course_id = ${course.id}
+        AND id = ${params.chapterId}
+    `;
 
-    if (chapterError || !chapter) {
+    if (!chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
     // Get the lesson to check if it has a video before deleting
-    const { data: lesson, error: lessonFetchError } = await supabase
-      .from("lessons")
-      .select("video_asset_id")
-      .eq("id", params.lessonId)
-      .eq("chapter_id", params.chapterId)
-      .single();
+    const lesson = await queryOne<{ video_asset_id: string | null }>`
+      SELECT video_asset_id
+      FROM lessons
+      WHERE id = ${params.lessonId}
+        AND chapter_id = ${params.chapterId}
+    `;
 
-    if (!lessonFetchError && lesson?.video_asset_id) {
+    if (lesson?.video_asset_id) {
       // Delete the video from Mux if it exists
       await deleteMuxAsset(lesson.video_asset_id);
     }
 
     // Delete the lesson
-    const { error: deleteError } = await supabase
-      .from("lessons")
-      .delete()
-      .eq("id", params.lessonId)
-      .eq("chapter_id", params.chapterId);
-
-    if (deleteError) {
+    try {
+      await sql`
+        DELETE FROM lessons
+        WHERE id = ${params.lessonId}
+          AND chapter_id = ${params.chapterId}
+      `;
+    } catch (deleteError) {
       console.error("Error deleting lesson:", deleteError);
       return NextResponse.json(
         { error: "Failed to delete lesson" },
