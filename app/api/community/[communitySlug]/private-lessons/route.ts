@@ -1,8 +1,26 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { CreatePrivateLessonData } from "@/types/private-lessons";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface PrivateLesson {
+  id: string;
+  community_id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  duration_minutes: number;
+  regular_price: number;
+  member_price: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export async function GET(
   request: Request,
@@ -12,13 +30,13 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get community ID from slug
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -26,20 +44,13 @@ export async function GET(
     }
 
     // Get all active private lessons for this community
-    const { data: lessons, error: lessonsError } = await supabase
-      .from("private_lessons")
-      .select("*")
-      .eq("community_id", community.id)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-
-    if (lessonsError) {
-      console.error("Error fetching private lessons:", lessonsError);
-      return NextResponse.json(
-        { error: "Failed to fetch private lessons" },
-        { status: 500 }
-      );
-    }
+    const lessons = await query<PrivateLesson>`
+      SELECT *
+      FROM private_lessons
+      WHERE community_id = ${community.id}
+        AND is_active = true
+      ORDER BY created_at DESC
+    `;
 
     return NextResponse.json({ lessons });
   } catch (error) {
@@ -60,13 +71,13 @@ export async function POST(
     const lessonData: CreatePrivateLessonData = await request.json();
 
     // Get community and verify ownership
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -74,18 +85,18 @@ export async function POST(
     }
 
     // Verify the current user is the community creator
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    const session = await getSession();
+
+    if (!session) {
       return NextResponse.json(
         { error: "Unauthorized - Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user || user.id !== community.created_by) {
+    const user = session.user;
+
+    if (user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can create private lessons" },
         { status: 403 }
@@ -115,18 +126,31 @@ export async function POST(
     }
 
     // Create the private lesson
-    const { data: lesson, error: createError } = await supabase
-      .from("private_lessons")
-      .insert({
-        community_id: community.id,
-        teacher_id: user.id, // The current user (community creator) is the teacher
-        ...lessonData,
-      })
-      .select()
-      .single();
+    const lesson = await queryOne<PrivateLesson>`
+      INSERT INTO private_lessons (
+        community_id,
+        teacher_id,
+        title,
+        description,
+        duration_minutes,
+        regular_price,
+        member_price,
+        is_active
+      ) VALUES (
+        ${community.id},
+        ${user.id},
+        ${lessonData.title},
+        ${lessonData.description || null},
+        ${lessonData.duration_minutes},
+        ${lessonData.regular_price},
+        ${lessonData.member_price || null},
+        ${lessonData.is_active ?? true}
+      )
+      RETURNING *
+    `;
 
-    if (createError) {
-      console.error("Error creating private lesson:", createError);
+    if (!lesson) {
+      console.error("Error creating private lesson: no row returned");
       return NextResponse.json(
         { error: "Failed to create private lesson" },
         { status: 500 }
@@ -141,4 +165,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

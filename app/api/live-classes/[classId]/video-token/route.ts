@@ -1,42 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { videoRoomService } from "@/lib/video-room-service";
 import { getDailyDomain } from "@/lib/get-daily-domain";
+
+interface LiveClassWithDetails {
+  id: string;
+  community_id: string;
+  teacher_id: string;
+  community_created_by: string;
+  scheduled_start_time: string;
+  duration_minutes: number;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+}
+
+interface Profile {
+  display_name: string | null;
+  full_name: string | null;
+}
+
+interface Membership {
+  status: string;
+}
+
+interface LiveClassRoom {
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { classId: string } }
 ) {
   try {
-    const adminSupabase = createAdminClient();
+    // Get the current user session
+    const session = await getSession();
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await adminSupabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get live class details
-    const { data: liveClass, error: classError } = await adminSupabase
-      .from("live_classes_with_details")
-      .select("*")
-      .eq("id", params.classId)
-      .single();
+    const liveClass = await queryOne<LiveClassWithDetails>`
+      SELECT *
+      FROM live_classes_with_details
+      WHERE id = ${params.classId}
+    `;
 
-    if (classError || !liveClass) {
+    if (!liveClass) {
       return NextResponse.json(
         { error: "Live class not found" },
         { status: 404 }
@@ -44,11 +61,11 @@ export async function GET(
     }
 
     // Get user profile for display name
-    const { data: profile } = await adminSupabase
-      .from("profiles")
-      .select("display_name, full_name")
-      .eq("id", user.id)
-      .single();
+    const profile = await queryOne<Profile>`
+      SELECT display_name, full_name
+      FROM profiles
+      WHERE id = ${user.id}
+    `;
 
     const userName = profile?.display_name || profile?.full_name || user.email?.split('@')[0] || 'Guest';
 
@@ -58,12 +75,12 @@ export async function GET(
 
     if (!isTeacher && !isCreator) {
       // Check if user is a community member
-      const { data: membership } = await adminSupabase
-        .from("community_members")
-        .select("status")
-        .eq("community_id", liveClass.community_id)
-        .eq("user_id", user.id)
-        .single();
+      const membership = await queryOne<Membership>`
+        SELECT status
+        FROM community_members
+        WHERE community_id = ${liveClass.community_id}
+          AND user_id = ${user.id}
+      `;
 
       if (!membership || membership.status !== 'active') {
         return NextResponse.json(
@@ -97,15 +114,15 @@ export async function GET(
     if (!liveClass.daily_room_name || !liveClass.daily_room_url) {
       // Create room using video room service
       await videoRoomService.createRoomForLiveClass(params.classId);
-      
-      // Refetch the live class with updated room details
-      const { data: updatedClass, error: refetchError } = await adminSupabase
-        .from("live_classes")
-        .select("daily_room_name, daily_room_url")
-        .eq("id", params.classId)
-        .single();
 
-      if (refetchError || !updatedClass?.daily_room_name) {
+      // Refetch the live class with updated room details
+      const updatedClass = await queryOne<LiveClassRoom>`
+        SELECT daily_room_name, daily_room_url
+        FROM live_classes
+        WHERE id = ${params.classId}
+      `;
+
+      if (!updatedClass?.daily_room_name) {
         return NextResponse.json(
           { error: "Failed to create video room" },
           { status: 500 }
@@ -133,7 +150,7 @@ export async function GET(
 
     // Get Daily domain
     const domain = await getDailyDomain();
-    
+
     // Construct the room URL
     const roomUrl = `https://${domain}.daily.co/${liveClass.daily_room_name}`;
 
