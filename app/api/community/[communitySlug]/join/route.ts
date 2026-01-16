@@ -1,28 +1,34 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+
+interface Community {
+  id: string;
+}
+
+interface Member {
+  id: string;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const body = await request.json();
     console.log('Request body:', body);
     const { userId } = body;
     console.log('Extracted userId:', userId);
 
     // Get community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
     console.log('Community data:', community);
-    console.log('Community error:', communityError);
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -30,12 +36,12 @@ export async function POST(
     }
 
     // Check if user is already a member
-    const { data: existingMember } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .single();
+    const existingMember = await queryOne<Member>`
+      SELECT id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (existingMember) {
       return NextResponse.json(
@@ -45,17 +51,23 @@ export async function POST(
     }
 
     // Add member to community_members table
-    const { error: memberError } = await supabase
-      .from("community_members")
-      .insert({
-        community_id: community.id,
-        user_id: userId,
-        joined_at: new Date().toISOString(),
-        role: "member",
-        status: "active"
-      });
-
-    if (memberError) {
+    try {
+      await sql`
+        INSERT INTO community_members (
+          community_id,
+          user_id,
+          joined_at,
+          role,
+          status
+        ) VALUES (
+          ${community.id},
+          ${userId},
+          NOW(),
+          'member',
+          'active'
+        )
+      `;
+    } catch (memberError) {
       console.error("Error adding member:", memberError);
       return NextResponse.json(
         { error: "Failed to add member" },
@@ -64,19 +76,16 @@ export async function POST(
     }
 
     // Update members_count in communities table
-    const { error: updateError } = await supabase.rpc(
-      'increment_members_count',
-      { community_id: community.id }
-    );
-
-    if (updateError) {
+    try {
+      await sql`SELECT increment_members_count(${community.id})`;
+    } catch (updateError) {
       console.error("Error updating members count:", updateError);
       // Rollback the member addition
-      await supabase
-        .from("community_members")
-        .delete()
-        .eq("community_id", community.id)
-        .eq("user_id", userId);
+      await sql`
+        DELETE FROM community_members
+        WHERE community_id = ${community.id}
+          AND user_id = ${userId}
+      `;
 
       return NextResponse.json(
         { error: "Failed to update members count" },

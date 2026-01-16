@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface Course {
+  id: string;
+}
 
 export async function DELETE(
   req: Request,
@@ -10,29 +20,23 @@ export async function DELETE(
   }
 ) {
   try {
-    const supabase = createAdminClient();
-    
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // Verify the session and get user
+    const session = await getSession();
+
+    if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    const token = authHeader.split("Bearer ")[1];
 
-    // Verify the token and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+    const user = session.user;
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return new NextResponse("Community not found", { status: 404 });
     }
 
@@ -41,36 +45,36 @@ export async function DELETE(
     }
 
     // Get course ID
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return new NextResponse("Course not found", { status: 404 });
     }
 
     // Delete all lessons in the chapter first (foreign key constraint)
-    const { error: lessonsDeleteError } = await supabase
-      .from("lessons")
-      .delete()
-      .eq("chapter_id", params.chapterId);
-
-    if (lessonsDeleteError) {
+    try {
+      await sql`
+        DELETE FROM lessons
+        WHERE chapter_id = ${params.chapterId}
+      `;
+    } catch (lessonsDeleteError) {
       console.error("[LESSONS_DELETE]", lessonsDeleteError);
       return new NextResponse("Failed to delete lessons", { status: 500 });
     }
 
     // Delete the chapter
-    const { error: chapterDeleteError } = await supabase
-      .from("chapters")
-      .delete()
-      .eq("id", params.chapterId)
-      .eq("course_id", course.id);
-
-    if (chapterDeleteError) {
+    try {
+      await sql`
+        DELETE FROM chapters
+        WHERE id = ${params.chapterId}
+          AND course_id = ${course.id}
+      `;
+    } catch (chapterDeleteError) {
       console.error("[CHAPTER_DELETE]", chapterDeleteError);
       return new NextResponse("Failed to delete chapter", { status: 500 });
     }
