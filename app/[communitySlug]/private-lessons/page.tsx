@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { notFound, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from "@/lib/supabase/client";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import PrivateLessonsPage from "@/components/PrivateLessonsPage";
@@ -17,14 +16,6 @@ interface Community {
   image_url: string;
   created_by: string;
   created_at: string;
-}
-
-interface Member {
-  id: string;
-  user_id: string;
-  community_id: string;
-  role: string;
-  status: string;
 }
 
 const reservedPaths = [
@@ -48,7 +39,6 @@ export default function CommunityPrivateLessonsPage() {
   const params = useParams();
   const communitySlug = params?.communitySlug as string;
   const { user, loading: isAuthLoading } = useAuth();
-  const supabase = createClient();
 
   const [community, setCommunity] = useState<Community | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,32 +57,28 @@ export default function CommunityPrivateLessonsPage() {
 
   const fetchCommunityData = async () => {
     try {
-      // Fetch community data
-      const { data: communityData, error: communityError } = await supabase
-        .from('communities')
-        .select('*')
-        .eq('slug', communitySlug)
-        .single();
-
-      if (communityError || !communityData) {
+      // Fetch community data via API
+      const communityResponse = await fetch(`/api/community/${communitySlug}`);
+      if (!communityResponse.ok) {
         notFound();
         return;
       }
+      const communityData = await communityResponse.json();
 
       setCommunity(communityData);
       setIsCreator(user?.id === communityData.created_by);
 
       // Check membership if user is logged in
       if (user) {
-        const { data: memberData } = await supabase
-          .from('community_members')
-          .select('*')
-          .eq('community_id', communityData.id)
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .single();
-
-        setIsMember(!!memberData);
+        const memberResponse = await fetch(`/api/community/${communitySlug}/check-subscription`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        if (memberResponse.ok) {
+          const memberData = await memberResponse.json();
+          setIsMember(memberData.hasSubscription);
+        }
       }
     } catch (error) {
       console.error('Error fetching community data:', error);

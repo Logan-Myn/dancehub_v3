@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     // If userId is provided, fetch that specific profile
     if (requestedUserId) {
       const profiles = await sql`
-        SELECT id, full_name, display_name, avatar_url, email
+        SELECT id, full_name, display_name, avatar_url, email, is_admin
         FROM profiles
         WHERE id = ${requestedUserId}
       `;
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     }
 
     const profiles = await sql`
-      SELECT id, full_name, display_name, avatar_url, email
+      SELECT id, full_name, display_name, avatar_url, email, is_admin
       FROM profiles
       WHERE id = ${session.user.id}
     `;

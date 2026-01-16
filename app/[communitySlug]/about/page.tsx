@@ -8,7 +8,6 @@ import CommunityNavbar from "@/components/CommunityNavbar";
 import PageBuilder from "@/components/PageBuilder";
 import { Section } from "@/types/page-builder";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
 
 interface Community {
   id: string;
@@ -33,8 +32,7 @@ interface Community {
 export default function AboutPage() {
   const params = useParams();
   const communitySlug = params?.communitySlug as string;
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, session } = useAuth();
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -46,33 +44,37 @@ export default function AboutPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const { data: communityData, error: communityError } = await supabase
-          .from("communities")
-          .select("*, about_page")
-          .eq("slug", communitySlug)
-          .single<Community>();
-
-        if (communityError) {
-          throw communityError;
+        // Fetch community data via API
+        const communityResponse = await fetch(`/api/community/${communitySlug}`);
+        if (!communityResponse.ok) {
+          if (communityResponse.status === 404) {
+            notFound();
+            return;
+          }
+          throw new Error('Failed to fetch community');
         }
+        const communityData = await communityResponse.json();
 
-        if (!communityData) {
-          notFound();
-          return;
+        // Fetch about page data separately
+        const aboutResponse = await fetch(`/api/community/${communitySlug}/about`);
+        if (aboutResponse.ok) {
+          const aboutData = await aboutResponse.json();
+          communityData.about_page = aboutData.aboutPage;
         }
 
         setCommunity(communityData);
 
         // Check if user is a member
         if (user) {
-          const { data: memberData } = await supabase
-            .from("community_members")
-            .select("*")
-            .eq("community_id", communityData.id)
-            .eq("user_id", user.id)
-            .single();
-
-          setIsMember(!!memberData);
+          const memberResponse = await fetch(`/api/community/${communitySlug}/check-subscription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id }),
+          });
+          if (memberResponse.ok) {
+            const memberData = await memberResponse.json();
+            setIsMember(memberData.hasSubscription);
+          }
         }
       } catch (error) {
         console.error("Error fetching community:", error);
@@ -87,35 +89,9 @@ export default function AboutPage() {
     }
   }, [communitySlug, user]);
 
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!community?.id) return;
-
-    const channel = supabase
-      .channel(`community_${community.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'communities',
-          filter: `id=eq.${community.id}`,
-        },
-        (payload) => {
-          const updatedCommunity = payload.new as Community;
-          setCommunity(updatedCommunity);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [community?.id]);
-
   const handleSectionsChange = (sections: Section[]) => {
     if (!community) return;
-    
+
     setCommunity((prev) => ({
       ...prev!,
       about_page: {
@@ -129,48 +105,29 @@ export default function AboutPage() {
   };
 
   const handleSave = async () => {
-    if (!user || !community?.id) return;
+    if (!user || !community?.id || !session) return;
 
     setIsSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Ensure we're saving the complete about_page object
-      const { error } = await supabase
-        .from('communities')
-        .update({
-          about_page: {
+      // Save about page via API
+      const response = await fetch(`/api/community/${communitySlug}/about`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aboutPage: {
             sections: community.about_page?.sections || [],
             meta: {
               last_updated: new Date().toISOString(),
               published_version: community.about_page?.meta.published_version,
             },
           },
-          updated_at: new Date().toISOString(),
-        } as unknown as Record<string, unknown>)
-        .eq('id', community.id)
-        .eq('created_by', user.id);
+        }),
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        throw new Error('Failed to save about page');
       }
 
-      // Fetch the latest data to ensure we have the most up-to-date version
-      const { data: updatedCommunity, error: fetchError } = await supabase
-        .from('communities')
-        .select('*')
-        .eq('id', community.id)
-        .single();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      // Update local state with the latest data
-      setCommunity(updatedCommunity);
       toast.success("Changes saved successfully");
     } catch (error) {
       console.error("Error saving about page:", error);

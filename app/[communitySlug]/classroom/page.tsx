@@ -7,7 +7,6 @@ import toast from "react-hot-toast";
 import CourseCard from "@/components/CourseCard";
 import CreateCourseModal from "@/components/CreateCourseModal";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
@@ -37,7 +36,6 @@ export default function ClassroomPage() {
   const router = useRouter();
   const communitySlug = params?.communitySlug as string;
   const { user: currentUser, loading: isAuthLoading } = useAuth();
-  const supabase = createClient();
 
   const [error, setError] = useState<Error | null>(null);
   const [isMember, setIsMember] = useState(false);
@@ -73,26 +71,19 @@ export default function ClassroomPage() {
       }
 
       try {
-        // First check if user is admin
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", currentUser?.id)
-          .single();
-
-        setProfile(profile);
-
-        // Get community data first
-        const { data: communityData, error: communityError } = await supabase
-          .from("communities")
-          .select("id, name, created_by")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (communityError || !communityData) {
-          throw new Error("Community not found");
-          return;
+        // First check if user is admin via API
+        const profileResponse = await fetch(`/api/profile?userId=${currentUser?.id}`);
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          setProfile(profileData);
         }
+
+        // Get community data via API
+        const communityResponse = await fetch(`/api/community/${communitySlug}`);
+        if (!communityResponse.ok) {
+          throw new Error("Community not found");
+        }
+        const communityData = await communityResponse.json();
 
         // Admins have access to all communities
         if (profile?.is_admin) {
@@ -109,22 +100,25 @@ export default function ClassroomPage() {
           return;
         }
 
-        // Check if user is a member
-        const { data: memberData } = await supabase
-          .from("community_members")
-          .select("*")
-          .eq("community_id", communityData.id)
-          .eq("user_id", currentUser?.id)
-          .maybeSingle();
+        // Check if user is a member via API
+        const memberResponse = await fetch(`/api/community/${communitySlug}/check-subscription`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser?.id }),
+        });
 
         setMembershipChecked(true);
 
-        if (!memberData) {
+        if (memberResponse.ok) {
+          const memberData = await memberResponse.json();
+          if (!memberData.hasSubscription) {
+            router.replace(`/${communitySlug}/about`);
+            return;
+          }
+          setIsMember(true);
+        } else {
           router.replace(`/${communitySlug}/about`);
-          return;
         }
-
-        setIsMember(true);
       } catch (error) {
         console.error("Error checking membership:", error);
         setError(error instanceof Error ? error : new Error("Unknown error"));
