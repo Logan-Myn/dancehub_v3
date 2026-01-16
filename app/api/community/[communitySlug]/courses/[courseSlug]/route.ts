@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { slugify } from "@/lib/utils";
-import { headers } from "next/headers";
 import { uploadFile, generateFileKey, deleteFile } from "@/lib/storage";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  name: string;
+  created_by: string;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  slug: string;
+  community_id: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 interface Lesson {
   id: string;
@@ -14,15 +30,25 @@ interface Lesson {
   chapter_id: string;
   lesson_position: number;
   playback_id: string | null;
-  [key: string]: any;
 }
 
 interface Chapter {
   id: string;
   title: string;
   chapter_position: number;
+  course_id: string;
+}
+
+interface ChapterWithLessons extends Chapter {
   lessons: Lesson[];
-  [key: string]: any;
+}
+
+interface LessonCompletion {
+  lesson_id: string;
+}
+
+interface Member {
+  user_id: string;
 }
 
 export async function GET(
@@ -37,15 +63,14 @@ export async function GET(
     });
 
     // Get community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<{ id: string }>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       console.error("Error fetching community:", {
-        error: communityError,
         slug: params.communitySlug,
         timestamp: new Date().toISOString(),
       });
@@ -62,48 +87,23 @@ export async function GET(
     });
 
     // Get course with retries to ensure consistency
-    let course = null;
+    let course: Course | null = null;
     let attempts = 0;
     const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
       console.log(`Attempt ${attempts + 1} to fetch course`);
-      const { data: fetchedCourse, error: courseError } = await supabase
-        .from("courses")
-        .select(
-          `
-          *,
-          chapters(
-            *,
-            lessons(*)
-          )
-        `
-        )
-        .eq("community_id", community.id)
-        .eq("slug", params.courseSlug)
-        .single();
 
-      if (courseError) {
-        console.error(`Attempt ${attempts + 1} failed:`, {
-          error: courseError,
-          communityId: community.id,
-          courseSlug: params.courseSlug,
-        });
-      }
+      const fetchedCourse = await queryOne<Course>`
+        SELECT *
+        FROM courses
+        WHERE community_id = ${community.id}
+          AND slug = ${params.courseSlug}
+      `;
 
-      if (!courseError && fetchedCourse) {
+      if (fetchedCourse) {
         course = fetchedCourse;
         console.log("Successfully fetched course on attempt", attempts + 1);
-        console.log("Raw course data:", JSON.stringify(course, null, 2));
-        console.log("Chapters data:", JSON.stringify(course.chapters, null, 2));
-        if (course.chapters) {
-          course.chapters.forEach((chapter: Chapter, i: number) => {
-            console.log(
-              `Chapter ${i + 1} lessons:`,
-              JSON.stringify(chapter.lessons, null, 2)
-            );
-          });
-        }
         break;
       }
 
@@ -116,26 +116,63 @@ export async function GET(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Get user from auth header
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    let userId = null;
+    // Fetch chapters for this course
+    const chapters = await query<Chapter>`
+      SELECT *
+      FROM chapters
+      WHERE course_id = ${course.id}
+      ORDER BY chapter_position ASC
+    `;
 
-    if (authHeader) {
-      const { data: { user } } = await supabase.auth.getUser(
-        authHeader.replace('Bearer ', '')
-      );
-      userId = user?.id;
+    // Fetch all lessons for these chapters
+    const chapterIds = chapters.map(c => c.id);
+    let lessons: Lesson[] = [];
+
+    if (chapterIds.length > 0) {
+      lessons = await query<Lesson>`
+        SELECT *
+        FROM lessons
+        WHERE chapter_id = ANY(${chapterIds})
+        ORDER BY lesson_position ASC
+      `;
     }
+
+    // Group lessons by chapter
+    const lessonsByChapter = new Map<string, Lesson[]>();
+    for (const lesson of lessons) {
+      const existing = lessonsByChapter.get(lesson.chapter_id) || [];
+      existing.push(lesson);
+      lessonsByChapter.set(lesson.chapter_id, existing);
+    }
+
+    // Build chapters with lessons
+    const chaptersWithLessons: ChapterWithLessons[] = chapters.map(chapter => ({
+      ...chapter,
+      lessons: lessonsByChapter.get(chapter.id) || []
+    }));
+
+    console.log("Raw course data:", JSON.stringify(course, null, 2));
+    console.log("Chapters data:", JSON.stringify(chaptersWithLessons, null, 2));
+    chaptersWithLessons.forEach((chapter, i) => {
+      console.log(
+        `Chapter ${i + 1} lessons:`,
+        JSON.stringify(chapter.lessons, null, 2)
+      );
+    });
+
+    // Get user from session
+    const session = await getSession();
+    const userId = session?.user?.id || null;
 
     // If user is authenticated, fetch completion status
     let completedLessonIds = new Set<string>();
     if (userId) {
-      const { data: completions } = await supabase
-        .from('lesson_completions')
-        .select('lesson_id')
-        .eq('user_id', userId);
-      
+      const completions = await query<LessonCompletion>`
+        SELECT lesson_id
+        FROM lesson_completions
+        WHERE user_id = ${userId}
+      `;
+
       if (completions) {
         completedLessonIds = new Set(completions.map(c => c.lesson_id));
       }
@@ -144,15 +181,15 @@ export async function GET(
     // Transform the data to ensure video fields are included
     const transformedCourse = {
       ...course,
-      chapters: course.chapters?.map((chapter: Chapter) => ({
+      chapters: chaptersWithLessons.map((chapter) => ({
         ...chapter,
-        lessons: chapter.lessons?.map((lesson: Lesson) => ({
+        lessons: chapter.lessons.map((lesson) => ({
           ...lesson,
           videoAssetId: lesson.video_asset_id,
           playbackId: lesson.playback_id,
           completed: completedLessonIds.has(lesson.id)
-        })) || []
-      })) || []
+        }))
+      }))
     };
 
     // Log the final transformed data
@@ -185,13 +222,13 @@ export async function POST(
     const { communitySlug } = params;
 
     // Get the community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<{ id: string }>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -230,22 +267,29 @@ export async function POST(
     }
 
     // Create a new course
-    const { data: newCourse, error: courseError } = await supabase
-      .from("courses")
-      .insert({
+    const newCourse = await queryOne<Course>`
+      INSERT INTO courses (
         title,
         description,
-        image_url: imageUrl,
+        image_url,
         slug,
-        community_id: community.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+        community_id,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${title},
+        ${description},
+        ${imageUrl},
+        ${slug},
+        ${community.id},
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
 
-    if (courseError) {
-      console.error("Error creating course:", courseError);
+    if (!newCourse) {
+      console.error("Error creating course: no row returned");
       // Clean up the uploaded image if course creation fails
       try {
         await deleteFile(fileKey);
@@ -275,17 +319,15 @@ export async function PUT(
   { params }: { params: { communitySlug: string; courseSlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
-
     // Get community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, name, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
-      console.error("Error fetching community:", communityError);
+    if (!community) {
+      console.error("Error fetching community");
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -293,15 +335,15 @@ export async function PUT(
     }
 
     // Get current course
-    const { data: currentCourse, error: courseError } = await supabase
-      .from("courses")
-      .select("*")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const currentCourse = await queryOne<Course>`
+      SELECT *
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !currentCourse) {
-      console.error("Error fetching course:", courseError);
+    if (!currentCourse) {
+      console.error("Error fetching course");
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
@@ -311,77 +353,68 @@ export async function PUT(
     const isPublic = formData.get("is_public") === "true";
 
     // Update the course
-    const { error: updateError } = await supabase
-      .from("courses")
-      .update({
-        title,
-        description,
-        is_public: isPublic,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", currentCourse.id);
-
-    if (updateError) {
-      console.error("Error updating course:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update course" },
-        { status: 500 }
-      );
-    }
+    await sql`
+      UPDATE courses
+      SET
+        title = ${title},
+        description = ${description},
+        is_public = ${isPublic},
+        updated_at = NOW()
+      WHERE id = ${currentCourse.id}
+    `;
 
     // If the course was made public, create in-app notifications
     if (isPublic && !currentCourse.is_public) {
       // Get all community members except the creator
-      const { data: members, error: membersError } = await supabase
-        .from("community_members")
-        .select("user_id")
-        .eq("community_id", community.id)
-        .neq("user_id", community.created_by); // Exclude the creator
+      const members = await query<Member>`
+        SELECT user_id
+        FROM community_members
+        WHERE community_id = ${community.id}
+          AND user_id != ${community.created_by}
+      `;
 
-      if (membersError) {
-        console.error("Error fetching members:", membersError);
-      } else {
-        // Create the course URL
-        const courseUrl = `/community/${params.communitySlug}/classroom/${params.courseSlug}`;
+      // Create the course URL
+      const courseUrl = `/${params.communitySlug}/classroom/${params.courseSlug}`;
 
-        // Create notifications for all members except creator
-        if (members && members.length > 0) {
-          const { error: notificationsError } = await supabase
-            .from("notifications")
-            .insert(
-              members.map((member) => ({
-                user_id: member.user_id,
-                title: `New Course Available: ${title}`,
-                message: `A new course is now available in your community: ${community.name}`,
-                link: courseUrl,
-                type: "course_published",
-              }))
-            );
-
-          if (notificationsError) {
-            console.error("Error creating notifications:", notificationsError);
+      // Create notifications for all members except creator
+      if (members && members.length > 0) {
+        for (const member of members) {
+          try {
+            await sql`
+              INSERT INTO notifications (
+                user_id,
+                title,
+                message,
+                link,
+                type
+              ) VALUES (
+                ${member.user_id},
+                ${'New Course Available: ' + title},
+                ${'A new course is now available in your community: ' + community.name},
+                ${courseUrl},
+                'course_published'
+              )
+            `;
+          } catch (notificationError) {
+            console.error("Error creating notification for member:", member.user_id, notificationError);
           }
         }
       }
     }
 
     // Fetch updated course with retries
-    let updatedCourse = null;
+    let updatedCourse: Course | null = null;
     let attempts = 0;
     const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
-      const { data: fetchedCourse, error: fetchError } = await supabase
-        .from("courses")
-        .select("*")
-        .eq("id", currentCourse.id)
-        .single();
+      const fetchedCourse = await queryOne<Course>`
+        SELECT *
+        FROM courses
+        WHERE id = ${currentCourse.id}
+      `;
 
-      if (
-        !fetchError &&
-        fetchedCourse &&
-        fetchedCourse.is_public === isPublic
-      ) {
+      if (fetchedCourse && fetchedCourse.is_public === isPublic) {
         updatedCourse = fetchedCourse;
         break;
       }
