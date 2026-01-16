@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { sql, queryOne } from "@/lib/db";
 import Stripe from "stripe";
 import React from "react";
 import { getEmailService } from "@/lib/resend/email-service";
@@ -9,8 +9,25 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
-const supabase = createAdminClient();
 const emailService = getEmailService();
+
+interface Community {
+  id: string;
+  name: string;
+  membership_price: number | null;
+  stripe_account_id: string | null;
+  stripe_price_id: string | null;
+  opening_date: string;
+}
+
+interface ExistingMember {
+  id: string;
+}
+
+interface UserProfile {
+  full_name: string | null;
+  email: string | null;
+}
 
 export async function POST(
   request: Request,
@@ -20,13 +37,13 @@ export async function POST(
     const { userId, setupIntentId } = await request.json();
 
     // Get community details
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, name, membership_price, stripe_account_id, stripe_price_id, opening_date")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, membership_price, stripe_account_id, stripe_price_id, opening_date
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -37,7 +54,7 @@ export async function POST(
     const setupIntent = await stripe.setupIntents.retrieve(
       setupIntentId,
       {
-        stripeAccount: community.stripe_account_id,
+        stripeAccount: community.stripe_account_id!,
       }
     );
 
@@ -60,12 +77,12 @@ export async function POST(
     }
 
     // Check if user is already a member or pre-registered
-    const { data: existingMember } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .single();
+    const existingMember = await queryOne<ExistingMember>`
+      SELECT id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (existingMember) {
       return NextResponse.json(
@@ -84,7 +101,7 @@ export async function POST(
         customer: customerId,
         items: [
           {
-            price: community.stripe_price_id,
+            price: community.stripe_price_id!,
           },
         ],
         default_payment_method: paymentMethodId,
@@ -99,27 +116,38 @@ export async function POST(
         },
       },
       {
-        stripeAccount: community.stripe_account_id,
+        stripeAccount: community.stripe_account_id!,
       }
     );
 
     // Create member record now that payment method is saved
-    const { error: memberError } = await supabase
-      .from("community_members")
-      .insert({
-        community_id: community.id,
-        user_id: userId,
-        joined_at: new Date().toISOString(),
-        pre_registration_date: new Date().toISOString(),
-        role: "member",
-        status: "pre_registered",
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscription.id,
-        platform_fee_percentage: platformFeePercentage,
-        pre_registration_payment_method_id: paymentMethodId,
-      });
-
-    if (memberError) {
+    try {
+      await sql`
+        INSERT INTO community_members (
+          community_id,
+          user_id,
+          joined_at,
+          pre_registration_date,
+          role,
+          status,
+          stripe_customer_id,
+          stripe_subscription_id,
+          platform_fee_percentage,
+          pre_registration_payment_method_id
+        ) VALUES (
+          ${community.id},
+          ${userId},
+          NOW(),
+          NOW(),
+          'member',
+          'pre_registered',
+          ${customerId},
+          ${subscription.id},
+          ${platformFeePercentage},
+          ${paymentMethodId}
+        )
+      `;
+    } catch (memberError) {
       console.error("Error creating member record:", memberError);
 
       // Try to cancel the subscription if member creation fails
@@ -127,7 +155,7 @@ export async function POST(
         await stripe.subscriptions.cancel(
           subscription.id,
           {
-            stripeAccount: community.stripe_account_id,
+            stripeAccount: community.stripe_account_id!,
           }
         );
       } catch (cancelError) {
@@ -141,11 +169,11 @@ export async function POST(
     }
 
     // Get user profile for email
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('id', userId)
-      .single();
+    const userProfile = await queryOne<UserProfile>`
+      SELECT full_name, email
+      FROM profiles
+      WHERE id = ${userId}
+    `;
 
     // Send pre-registration confirmation email
     try {

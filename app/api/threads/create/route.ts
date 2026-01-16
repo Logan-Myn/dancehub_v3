@@ -1,19 +1,48 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+
+interface Community {
+  created_by: string;
+  thread_categories: any[] | null;
+}
+
+interface Profile {
+  avatar_url: string | null;
+}
+
+interface Thread {
+  id: string;
+  title: string;
+  content: string;
+  community_id: string;
+  user_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  author_name: string;
+  author_image: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  pinned: boolean;
+}
 
 export async function POST(request: Request) {
   try {
-    const supabase = createAdminClient();
     const { title, content, communityId, userId, categoryId, categoryName, author, pinned } = await request.json();
 
     // Get the community and check if user is creator
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('created_by, thread_categories')
-      .eq('id', communityId)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT created_by, thread_categories
+      FROM communities
+      WHERE id = ${communityId}
+    `;
 
-    if (communityError) throw communityError;
+    if (!community) {
+      return NextResponse.json(
+        { error: 'Community not found' },
+        { status: 404 }
+      );
+    }
 
     // Check if the selected category exists and if user has permission
     const category = community.thread_categories?.find((cat: any) => cat.id === categoryId);
@@ -33,33 +62,50 @@ export async function POST(request: Request) {
     }
 
     // Get user's profile to ensure we have the correct avatar URL
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('avatar_url')
-      .eq('id', userId)
-      .single();
+    const profile = await queryOne<Profile>`
+      SELECT avatar_url
+      FROM profiles
+      WHERE id = ${userId}
+    `;
 
     // Create the thread with author info included
-    const { data: thread, error: threadError } = await supabase
-      .from('threads')
-      .insert({
+    const thread = await queryOne<Thread>`
+      INSERT INTO threads (
         title,
         content,
-        community_id: communityId,
-        user_id: userId,
-        created_by: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author_name: author.name,
-        author_image: profile?.avatar_url || author.avatar_url,
-        category_id: categoryId,
-        category_name: categoryName,
-        pinned: pinned && userId === community.created_by ? pinned : false,
-      })
-      .select()
-      .single();
+        community_id,
+        user_id,
+        created_by,
+        created_at,
+        updated_at,
+        author_name,
+        author_image,
+        category_id,
+        category_name,
+        pinned
+      ) VALUES (
+        ${title},
+        ${content},
+        ${communityId},
+        ${userId},
+        ${userId},
+        NOW(),
+        NOW(),
+        ${author.name},
+        ${profile?.avatar_url || author.avatar_url || null},
+        ${categoryId},
+        ${categoryName},
+        ${pinned && userId === community.created_by ? pinned : false}
+      )
+      RETURNING *
+    `;
 
-    if (threadError) throw threadError;
+    if (!thread) {
+      return NextResponse.json(
+        { error: 'Failed to create thread' },
+        { status: 500 }
+      );
+    }
 
     // Format the response to match the expected structure
     const formattedThread = {
@@ -84,4 +130,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

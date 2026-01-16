@@ -1,9 +1,27 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { getSession } from "@/lib/auth-session";
 import { CreateLessonBookingData } from "@/types/private-lessons";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  name: string;
+  stripe_account_id: string | null;
+  created_by: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  regular_price: number;
+  member_price: number | null;
+  is_active: boolean;
+}
+
+interface Membership {
+  id: string;
+}
 
 export async function POST(
   request: Request,
@@ -13,33 +31,25 @@ export async function POST(
     const { communitySlug, lessonId } = params;
     const bookingData: CreateLessonBookingData = await request.json();
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get community with Stripe account info
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, name, stripe_account_id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, name, stripe_account_id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -54,15 +64,15 @@ export async function POST(
     }
 
     // Get the private lesson
-    const { data: lesson, error: lessonError } = await supabase
-      .from("private_lessons")
-      .select("*, communities!inner(created_by)")
-      .eq("id", lessonId)
-      .eq("community_id", community.id)
-      .eq("is_active", true)
-      .single();
+    const lesson = await queryOne<Lesson>`
+      SELECT id, title, regular_price, member_price, is_active
+      FROM private_lessons
+      WHERE id = ${lessonId}
+        AND community_id = ${community.id}
+        AND is_active = true
+    `;
 
-    if (lessonError || !lesson) {
+    if (!lesson) {
       return NextResponse.json(
         { error: "Private lesson not found or not available" },
         { status: 404 }
@@ -70,13 +80,13 @@ export async function POST(
     }
 
     // Check if user is a community member
-    const { data: membership } = await supabase
-      .from("community_members")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .single();
+    const membership = await queryOne<Membership>`
+      SELECT id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${user.id}
+        AND status = 'active'
+    `;
 
     const isMember = !!membership;
     const price = isMember && lesson.member_price ? lesson.member_price : lesson.regular_price;
@@ -96,16 +106,13 @@ export async function POST(
       );
     }
 
-    // Check for existing pending booking - REMOVED
-    // No more pre-booking! Booking will be created only after payment succeeds
-
     // Store booking data in PaymentIntent metadata for webhook processing
     const privateLessonFeePercentage = 5.0; // 5% platform fee for private lessons
-    
+
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: Math.round(price * 100), // Convert to cents
-        currency: "eur", // You might want to make this configurable
+        currency: "eur",
         application_fee_amount: Math.round((price * privateLessonFeePercentage / 100) * 100), // 5% platform fee in cents
         metadata: {
           type: "private_lesson",
@@ -149,4 +156,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

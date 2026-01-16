@@ -1,5 +1,24 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  content: string | null;
+  lesson_position: number;
+  chapter_id: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  video_asset_id: string | null;
+  playback_id: string | null;
+}
 
 export async function PUT(
   req: Request,
@@ -13,67 +32,46 @@ export async function PUT(
     const { lessons } = await req.json();
     console.log('Received lessons to reorder:', lessons);
 
-    const supabase = createAdminClient();
-
-    // Get the authorization token
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-    const token = authHeader.split("Bearer ")[1];
-
-    // Verify the token and get user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    // Verify authentication using Better Auth session
+    const session = await getSession();
+    if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return new NextResponse("Community not found", { status: 404 });
     }
 
-    if (community.created_by !== user.id) {
+    if (community.created_by !== session.user.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Update each lesson's position
     for (const [index, lesson] of lessons.entries()) {
       console.log(`Updating lesson ${lesson.id} to position ${index}`);
-      
-      const { error: updateError } = await supabase
-        .from('lessons')
-        .update({ lesson_position: index })
-        .eq('id', lesson.id)
-        .eq('chapter_id', params.chapterId);
 
-      if (updateError) {
-        console.error("Error updating lesson position:", updateError);
-        throw updateError;
-      }
+      await sql`
+        UPDATE lessons
+        SET lesson_position = ${index}
+        WHERE id = ${lesson.id}
+          AND chapter_id = ${params.chapterId}
+      `;
     }
 
     // Fetch the updated lessons
-    const { data: updatedLessons, error: fetchError } = await supabase
-      .from('lessons')
-      .select('*')
-      .eq('chapter_id', params.chapterId)
-      .order('lesson_position', { ascending: true });
-
-    if (fetchError) {
-      console.error("Error fetching updated lessons:", fetchError);
-      throw fetchError;
-    }
+    const updatedLessons = await query<Lesson>`
+      SELECT *
+      FROM lessons
+      WHERE chapter_id = ${params.chapterId}
+      ORDER BY lesson_position ASC
+    `;
 
     console.log('Updated lessons from database:', updatedLessons);
 
