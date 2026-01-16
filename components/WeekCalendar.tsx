@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import LiveClassModal from "./LiveClassModal";
 import LiveClassCard from "./LiveClassCard";
 import LiveClassDetailsModal from "./LiveClassDetailsModal";
-import { createClient } from "@/lib/supabase/client";
 
 interface LiveClass {
   id: string;
@@ -53,21 +52,11 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
       setLoading(true);
       const weekStartISO = format(weekStart, 'yyyy-MM-dd');
       const weekEndISO = format(weekEnd, 'yyyy-MM-dd');
-      
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const headers: Record<string, string> = {};
-      if (session) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-      
+
       const response = await fetch(
-        `/api/community/${communitySlug}/live-classes?start=${weekStartISO}&end=${weekEndISO}`,
-        { headers }
+        `/api/community/${communitySlug}/live-classes?start=${weekStartISO}&end=${weekEndISO}`
       );
-      
+
       if (response.ok) {
         const data = await response.json();
         setLiveClasses(data);

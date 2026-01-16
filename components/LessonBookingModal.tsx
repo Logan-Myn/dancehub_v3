@@ -12,7 +12,6 @@ import { Clock, MapPin, Percent, Calendar } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthModal } from "@/contexts/AuthModalContext";
-import { createClient } from "@/lib/supabase/client";
 import PrivateLessonPaymentModal from "./PrivateLessonPaymentModal";
 
 interface LessonBookingModalProps {
@@ -32,7 +31,7 @@ export default function LessonBookingModal({
   isMember,
   onSuccess,
 }: LessonBookingModalProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { showAuthModal } = useAuthModal();
   const [isLoading, setIsLoading] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
@@ -66,9 +65,6 @@ export default function LessonBookingModal({
   const fetchAvailableSlots = async () => {
     setAvailabilityLoading(true);
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
       if (!session) {
         return;
       }
@@ -77,12 +73,8 @@ export default function LessonBookingModal({
       const today = new Date();
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(today.getDate() + 30);
-      
-      const response = await fetch(`/api/community/${communitySlug}/teacher-availability?teacher_id=${lesson.teacher_id}&startDate=${today.toISOString().split('T')[0]}&endDate=${thirtyDaysFromNow.toISOString().split('T')[0]}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+
+      const response = await fetch(`/api/community/${communitySlug}/teacher-availability?teacher_id=${lesson.teacher_id}&startDate=${today.toISOString().split('T')[0]}&endDate=${thirtyDaysFromNow.toISOString().split('T')[0]}`);
 
       if (response.ok) {
         const slots = await response.json();
@@ -177,10 +169,6 @@ export default function LessonBookingModal({
     setIsLoading(true);
 
     try {
-      // Get the user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
       if (!session) {
         toast.error("You must be logged in to book a lesson");
         return;
@@ -197,7 +185,6 @@ export default function LessonBookingModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(bookingData),
       });

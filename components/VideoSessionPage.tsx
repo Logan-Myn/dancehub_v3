@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from "@/lib/supabase/client";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
 import UltraSimpleDaily from "@/components/UltraSimpleDaily";
 import { Button } from "@/components/ui/button";
@@ -62,18 +61,9 @@ function VideoCallWithTokens({
   const fetchVideoTokens = async () => {
     setIsLoadingTokens(true);
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast.error('You must be logged in to join the video session');
-        return;
-      }
-
       const response = await fetch(`/api/bookings/${bookingId}/video-token`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -177,57 +167,34 @@ export default function VideoSessionPage() {
 
   const fetchBookingData = async () => {
     try {
-      const supabase = createClient();
-      
-      // Get booking with lesson and community details
-      const { data: bookingData, error } = await supabase
-        .from('lesson_bookings')
-        .select(`
-          *,
-          private_lessons!inner(
-            title,
-            description,
-            duration_minutes,
-            regular_price,
-            member_price,
-            location_type,
-            communities!inner(
-              name,
-              slug,
-              created_by
-            )
-          )
-        `)
-        .eq('id', bookingId)
-        .single();
+      // Fetch booking via API
+      const response = await fetch(`/api/bookings/${bookingId}`);
 
-      if (error || !bookingData) {
-        console.error('Error fetching booking:', error);
-        toast.error('Booking not found');
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast.error('Booking not found');
+        } else if (response.status === 403) {
+          toast.error('You are not authorized to access this booking');
+        } else {
+          toast.error('Failed to load booking');
+        }
         router.push('/dashboard');
         return;
       }
 
-      // Check if user is authorized to access this booking
-      const isBookingStudent = bookingData.student_id === user?.id;
-      const isBookingTeacher = bookingData.private_lessons.communities.created_by === user?.id;
-      
-      if (!isBookingStudent && !isBookingTeacher) {
-        toast.error('You are not authorized to access this booking');
-        router.push('/dashboard');
-        return;
-      }
+      const bookingData = await response.json();
 
-      setIsTeacher(isBookingTeacher);
+      setIsTeacher(bookingData.is_teacher);
       setBooking({
         ...bookingData,
-        lesson_title: bookingData.private_lessons.title,
-        lesson_description: bookingData.private_lessons.description,
-        duration_minutes: bookingData.private_lessons.duration_minutes,
-        regular_price: bookingData.private_lessons.regular_price,
-        member_price: bookingData.private_lessons.member_price,
-        community_name: bookingData.private_lessons.communities.name,
-        community_slug: bookingData.private_lessons.communities.slug,
+        // Map flattened fields to expected format
+        lesson_title: bookingData.lesson_title,
+        lesson_description: bookingData.lesson_description,
+        duration_minutes: bookingData.duration_minutes,
+        regular_price: bookingData.regular_price,
+        member_price: bookingData.member_price,
+        community_name: bookingData.community_name,
+        community_slug: bookingData.community_slug,
       });
 
       // Check if we can join the call

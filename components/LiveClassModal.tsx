@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 
 interface LiveClassModalProps {
@@ -31,6 +31,7 @@ export default function LiveClassModal({
   onClose,
   onClassCreated,
 }: LiveClassModalProps) {
+  const { session } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -59,21 +60,17 @@ export default function LiveClassModal({
     setError("");
 
     try {
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please sign in to continue');
         return;
       }
 
       const scheduledStartTime = new Date(`${formData.scheduledDateTime}T${formData.scheduledTime}`);
-      
+
       const response = await fetch(`/api/community/${communitySlug}/live-classes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           title: formData.title,

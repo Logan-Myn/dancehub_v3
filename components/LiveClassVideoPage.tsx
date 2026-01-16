@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import CustomDailyRoom from "./CustomDailyRoom";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
 
 interface LiveClass {
@@ -57,20 +56,7 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
       setLoading(true);
       setError("");
 
-      // Get user session for authentication
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please sign in to continue');
-        setError('Authentication required');
-        return;
-      }
-
-      const response = await fetch(`/api/live-classes/${classId}/video-token`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      const response = await fetch(`/api/live-classes/${classId}/video-token`);
 
       if (!response.ok) {
         const errorData = await response.json();

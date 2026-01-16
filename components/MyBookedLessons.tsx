@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClient } from "@/lib/supabase/client";
 import { LessonBookingWithDetails } from "@/types/private-lessons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,57 +34,34 @@ export default function MyBookedLessons() {
 
   const fetchBookings = async () => {
     try {
-      const supabase = createClient();
-      
       console.log('🔍 Fetching bookings for student:', user!.id);
-      
-      const { data: bookingsData, error } = await supabase
-        .from('lesson_bookings')
-        .select(`
-          *,
-          private_lessons!inner(
-            title,
-            description,
-            duration_minutes,
-            regular_price,
-            member_price,
-            location_type,
-            communities!inner(
-              name,
-              slug,
-              created_by
-            )
-          )
-        `)
-        .eq('student_id', user!.id)
-        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error fetching bookings:', error);
-        console.log('📊 Student booking query debug:', {
-          userId: user!.id,
-          errorCode: error.code,
-          errorMessage: error.message,
-          errorHint: error.hint
-        });
+      const response = await fetch('/api/bookings');
+
+      if (!response.ok) {
+        console.error('❌ Error fetching bookings:', response.status);
         toast.error('Failed to load your bookings');
         return;
       }
+
+      const bookingsData = await response.json();
 
       console.log('✅ Student bookings fetched:', bookingsData?.length || 0, 'bookings');
       if (bookingsData && bookingsData.length > 0) {
         console.log('📝 Sample booking:', bookingsData[0]);
       }
 
+      // Map API response to expected format
       const formattedBookings: LessonBookingWithDetails[] = bookingsData.map((booking: any) => ({
         ...booking,
-        lesson_title: booking.private_lessons.title,
-        lesson_description: booking.private_lessons.description,
-        duration_minutes: booking.private_lessons.duration_minutes,
-        regular_price: booking.private_lessons.regular_price,
-        member_price: booking.private_lessons.member_price,
-        community_name: booking.private_lessons.communities.name,
-        community_slug: booking.private_lessons.communities.slug,
+        // Fields are already flattened from the API
+        lesson_title: booking.lesson_title,
+        lesson_description: booking.lesson_description,
+        duration_minutes: booking.duration_minutes,
+        regular_price: booking.regular_price,
+        member_price: booking.member_price,
+        community_name: booking.community_name,
+        community_slug: booking.community_slug,
       }));
 
       setBookings(formattedBookings);
