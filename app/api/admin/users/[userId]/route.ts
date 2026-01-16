@@ -1,67 +1,59 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface Profile {
+  id: string;
+  is_admin: boolean | null;
+}
 
 export async function DELETE(
   request: Request,
   { params }: { params: { userId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { userId } = params;
 
-    // First, verify that the requester is an admin
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const {
-      data: { user: requester },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !requester) {
+    // Verify that the requester is authenticated and is an admin
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify requester is an admin
-    const { data: requesterProfile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", requester.id)
-      .single();
+    const requesterProfile = await queryOne<Profile>`
+      SELECT id, is_admin
+      FROM profiles
+      WHERE id = ${session.user.id}
+    `;
 
     if (!requesterProfile?.is_admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Delete user's profile first (this will cascade delete community_members)
-    const { error: profileDeleteError } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
+    await sql`
+      DELETE FROM profiles
+      WHERE id = ${userId}
+    `;
 
-    if (profileDeleteError) {
-      console.error("Error deleting profile:", profileDeleteError);
-      return NextResponse.json(
-        { error: "Failed to delete user profile" },
-        { status: 500 }
-      );
-    }
+    // Delete the user from Better Auth users table
+    await sql`
+      DELETE FROM "user"
+      WHERE id = ${userId}
+    `;
 
-    // Delete the user from auth.users
-    const { error: userDeleteError } = await supabase.auth.admin.deleteUser(
-      userId
-    );
+    // Also delete any sessions for this user
+    await sql`
+      DELETE FROM session
+      WHERE "userId" = ${userId}
+    `;
 
-    if (userDeleteError) {
-      console.error("Error deleting user:", userDeleteError);
-      return NextResponse.json(
-        { error: "Failed to delete user" },
-        { status: 500 }
-      );
-    }
+    // Delete any accounts linked to this user
+    await sql`
+      DELETE FROM account
+      WHERE "userId" = ${userId}
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -78,85 +70,53 @@ export async function PATCH(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { userId } = params;
     const updates = await request.json();
 
-    // First, verify that the requester is an admin
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const {
-      data: { user: requester },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !requester) {
+    // Verify that the requester is authenticated and is an admin
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify requester is an admin
-    const { data: requesterProfile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", requester.id)
-      .single();
+    const requesterProfile = await queryOne<Profile>`
+      SELECT id, is_admin
+      FROM profiles
+      WHERE id = ${session.user.id}
+    `;
 
     if (!requesterProfile?.is_admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Update user profile
-    const { error: profileUpdateError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: updates.full_name,
-        display_name: updates.display_name,
-        email: updates.email,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId);
+    await sql`
+      UPDATE profiles
+      SET
+        full_name = ${updates.full_name},
+        display_name = ${updates.display_name},
+        email = ${updates.email},
+        updated_at = NOW()
+      WHERE id = ${userId}
+    `;
 
-    if (profileUpdateError) {
-      console.error("Error updating profile:", profileUpdateError);
-      return NextResponse.json(
-        { error: "Failed to update user profile" },
-        { status: 500 }
-      );
-    }
-
-    // Update user email in auth.users if changed
+    // Update user email in Better Auth users table if changed
     if (updates.email) {
       // Get current user email
-      const { data: currentUser, error: userError } = await supabase.auth.admin
-        .getUserById(userId);
-
-      if (userError) {
-        console.error("Error getting user:", userError);
-        return NextResponse.json(
-          { error: "Failed to get user" },
-          { status: 500 }
-        );
-      }
+      const currentUser = await queryOne<{ id: string; email: string }>`
+        SELECT id, email
+        FROM "user"
+        WHERE id = ${userId}
+      `;
 
       // Only update if email has changed
-      if (currentUser && currentUser.user.email !== updates.email) {
-        const { error: emailUpdateError } = await supabase.auth.admin
-          .updateUserById(
-            userId,
-            { email: updates.email }
-          );
-
-        if (emailUpdateError) {
-          console.error("Error updating email:", emailUpdateError);
-          return NextResponse.json(
-            { error: "Failed to update email" },
-            { status: 500 }
-          );
-        }
+      if (currentUser && currentUser.email !== updates.email) {
+        await sql`
+          UPDATE "user"
+          SET email = ${updates.email}
+          WHERE id = ${userId}
+        `;
       }
     }
 
@@ -168,4 +128,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-} 
+}

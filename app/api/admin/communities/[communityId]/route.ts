@@ -1,53 +1,44 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface Profile {
+  id: string;
+  is_admin: boolean | null;
+}
+
+interface Community {
+  id: string;
+}
 
 export async function DELETE(
   request: Request,
   { params }: { params: { communityId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { communityId } = params;
 
-    // First, verify that the requester is an admin
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const {
-      data: { user: requester },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !requester) {
+    // Verify that the requester is authenticated and is an admin
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify requester is an admin
-    const { data: requesterProfile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", requester.id)
-      .single();
+    const requesterProfile = await queryOne<Profile>`
+      SELECT id, is_admin
+      FROM profiles
+      WHERE id = ${session.user.id}
+    `;
 
     if (!requesterProfile?.is_admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Use a raw SQL query to delete everything in the correct order
-    const { error: deleteError } = await supabase.rpc('delete_community', {
-      p_community_id: communityId
-    });
-
-    if (deleteError) {
-      console.error("Error deleting community:", deleteError);
-      return NextResponse.json(
-        { error: "Failed to delete community" },
-        { status: 500 }
-      );
-    }
+    // Use the delete_community RPC function to delete everything in the correct order
+    await sql`
+      SELECT delete_community(${communityId})
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -64,31 +55,20 @@ export async function PATCH(
   { params }: { params: { communityId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { communityId } = params;
 
-    // First, verify that the requester is an admin
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.split("Bearer ")[1];
-    const {
-      data: { user: requester },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !requester) {
+    // Verify that the requester is authenticated and is an admin
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Verify requester is an admin
-    const { data: requesterProfile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", requester.id)
-      .single();
+    const requesterProfile = await queryOne<Profile>`
+      SELECT id, is_admin
+      FROM profiles
+      WHERE id = ${session.user.id}
+    `;
 
     if (!requesterProfile?.is_admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -106,12 +86,12 @@ export async function PATCH(
     }
 
     // Check if the slug is already taken by another community
-    const { data: existingCommunity } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", updates.slug)
-      .neq("id", communityId)
-      .single();
+    const existingCommunity = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${updates.slug}
+        AND id != ${communityId}
+    `;
 
     if (existingCommunity) {
       return NextResponse.json(
@@ -121,22 +101,14 @@ export async function PATCH(
     }
 
     // Update the community
-    const { error: updateError } = await supabase
-      .from("communities")
-      .update({
-        name: updates.name,
-        description: updates.description,
-        slug: updates.slug,
-      })
-      .eq("id", communityId);
-
-    if (updateError) {
-      console.error("Error updating community:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update community" },
-        { status: 500 }
-      );
-    }
+    await sql`
+      UPDATE communities
+      SET
+        name = ${updates.name},
+        description = ${updates.description},
+        slug = ${updates.slug}
+      WHERE id = ${communityId}
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -146,4 +118,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-} 
+}
