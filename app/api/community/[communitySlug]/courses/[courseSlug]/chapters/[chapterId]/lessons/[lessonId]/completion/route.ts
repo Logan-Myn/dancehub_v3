@@ -1,77 +1,51 @@
-import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { queryOne, sql } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
 
-const supabase = createAdminClient();
+interface LessonCompletion {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  completed_at: string;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { lessonId: string } }
 ) {
   try {
-    // Get the authorization header
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader) {
-      return NextResponse.json({ error: 'No authorization header' }, { status: 401 });
-    }
+    // Get the current session
+    const session = await getSession();
 
-    // Get the user from the token
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (userError || !user) {
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if the lesson is already completed
-    const { data: existingCompletion, error: completionError } = await supabase
-      .from('lesson_completions')
-      .select()
-      .eq('user_id', user.id)
-      .eq('lesson_id', params.lessonId)
-      .maybeSingle();
+    const user = session.user;
 
-    if (completionError) {
-      return NextResponse.json(
-        { error: 'Failed to check completion status' },
-        { status: 500 }
-      );
-    }
+    // Check if the lesson is already completed
+    const existingCompletion = await queryOne<LessonCompletion>`
+      SELECT *
+      FROM lesson_completions
+      WHERE user_id = ${user.id}
+        AND lesson_id = ${params.lessonId}
+    `;
 
     if (existingCompletion) {
       // If already completed, remove the completion
-      const { error: deleteError } = await supabase
-        .from('lesson_completions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('lesson_id', params.lessonId);
-
-      if (deleteError) {
-        return NextResponse.json(
-          { error: 'Failed to remove completion' },
-          { status: 500 }
-        );
-      }
+      await sql`
+        DELETE FROM lesson_completions
+        WHERE user_id = ${user.id}
+          AND lesson_id = ${params.lessonId}
+      `;
 
       return NextResponse.json({ completed: false });
     } else {
       // If not completed, add completion
-      const { error: insertError } = await supabase
-        .from('lesson_completions')
-        .insert({
-          user_id: user.id,
-          lesson_id: params.lessonId,
-        });
-
-      if (insertError) {
-        return NextResponse.json(
-          { error: 'Failed to mark as completed' },
-          { status: 500 }
-        );
-      }
+      await sql`
+        INSERT INTO lesson_completions (user_id, lesson_id)
+        VALUES (${user.id}, ${params.lessonId})
+      `;
 
       return NextResponse.json({ completed: true });
     }
@@ -89,37 +63,22 @@ export async function GET(
   { params }: { params: { lessonId: string } }
 ) {
   try {
-    // Get the authorization header
-    const headersList = headers();
-    const authHeader = headersList.get('authorization');
-    
-    if (!authHeader) {
-      return NextResponse.json({ error: 'No authorization header' }, { status: 401 });
-    }
+    // Get the current session
+    const session = await getSession();
 
-    // Get the user from the token
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (userError || !user) {
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check completion status
-    const { data: completion, error: completionError } = await supabase
-      .from('lesson_completions')
-      .select()
-      .eq('user_id', user.id)
-      .eq('lesson_id', params.lessonId)
-      .maybeSingle();
+    const user = session.user;
 
-    if (completionError) {
-      return NextResponse.json(
-        { error: 'Failed to check completion status' },
-        { status: 500 }
-      );
-    }
+    // Check completion status
+    const completion = await queryOne<LessonCompletion>`
+      SELECT *
+      FROM lesson_completions
+      WHERE user_id = ${user.id}
+        AND lesson_id = ${params.lessonId}
+    `;
 
     return NextResponse.json({ completed: !!completion });
   } catch (error) {
@@ -129,4 +88,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}
