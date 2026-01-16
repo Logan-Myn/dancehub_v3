@@ -1,20 +1,36 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
+
+interface Profile {
+  id: string;
+  is_admin: boolean | null;
+}
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface Membership {
+  id: string;
+  community_id: string;
+  user_id: string;
+  status: string;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string; userId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { communitySlug, userId } = params;
 
     // Check if user is admin
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", userId)
-      .single();
+    const profile = await queryOne<Profile>`
+      SELECT id, is_admin
+      FROM profiles
+      WHERE id = ${userId}
+    `;
 
     // Admins have access to all communities
     if (profile?.is_admin) {
@@ -22,13 +38,13 @@ export async function GET(
     }
 
     // Get community and check if user is creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ error: 'Community not found' }, { status: 404 });
     }
 
@@ -38,22 +54,17 @@ export async function GET(
     }
 
     // Check membership
-    const { data: membership, error: membershipError } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (membershipError) {
-      console.error('Error checking membership:', membershipError);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+    const membership = await queryOne<Membership>`
+      SELECT id, community_id, user_id, status
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+        AND status = 'active'
+    `;
 
     return NextResponse.json({ isMember: !!membership });
   } catch (error) {
     console.error('Error checking membership:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}

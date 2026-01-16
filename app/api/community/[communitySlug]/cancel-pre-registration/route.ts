@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  stripe_account_id: string | null;
+}
+
+interface Member {
+  id: string;
+  community_id: string;
+  user_id: string;
+  status: string;
+  stripe_invoice_id: string | null;
+  pre_registration_payment_method_id: string | null;
+  stripe_customer_id: string | null;
+}
 
 export async function POST(
   request: Request,
@@ -16,13 +29,13 @@ export async function POST(
     const { userId } = await request.json();
 
     // Get community details
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, stripe_account_id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, stripe_account_id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -30,14 +43,14 @@ export async function POST(
     }
 
     // Get member record
-    const { data: member, error: memberError } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .single();
+    const member = await queryOne<Member>`
+      SELECT id, community_id, user_id, status, stripe_invoice_id, pre_registration_payment_method_id, stripe_customer_id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
-    if (memberError || !member) {
+    if (!member) {
       return NextResponse.json(
         { error: "Pre-registration not found" },
         { status: 404 }
@@ -58,7 +71,7 @@ export async function POST(
         await stripe.invoices.voidInvoice(
           member.stripe_invoice_id,
           {
-            stripeAccount: community.stripe_account_id,
+            stripeAccount: community.stripe_account_id!,
           }
         );
       } catch (stripeError: any) {
@@ -75,7 +88,7 @@ export async function POST(
         await stripe.paymentMethods.detach(
           member.pre_registration_payment_method_id,
           {
-            stripeAccount: community.stripe_account_id,
+            stripeAccount: community.stripe_account_id!,
           }
         );
       } catch (stripeError: any) {
@@ -90,7 +103,7 @@ export async function POST(
         await stripe.customers.del(
           member.stripe_customer_id,
           {
-            stripeAccount: community.stripe_account_id,
+            stripeAccount: community.stripe_account_id!,
           }
         );
       } catch (stripeError: any) {
@@ -100,19 +113,11 @@ export async function POST(
     }
 
     // Remove member record from database
-    const { error: deleteError } = await supabase
-      .from("community_members")
-      .delete()
-      .eq("community_id", community.id)
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      console.error("Error deleting member:", deleteError);
-      return NextResponse.json(
-        { error: "Failed to cancel pre-registration" },
-        { status: 500 }
-      );
-    }
+    await sql`
+      DELETE FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     return NextResponse.json({
       success: true,

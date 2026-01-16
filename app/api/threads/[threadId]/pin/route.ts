@@ -1,42 +1,46 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
+
+interface ThreadWithCommunity {
+  id: string;
+  pinned: boolean;
+  community_id: string;
+  community_created_by: string;
+}
+
+interface UpdatedThread {
+  id: string;
+  pinned: boolean;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { threadId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { threadId } = params;
 
-    // Get the current session
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader) {
+    // Get the current session using Better Auth
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get the thread and community info
-    const { data: thread, error: threadError } = await supabase
-      .from('threads')
-      .select('*, communities!inner(created_by)')
-      .eq('id', threadId)
-      .single();
+    const thread = await queryOne<ThreadWithCommunity>`
+      SELECT t.id, t.pinned, t.community_id, c.created_by as community_created_by
+      FROM threads t
+      INNER JOIN communities c ON c.id = t.community_id
+      WHERE t.id = ${threadId}
+    `;
 
-    if (threadError) {
-      console.error('Error fetching thread:', threadError);
+    if (!thread) {
       return NextResponse.json(
         { error: 'Thread not found' },
         { status: 404 }
@@ -44,7 +48,7 @@ export async function POST(
     }
 
     // Verify the user is the community creator
-    if (user.id !== thread.communities.created_by) {
+    if (user.id !== thread.community_created_by) {
       return NextResponse.json(
         { error: 'Only community creators can pin threads' },
         { status: 403 }
@@ -52,15 +56,14 @@ export async function POST(
     }
 
     // Toggle the pinned status
-    const { data: updatedThread, error: updateError } = await supabase
-      .from('threads')
-      .update({ pinned: !thread.pinned })
-      .eq('id', threadId)
-      .select()
-      .single();
+    const updatedThread = await queryOne<UpdatedThread>`
+      UPDATE threads
+      SET pinned = ${!thread.pinned}
+      WHERE id = ${threadId}
+      RETURNING id, pinned
+    `;
 
-    if (updateError) {
-      console.error('Error updating thread:', updateError);
+    if (!updatedThread) {
       return NextResponse.json(
         { error: 'Failed to update thread' },
         { status: 500 }
@@ -77,4 +80,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

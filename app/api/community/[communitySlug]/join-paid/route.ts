@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  membership_price: number | null;
+  stripe_account_id: string | null;
+  stripe_price_id: string | null;
+  active_member_count: number | null;
+  created_at: string;
+  promotional_fee_percentage: number | null;
+}
+
+interface ExistingMember {
+  id: string;
+}
 
 export async function POST(
   request: Request,
@@ -16,13 +28,13 @@ export async function POST(
     const { userId, email } = await request.json();
 
     // Get community with its membership price and stripe account
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, membership_price, stripe_account_id, stripe_price_id, active_member_count, created_at, promotional_fee_percentage")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, membership_price, stripe_account_id, stripe_price_id, active_member_count, created_at, promotional_fee_percentage
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -43,12 +55,12 @@ export async function POST(
 
     // Calculate platform fee percentage
     let feePercentage = 0; // Default promotional rate
-    
+
     if (!isPromotional) {
       // Use standard tiered pricing if not in promotional period
-      if (community.active_member_count <= 50) {
+      if ((community.active_member_count || 0) <= 50) {
         feePercentage = 8.0;
-      } else if (community.active_member_count <= 100) {
+      } else if ((community.active_member_count || 0) <= 100) {
         feePercentage = 6.0;
       } else {
         feePercentage = 4.0;
@@ -56,12 +68,12 @@ export async function POST(
     }
 
     // Check if user is already a member
-    const { data: existingMember } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .single();
+    const existingMember = await queryOne<ExistingMember>`
+      SELECT id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (existingMember) {
       return NextResponse.json(
@@ -80,7 +92,7 @@ export async function POST(
         },
       },
       {
-        stripeAccount: community.stripe_account_id,
+        stripeAccount: community.stripe_account_id!,
       }
     );
 
@@ -90,7 +102,7 @@ export async function POST(
         customer: customer.id,
         items: [{ price: community.stripe_price_id }],
         payment_behavior: 'default_incomplete',
-        payment_settings: { 
+        payment_settings: {
           payment_method_types: ['card'],
           save_default_payment_method: 'on_subscription'
         },
@@ -103,7 +115,7 @@ export async function POST(
         expand: ['latest_invoice.payment_intent'],
       },
       {
-        stripeAccount: community.stripe_account_id,
+        stripeAccount: community.stripe_account_id!,
       }
     );
 
@@ -111,28 +123,38 @@ export async function POST(
     const clientSecret = (subscription.latest_invoice as any).payment_intent.client_secret;
 
     // Add member to community_members table with the platform fee percentage
-    const { error: memberError } = await supabase
-      .from("community_members")
-      .insert({
-        community_id: community.id,
-        user_id: userId,
-        joined_at: new Date().toISOString(),
-        role: "member",
-        status: "pending", // Will be updated to active when payment succeeds
-        subscription_status: "incomplete",
-        stripe_customer_id: customer.id,
-        stripe_subscription_id: subscription.id,
-        platform_fee_percentage: feePercentage
-      });
-
-    if (memberError) {
+    try {
+      await sql`
+        INSERT INTO community_members (
+          community_id,
+          user_id,
+          joined_at,
+          role,
+          status,
+          subscription_status,
+          stripe_customer_id,
+          stripe_subscription_id,
+          platform_fee_percentage
+        ) VALUES (
+          ${community.id},
+          ${userId},
+          NOW(),
+          'member',
+          'pending',
+          'incomplete',
+          ${customer.id},
+          ${subscription.id},
+          ${feePercentage}
+        )
+      `;
+    } catch (memberError) {
       console.error("Error adding member:", memberError);
       // Cancel the subscription if member creation fails
       try {
         await stripe.subscriptions.cancel(
           subscription.id,
           {
-            stripeAccount: community.stripe_account_id,
+            stripeAccount: community.stripe_account_id!,
           }
         );
       } catch (cancelError) {
@@ -156,4 +178,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

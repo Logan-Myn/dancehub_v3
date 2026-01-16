@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface LessonBooking {
+  id: string;
+  community_id: string;
+  created_at: string;
+  [key: string]: any;
+}
 
 export async function GET(
   request: Request,
@@ -10,33 +21,25 @@ export async function GET(
   try {
     const { communitySlug } = params;
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get community and verify user is the creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -52,19 +55,12 @@ export async function GET(
     }
 
     // Get lesson bookings with lesson details
-    const { data: bookings, error: bookingsError } = await supabase
-      .from("lesson_bookings_with_details")
-      .select("*")
-      .eq("community_id", community.id)
-      .order("created_at", { ascending: false });
-
-    if (bookingsError) {
-      console.error("Error fetching lesson bookings:", bookingsError);
-      return NextResponse.json(
-        { error: "Failed to fetch lesson bookings" },
-        { status: 500 }
-      );
-    }
+    const bookings = await query<LessonBooking>`
+      SELECT *
+      FROM lesson_bookings_with_details
+      WHERE community_id = ${community.id}
+      ORDER BY created_at DESC
+    `;
 
     return NextResponse.json(bookings || []);
   } catch (error) {
@@ -74,4 +70,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}
