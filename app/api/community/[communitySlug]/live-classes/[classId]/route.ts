@@ -1,24 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/client";
-import { cookies } from "next/headers";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { videoRoomService } from "@/lib/video-room-service";
+
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface LiveClass {
+  teacher_id: string;
+  daily_room_name: string | null;
+}
+
+interface LiveClassWithDetails {
+  id: string;
+  community_id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  scheduled_start_time: string;
+  duration_minutes: number;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  teacher_display_name: string | null;
+  teacher_avatar_url: string | null;
+}
+
+interface UpdatedLiveClass {
+  id: string;
+  community_id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  scheduled_start_time: string;
+  duration_minutes: number;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { communitySlug: string; classId: string } }
 ) {
   try {
-    const supabase = createAdminClient();
-
     // Get community by slug
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<{ id: string }>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -26,14 +65,14 @@ export async function GET(
     }
 
     // Get live class with details
-    const { data: liveClass, error } = await supabase
-      .from("live_classes_with_details")
-      .select("*")
-      .eq("id", params.classId)
-      .eq("community_id", community.id)
-      .single();
+    const liveClass = await queryOne<LiveClassWithDetails>`
+      SELECT *
+      FROM live_classes_with_details
+      WHERE id = ${params.classId}
+        AND community_id = ${community.id}
+    `;
 
-    if (error || !liveClass) {
+    if (!liveClass) {
       return NextResponse.json(
         { error: "Live class not found" },
         { status: 404 }
@@ -55,27 +94,25 @@ export async function PUT(
   { params }: { params: { communitySlug: string; classId: string } }
 ) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient();
-    const adminSupabase = createAdminClient();
-
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    // Get community by slug
-    const { data: community, error: communityError } = await adminSupabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const user = session.user;
 
-    if (communityError || !community) {
+    // Get community by slug
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
+
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -83,14 +120,14 @@ export async function PUT(
     }
 
     // Get the live class to check ownership
-    const { data: liveClass, error: classError } = await adminSupabase
-      .from("live_classes")
-      .select("teacher_id, daily_room_name")
-      .eq("id", params.classId)
-      .eq("community_id", community.id)
-      .single();
+    const liveClass = await queryOne<LiveClass>`
+      SELECT teacher_id, daily_room_name
+      FROM live_classes
+      WHERE id = ${params.classId}
+        AND community_id = ${community.id}
+    `;
 
-    if (classError || !liveClass) {
+    if (!liveClass) {
       return NextResponse.json(
         { error: "Live class not found" },
         { status: 404 }
@@ -108,22 +145,22 @@ export async function PUT(
     const body = await request.json();
     const { title, description, scheduled_start_time, duration_minutes, status } = body;
 
-    // Update the live class
-    const { data: updatedClass, error: updateError } = await adminSupabase
-      .from("live_classes")
-      .update({
-        ...(title && { title }),
-        ...(description !== undefined && { description }),
-        ...(scheduled_start_time && { scheduled_start_time }),
-        ...(duration_minutes && { duration_minutes: parseInt(duration_minutes) }),
-        ...(status && { status }),
-      })
-      .eq("id", params.classId)
-      .select("*")
-      .single();
+    // Update the live class using COALESCE for partial updates
+    const updatedClass = await queryOne<UpdatedLiveClass>`
+      UPDATE live_classes
+      SET
+        title = COALESCE(${title ?? null}, title),
+        description = COALESCE(${description ?? null}, description),
+        scheduled_start_time = COALESCE(${scheduled_start_time ?? null}, scheduled_start_time),
+        duration_minutes = COALESCE(${duration_minutes ? parseInt(duration_minutes) : null}, duration_minutes),
+        status = COALESCE(${status ?? null}, status),
+        updated_at = NOW()
+      WHERE id = ${params.classId}
+      RETURNING *
+    `;
 
-    if (updateError) {
-      console.error("Error updating live class:", updateError);
+    if (!updatedClass) {
+      console.error("Error updating live class: no row returned");
       return NextResponse.json(
         { error: "Failed to update live class" },
         { status: 500 }
@@ -153,27 +190,25 @@ export async function DELETE(
   { params }: { params: { communitySlug: string; classId: string } }
 ) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient();
-    const adminSupabase = createAdminClient();
-
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    // Get community by slug
-    const { data: community, error: communityError } = await adminSupabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const user = session.user;
 
-    if (communityError || !community) {
+    // Get community by slug
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
+
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -181,14 +216,14 @@ export async function DELETE(
     }
 
     // Get the live class to check ownership
-    const { data: liveClass, error: classError } = await adminSupabase
-      .from("live_classes")
-      .select("teacher_id")
-      .eq("id", params.classId)
-      .eq("community_id", community.id)
-      .single();
+    const liveClass = await queryOne<{ teacher_id: string }>`
+      SELECT teacher_id
+      FROM live_classes
+      WHERE id = ${params.classId}
+        AND community_id = ${community.id}
+    `;
 
-    if (classError || !liveClass) {
+    if (!liveClass) {
       return NextResponse.json(
         { error: "Live class not found" },
         { status: 404 }
@@ -204,12 +239,13 @@ export async function DELETE(
     }
 
     // Soft delete by setting status to cancelled
-    const { error: deleteError } = await adminSupabase
-      .from("live_classes")
-      .update({ status: 'cancelled' })
-      .eq("id", params.classId);
-
-    if (deleteError) {
+    try {
+      await sql`
+        UPDATE live_classes
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE id = ${params.classId}
+      `;
+    } catch (deleteError) {
       console.error("Error deleting live class:", deleteError);
       return NextResponse.json(
         { error: "Failed to delete live class" },
