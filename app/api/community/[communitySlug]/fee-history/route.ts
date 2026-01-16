@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne } from "@/lib/db";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+}
+
+interface FeeChange {
+  id: string;
+  community_id: string;
+  old_fee_percentage: number | null;
+  new_fee_percentage: number;
+  changed_at: string;
+  reason: string | null;
+}
 
 interface FeeStats {
   platform_fee_percentage: number;
@@ -14,13 +25,13 @@ export async function GET(
 ) {
   try {
     // Get community ID from slug
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -28,32 +39,17 @@ export async function GET(
     }
 
     // Get fee change history
-    const { data: feeHistory, error: feeError } = await supabase
-      .from("fee_changes")
-      .select("*")
-      .eq("community_id", community.id)
-      .order("changed_at", { ascending: false });
+    const feeHistory = await query<FeeChange>`
+      SELECT *
+      FROM fee_changes
+      WHERE community_id = ${community.id}
+      ORDER BY changed_at DESC
+    `;
 
-    if (feeError) {
-      console.error("Error fetching fee history:", feeError);
-      return NextResponse.json(
-        { error: "Failed to fetch fee history" },
-        { status: 500 }
-      );
-    }
-
-    // Get current fee statistics
-    const { data: currentStats, error: statsError } = await supabase
-      .rpc('get_fee_statistics', { community_id: community.id })
-      .throwOnError() as { data: FeeStats[], error: null };
-
-    if (statsError) {
-      console.error("Error fetching fee statistics:", statsError);
-      return NextResponse.json(
-        { error: "Failed to fetch fee statistics" },
-        { status: 500 }
-      );
-    }
+    // Get current fee statistics using RPC function
+    const currentStats = await query<FeeStats>`
+      SELECT * FROM get_fee_statistics(${community.id})
+    `;
 
     return NextResponse.json({
       feeHistory,
@@ -69,4 +65,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

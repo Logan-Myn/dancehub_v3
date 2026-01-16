@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 
-const supabase = createAdminClient();
+interface BookingWithAccess {
+  id: string;
+  student_id: string;
+  session_started_at: string | null;
+  community_created_by: string;
+}
 
 export async function POST(
   request: Request,
@@ -11,40 +17,31 @@ export async function POST(
     const { bookingId } = params;
     const { action, field } = await request.json();
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Verify user has access to this booking
-    const { data: booking, error: bookingError } = await supabase
-      .from("lesson_bookings")
-      .select(`
-        id,
-        student_id,
-        session_started_at,
-        private_lessons!inner(
-          communities!inner(created_by)
-        )
-      `)
-      .eq("id", bookingId)
-      .single();
+    const booking = await queryOne<BookingWithAccess>`
+      SELECT
+        lb.id,
+        lb.student_id,
+        lb.session_started_at,
+        c.created_by as community_created_by
+      FROM lesson_bookings lb
+      INNER JOIN private_lessons pl ON pl.id = lb.lesson_id
+      INNER JOIN communities c ON c.id = pl.community_id
+      WHERE lb.id = ${bookingId}
+    `;
 
-    if (bookingError || !booking) {
+    if (!booking) {
       return NextResponse.json(
         { error: "Booking not found" },
         { status: 404 }
@@ -52,7 +49,7 @@ export async function POST(
     }
 
     const isStudent = booking.student_id === user.id;
-    const isTeacher = (booking.private_lessons as any).communities.created_by === user.id;
+    const isTeacher = booking.community_created_by === user.id;
 
     if (!isStudent && !isTeacher) {
       return NextResponse.json(
@@ -62,36 +59,43 @@ export async function POST(
     }
 
     const now = new Date().toISOString();
-    const updateData: any = {};
 
     if (action === 'join') {
-      updateData[field] = now;
-      
       // If this is the first participant joining, mark session as started
-      if (!(booking as any).session_started_at) {
-        updateData.session_started_at = now;
+      if (!booking.session_started_at) {
+        await sql`
+          UPDATE lesson_bookings
+          SET
+            ${sql.unsafe(field)} = ${now},
+            session_started_at = ${now}
+          WHERE id = ${bookingId}
+        `;
+      } else {
+        await sql`
+          UPDATE lesson_bookings
+          SET ${sql.unsafe(field)} = ${now}
+          WHERE id = ${bookingId}
+        `;
       }
     } else if (action === 'leave') {
-      // For leave events, we could track duration or just note the leave time
-      // For now, we'll just clear the joined_at timestamp
-      updateData[field] = null;
+      // For leave events, clear the joined_at timestamp
+      await sql`
+        UPDATE lesson_bookings
+        SET ${sql.unsafe(field)} = NULL
+        WHERE id = ${bookingId}
+      `;
     } else if (action === 'session_start') {
-      updateData.session_started_at = now;
+      await sql`
+        UPDATE lesson_bookings
+        SET session_started_at = ${now}
+        WHERE id = ${bookingId}
+      `;
     } else if (action === 'session_end') {
-      updateData.session_ended_at = now;
-    }
-
-    const { error: updateError } = await supabase
-      .from("lesson_bookings")
-      .update(updateData)
-      .eq("id", bookingId);
-
-    if (updateError) {
-      console.error("Error updating session tracking:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update session tracking" },
-        { status: 500 }
-      );
+      await sql`
+        UPDATE lesson_bookings
+        SET session_ended_at = ${now}
+        WHERE id = ${bookingId}
+      `;
     }
 
     return NextResponse.json({ success: true });
