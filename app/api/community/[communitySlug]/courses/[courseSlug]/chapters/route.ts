@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne, sql } from "@/lib/db";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+}
+
+interface Course {
+  id: string;
+}
+
+interface Chapter {
+  id: string;
+  title: string;
+  chapter_position: number;
+  course_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface HighestPosition {
+  chapter_position: number;
+}
 
 export async function POST(
   request: Request,
@@ -12,13 +31,13 @@ export async function POST(
     const { title } = await request.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -26,43 +45,48 @@ export async function POST(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Get the current highest position
-    const { data: highestPositionChapter } = await supabase
-      .from("chapters")
-      .select("chapter_position")
-      .eq("course_id", course.id)
-      .order("chapter_position", { ascending: false })
-      .limit(1)
-      .single();
+    const highestPositionChapter = await queryOne<HighestPosition>`
+      SELECT chapter_position
+      FROM chapters
+      WHERE course_id = ${course.id}
+      ORDER BY chapter_position DESC
+      LIMIT 1
+    `;
 
     const newPosition = (highestPositionChapter?.chapter_position ?? -1) + 1;
 
     // Create the new chapter
-    const { data: newChapter, error: createError } = await supabase
-      .from("chapters")
-      .insert({
+    const newChapter = await queryOne<Chapter>`
+      INSERT INTO chapters (
         title,
-        chapter_position: newPosition,
-        course_id: course.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+        chapter_position,
+        course_id,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${title},
+        ${newPosition},
+        ${course.id},
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
 
-    if (createError) {
-      console.error("Error creating chapter:", createError);
+    if (!newChapter) {
+      console.error("Error creating chapter: no row returned");
       return NextResponse.json(
         { error: "Failed to create chapter" },
         { status: 500 }
@@ -98,13 +122,13 @@ export async function PUT(
     const { title } = await request.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -112,28 +136,26 @@ export async function PUT(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Update the chapter
-    const { error: updateError } = await supabase
-      .from("chapters")
-      .update({
-        title,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", chapterId)
-      .eq("course_id", course.id);
-
-    if (updateError) {
+    try {
+      await sql`
+        UPDATE chapters
+        SET title = ${title}, updated_at = NOW()
+        WHERE id = ${chapterId}
+          AND course_id = ${course.id}
+      `;
+    } catch (updateError) {
       console.error("Error updating chapter:", updateError);
       return NextResponse.json(
         { error: "Failed to update chapter" },
@@ -163,13 +185,13 @@ export async function DELETE(
     const { communitySlug, courseSlug, chapterId } = params;
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -177,24 +199,24 @@ export async function DELETE(
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Delete all lessons in the chapter first (foreign key constraint)
-    const { error: lessonsDeleteError } = await supabase
-      .from("lessons")
-      .delete()
-      .eq("chapter_id", chapterId);
-
-    if (lessonsDeleteError) {
+    try {
+      await sql`
+        DELETE FROM lessons
+        WHERE chapter_id = ${chapterId}
+      `;
+    } catch (lessonsDeleteError) {
       console.error("Error deleting lessons:", lessonsDeleteError);
       return NextResponse.json(
         { error: "Failed to delete lessons" },
@@ -203,13 +225,13 @@ export async function DELETE(
     }
 
     // Delete the chapter
-    const { error: deleteError } = await supabase
-      .from("chapters")
-      .delete()
-      .eq("id", chapterId)
-      .eq("course_id", course.id);
-
-    if (deleteError) {
+    try {
+      await sql`
+        DELETE FROM chapters
+        WHERE id = ${chapterId}
+          AND course_id = ${course.id}
+      `;
+    } catch (deleteError) {
       console.error("Error deleting chapter:", deleteError);
       return NextResponse.json(
         { error: "Failed to delete chapter" },
