@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { query, queryOne, sql } from '@/lib/db';
 import { videoRoomService } from '@/lib/video-room-service';
 import { getEmailService } from '@/lib/resend/email-service';
 import { BookingConfirmationEmail } from '@/lib/resend/templates/booking/booking-confirmation';
@@ -11,7 +11,6 @@ import Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET!;
-const supabase = createAdminClient();
 
 // Environment validation
 if (!webhookSecret) {
@@ -22,6 +21,28 @@ if (!connectWebhookSecret) {
 }
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error('❌ STRIPE_SECRET_KEY is not set');
+}
+
+interface LessonBooking {
+  id: string;
+  daily_room_url: string | null;
+}
+
+interface PrivateLessonDetails {
+  title: string;
+  duration: number;
+  teacher_id: string;
+}
+
+interface TeacherProfile {
+  display_name: string | null;
+  full_name: string | null;
+  email: string | null;
+}
+
+interface Community {
+  created_at: string;
+  active_member_count: number;
 }
 
 export async function POST(request: Request) {
@@ -38,7 +59,7 @@ export async function POST(request: Request) {
       // First try platform webhook secret, then Connect if it fails
       let secret = webhookSecret;
       let isConnectEvent = false;
-      
+
       try {
         console.log('🔐 Trying platform webhook secret first');
         event = stripe.webhooks.constructEvent(body, signature, secret);
@@ -46,17 +67,17 @@ export async function POST(request: Request) {
       } catch (platformError) {
         console.log('⚠️ Platform webhook failed, trying Connect webhook secret');
         console.log('Platform error:', (platformError as Error).message);
-        
+
         if (!connectWebhookSecret) {
           throw new Error('Connect webhook secret not configured');
         }
-        
+
         secret = connectWebhookSecret;
         isConnectEvent = true;
         event = stripe.webhooks.constructEvent(body, signature, secret);
         console.log('✅ Connect webhook verified, event type:', event.type);
       }
-      
+
       console.log('📋 Event details:', {
         id: event.id,
         type: event.type,
@@ -79,11 +100,11 @@ export async function POST(request: Request) {
     console.log('Received webhook event:', event.type);
 
     // For Connect account events, create a new Stripe instance with the account
-    const connectedStripe = event.account ? 
+    const connectedStripe = event.account ?
       new Stripe(process.env.STRIPE_SECRET_KEY!, {
         apiVersion: '2024-10-28.acacia',
         stripeAccount: event.account
-      }) : 
+      }) :
       stripe;
 
     const { stripe_account_id } = (event.data.object as any).metadata || {};
@@ -103,27 +124,27 @@ export async function POST(request: Request) {
         console.log('  - Has event.account:', !!event.account);
         console.log('  - Metadata type:', paymentIntent.metadata?.type);
         console.log('  - Type matches:', paymentIntent.metadata?.type === 'private_lesson');
-        
+
         if (event.account && paymentIntent.metadata?.type === 'private_lesson') {
           console.log('🎓 Processing private lesson payment');
           const metadata = paymentIntent.metadata;
-          
+
           console.log('📋 Full payment intent metadata:', JSON.stringify(metadata, null, 2));
-          
+
           // Validate required metadata
           const requiredFields = ['lesson_id', 'community_id', 'student_id', 'student_email', 'price_paid'];
           const missingFields = [];
-          
+
           for (const field of requiredFields) {
             if (!metadata[field]) {
               missingFields.push(field);
             }
           }
-          
+
           if (missingFields.length > 0) {
             console.error('❌ Missing required metadata fields:', missingFields);
             console.error('📋 Available metadata:', Object.keys(metadata || {}));
-            return NextResponse.json({ 
+            return NextResponse.json({
               error: `Missing private lesson metadata: ${missingFields.join(', ')}`,
               availableFields: Object.keys(metadata || {}),
               paymentIntentId: paymentIntent.id
@@ -139,69 +160,82 @@ export async function POST(request: Request) {
               console.warn('Failed to parse contact_info, using empty object');
             }
 
-            // Create the booking record - no more updates, just creation!
-            const { data: newBooking, error: bookingCreateError } = await supabase
-              .from('lesson_bookings')
-              .insert({
-                private_lesson_id: metadata.lesson_id,
-                community_id: metadata.community_id,
-                student_id: metadata.student_id,
-                student_email: metadata.student_email,
-                student_name: metadata.student_name || '',
-                is_community_member: metadata.is_member === 'true',
-                price_paid: parseFloat(metadata.price_paid),
-                stripe_payment_intent_id: paymentIntent.id,
-                payment_status: 'succeeded',
-                lesson_status: 'scheduled', // Change from 'booked' to 'scheduled' since we have a time
-                scheduled_at: metadata.scheduled_at || null,
-                availability_slot_id: metadata.availability_slot_id || null, // Link to availability slot
-                student_message: metadata.student_message || '',
-                contact_info: contactInfo,
-                // Video room fields (these exist in the database)
-                daily_room_name: null,
-                daily_room_url: null,
-                daily_room_expires_at: null,
-                teacher_daily_token: null,
-                student_daily_token: null,
-                video_call_started_at: null,
-                video_call_ended_at: null
-              })
-              .select('id')
-              .single();
+            // Create the booking record
+            const newBooking = await queryOne<LessonBooking>`
+              INSERT INTO lesson_bookings (
+                private_lesson_id,
+                community_id,
+                student_id,
+                student_email,
+                student_name,
+                is_community_member,
+                price_paid,
+                stripe_payment_intent_id,
+                payment_status,
+                lesson_status,
+                scheduled_at,
+                availability_slot_id,
+                student_message,
+                contact_info,
+                daily_room_name,
+                daily_room_url,
+                daily_room_expires_at,
+                teacher_daily_token,
+                student_daily_token,
+                video_call_started_at,
+                video_call_ended_at
+              ) VALUES (
+                ${metadata.lesson_id},
+                ${metadata.community_id},
+                ${metadata.student_id},
+                ${metadata.student_email},
+                ${metadata.student_name || ''},
+                ${metadata.is_member === 'true'},
+                ${parseFloat(metadata.price_paid)},
+                ${paymentIntent.id},
+                'succeeded',
+                'scheduled',
+                ${metadata.scheduled_at || null},
+                ${metadata.availability_slot_id || null},
+                ${metadata.student_message || ''},
+                ${JSON.stringify(contactInfo)}::jsonb,
+                NULL,
+                NULL,
+                NULL,
+                NULL,
+                NULL,
+                NULL,
+                NULL
+              )
+              RETURNING id
+            `;
 
-            if (bookingCreateError || !newBooking) {
-              console.error('❌ Error creating booking record:', {
-                error: bookingCreateError,
-                metadata: metadata,
-                paymentIntentId: paymentIntent.id
-              });
-              // Return detailed error to help with debugging
-              return NextResponse.json({ 
+            if (!newBooking) {
+              console.error('❌ Error creating booking record: no row returned');
+              return NextResponse.json({
                 error: 'Failed to create booking record',
-                details: bookingCreateError?.message,
-                code: bookingCreateError?.code,
-                hint: bookingCreateError?.hint,
                 payment_intent_id: paymentIntent.id
               }, { status: 500 });
             }
 
             console.log('✅ Successfully created new booking:', newBooking.id);
 
-            // Get lesson and teacher details for emails
-            const { data: lessonDetails } = await supabase
-              .from('private_lessons')
-              .select(`
-                title,
-                duration,
-                teacher_id,
-                teacher:profiles!private_lessons_teacher_id_fkey (
-                  display_name,
-                  full_name,
-                  email
-                )
-              `)
-              .eq('id', metadata.lesson_id)
-              .single();
+            // Get lesson details
+            const lessonDetails = await queryOne<PrivateLessonDetails>`
+              SELECT title, duration_minutes as duration, teacher_id
+              FROM private_lessons
+              WHERE id = ${metadata.lesson_id}
+            `;
+
+            // Get teacher profile
+            let teacherProfile: TeacherProfile | null = null;
+            if (lessonDetails?.teacher_id) {
+              teacherProfile = await queryOne<TeacherProfile>`
+                SELECT display_name, full_name, email
+                FROM profiles
+                WHERE id = ${lessonDetails.teacher_id}
+              `;
+            }
 
             // Create video room after successful booking creation
             let videoRoomUrl: string | undefined;
@@ -211,11 +245,11 @@ export async function POST(request: Request) {
               if (result.success) {
                 console.log('✅ Video room created successfully for booking:', newBooking.id);
                 // Get the updated booking with video room URL
-                const { data: updatedBooking } = await supabase
-                  .from('lesson_bookings')
-                  .select('daily_room_url')
-                  .eq('id', newBooking.id)
-                  .single();
+                const updatedBooking = await queryOne<LessonBooking>`
+                  SELECT daily_room_url
+                  FROM lesson_bookings
+                  WHERE id = ${newBooking.id}
+                `;
                 videoRoomUrl = updatedBooking?.daily_room_url || undefined;
               } else {
                 console.error('❌ Video room creation failed:', result.error);
@@ -242,9 +276,8 @@ export async function POST(request: Request) {
                 hour12: true
               });
 
-              const teacherInfo = Array.isArray(lessonDetails?.teacher) ? lessonDetails?.teacher[0] : lessonDetails?.teacher;
-              const teacherName = teacherInfo?.display_name || teacherInfo?.full_name || 'Teacher';
-              const teacherEmail = teacherInfo?.email;
+              const teacherName = teacherProfile?.display_name || teacherProfile?.full_name || 'Teacher';
+              const teacherEmail = teacherProfile?.email;
 
               await emailService.sendNotificationEmail(
                 metadata.student_email,
@@ -326,7 +359,7 @@ export async function POST(request: Request) {
           console.log('🔍 Getting subscription details for invoice:', paymentIntent.invoice);
           const invoice = await connectedStripe.invoices.retrieve(paymentIntent.invoice as string);
           const subscription = await connectedStripe.subscriptions.retrieve(invoice.subscription as string);
-          
+
           if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
             console.error('Missing metadata in subscription:', subscription.id);
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
@@ -337,16 +370,12 @@ export async function POST(request: Request) {
 
           try {
             // Update member status to active
-            const { error: statusUpdateError } = await supabase
-              .from('community_members')
-              .update({ status: 'active' })
-              .eq('community_id', community_id)
-              .eq('user_id', user_id);
-
-            if (statusUpdateError) {
-              console.error('❌ Error updating member status:', statusUpdateError);
-              throw statusUpdateError;
-            }
+            await sql`
+              UPDATE community_members
+              SET status = 'active'
+              WHERE community_id = ${community_id}
+                AND user_id = ${user_id}
+            `;
 
             console.log('✅ Successfully updated member status to active');
             return NextResponse.json({ received: true });
@@ -392,11 +421,11 @@ export async function POST(request: Request) {
           console.log('🔍 Processing invoice payment for:', { user_id, community_id });
 
           // Check if this member should transition from promotional to standard pricing
-          const { data: community } = await supabase
-            .from('communities')
-            .select('created_at, active_member_count')
-            .eq('id', community_id)
-            .single();
+          const community = await queryOne<Community>`
+            SELECT created_at, active_member_count
+            FROM communities
+            WHERE id = ${community_id}
+          `;
 
           if (community) {
             const communityAge = Date.now() - new Date(community.created_at).getTime();
@@ -417,7 +446,7 @@ export async function POST(request: Request) {
               // Update the subscription's application fee if it has changed
               if (subscription.application_fee_percent !== newFeePercentage) {
                 console.log(`🔄 Updating subscription ${subscription.id} fee from ${subscription.application_fee_percent}% to ${newFeePercentage}%`);
-                
+
                 await connectedStripe.subscriptions.update(subscription.id, {
                   application_fee_percent: newFeePercentage,
                   metadata: {
@@ -430,21 +459,16 @@ export async function POST(request: Request) {
             }
 
             // Update member status and platform fee percentage
-            const { error: updateError } = await supabase
-              .from('community_members')
-              .update({ 
-                status: 'active',
-                subscription_status: subscription.status,
-                platform_fee_percentage: isStillPromotional ? 0 : newFeePercentage,
-                updated_at: new Date().toISOString()
-              })
-              .eq('community_id', community_id)
-              .eq('user_id', user_id);
-
-            if (updateError) {
-              console.error('❌ Error updating member status:', updateError);
-              throw updateError;
-            }
+            await sql`
+              UPDATE community_members
+              SET
+                status = 'active',
+                subscription_status = ${subscription.status},
+                platform_fee_percentage = ${isStillPromotional ? 0 : newFeePercentage},
+                updated_at = NOW()
+              WHERE community_id = ${community_id}
+                AND user_id = ${user_id}
+            `;
           }
 
           console.log('✅ Successfully updated member status');
@@ -457,23 +481,23 @@ export async function POST(request: Request) {
       case 'customer.subscription.deleted':
       case 'customer.subscription.updated':
         const subscription = event.data.object as Stripe.Subscription;
-        
+
         if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
           console.error('Missing metadata in subscription:', subscription.id);
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
         // Update member subscription status
-        const { error: statusUpdateError } = await supabase
-          .from('community_members')
-          .update({
-            subscription_status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
-          })
-          .eq('community_id', subscription.metadata.community_id)
-          .eq('user_id', subscription.metadata.user_id);
-
-        if (statusUpdateError) {
+        try {
+          await sql`
+            UPDATE community_members
+            SET
+              subscription_status = ${subscription.status},
+              current_period_end = ${new Date(subscription.current_period_end * 1000).toISOString()}
+            WHERE community_id = ${subscription.metadata.community_id}
+              AND user_id = ${subscription.metadata.user_id}
+          `;
+        } catch (statusUpdateError) {
           console.error('Error updating subscription status:', statusUpdateError);
           return NextResponse.json(
             { error: 'Failed to update subscription status' },
@@ -483,16 +507,16 @@ export async function POST(request: Request) {
 
         // If subscription is canceled or expired, update member status and decrement count
         if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
-          const { error: memberStatusError } = await supabase
-            .from('community_members')
-            .update({
-              status: 'inactive',
-              updated_at: new Date().toISOString()
-            })
-            .eq('community_id', subscription.metadata.community_id)
-            .eq('user_id', subscription.metadata.user_id);
-
-          if (memberStatusError) {
+          try {
+            await sql`
+              UPDATE community_members
+              SET
+                status = 'inactive',
+                updated_at = NOW()
+              WHERE community_id = ${subscription.metadata.community_id}
+                AND user_id = ${subscription.metadata.user_id}
+            `;
+          } catch (memberStatusError) {
             console.error('Error updating member status:', memberStatusError);
             return NextResponse.json(
               { error: 'Failed to update member status' },
@@ -500,12 +524,9 @@ export async function POST(request: Request) {
             );
           }
 
-          const { error: countError } = await supabase.rpc(
-            'decrement_members_count',
-            { community_id: subscription.metadata.community_id }
-          );
-
-          if (countError) {
+          try {
+            await sql`SELECT decrement_members_count(${subscription.metadata.community_id})`;
+          } catch (countError) {
             console.error('Error updating members count:', countError);
             return NextResponse.json(
               { error: 'Failed to update members count' },
@@ -531,16 +552,16 @@ export async function POST(request: Request) {
           }
 
           // Update member subscription status to reflect payment failure
-          const { error: failureUpdateError } = await supabase
-            .from('community_members')
-            .update({
-              subscription_status: 'past_due',
-              updated_at: new Date().toISOString()
-            })
-            .eq('community_id', subscription.metadata.community_id)
-            .eq('user_id', subscription.metadata.user_id);
-
-          if (failureUpdateError) {
+          try {
+            await sql`
+              UPDATE community_members
+              SET
+                subscription_status = 'past_due',
+                updated_at = NOW()
+              WHERE community_id = ${subscription.metadata.community_id}
+                AND user_id = ${subscription.metadata.user_id}
+            `;
+          } catch (failureUpdateError) {
             console.error('Error updating subscription status:', failureUpdateError);
             return NextResponse.json(
               { error: 'Failed to update subscription status' },
@@ -561,4 +582,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
