@@ -1,33 +1,35 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
+
+interface CommunityCreator {
+  created_by: string;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
-  const token = request.headers.get("Authorization")?.split(" ")[1] || "";
-  const supabase = createAdminClient();
-
   try {
-    // Verify the token and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    // Verify the session and get user using Better Auth
+    const session = await getSession();
 
-    if (authError || !user) {
+    if (!session) {
       return NextResponse.json({ isCreator: false });
     }
 
     // Check if user is the community creator
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("created_by")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<CommunityCreator>`
+      SELECT created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ isCreator: false });
     }
 
-    const isCreator = community.created_by === user.id;
+    const isCreator = community.created_by === session.user.id;
 
     return NextResponse.json({ isCreator });
   } catch (error) {

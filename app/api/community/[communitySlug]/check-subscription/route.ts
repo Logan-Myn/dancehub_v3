@@ -1,24 +1,31 @@
 import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+
+interface CommunityId {
+  id: string;
+}
+
+interface MemberStatus {
+  status: string | null;
+  subscription_status: string | null;
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
     const { userId } = await request.json();
     const { communitySlug } = params;
 
     // Get community data
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id')
-      .eq('slug', communitySlug)
-      .single();
+    const community = await queryOne<CommunityId>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: 'Community not found' },
         { status: 404 }
@@ -26,31 +33,23 @@ export async function POST(
     }
 
     // Check member status
-    const { data: member, error: memberError } = await supabase
-      .from('community_members')
-      .select('status, subscription_status')
-      .eq('community_id', community.id)
-      .eq('user_id', userId)
-      .single();
-
-    if (memberError) {
-      console.error('Error checking member status:', memberError);
-      return NextResponse.json({ 
-        hasSubscription: false,
-        message: 'Error checking member status' 
-      });
-    }
+    const member = await queryOne<MemberStatus>`
+      SELECT status, subscription_status
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (!member) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         hasSubscription: false,
-        message: 'Not a member of this community' 
+        message: 'Not a member of this community'
       });
     }
 
     // Check if member is active
     const isActive = member.status === 'active';
-    
+
     return NextResponse.json({
       hasSubscription: isActive,
       status: member.status,
@@ -64,4 +63,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { sql } from "@/lib/db";
 
 export async function PATCH(
   request: Request,
@@ -9,18 +9,14 @@ export async function PATCH(
     const { title, content } = await request.json();
     const { threadId } = params;
 
-    const supabase = createAdminClient();
-
-    const { error } = await supabase
-      .from("threads")
-      .update({
-        title,
-        content,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", threadId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE threads
+      SET
+        title = ${title},
+        content = ${content},
+        updated_at = NOW()
+      WHERE id = ${threadId}
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -38,14 +34,11 @@ export async function DELETE(
 ) {
   try {
     const { threadId } = params;
-    const supabase = createAdminClient();
 
-    const { error } = await supabase
-      .from("threads")
-      .delete()
-      .eq("id", threadId);
-
-    if (error) throw error;
+    await sql`
+      DELETE FROM threads
+      WHERE id = ${threadId}
+    `;
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
-import { PageData } from "@/types/page-builder";
+import { sql, queryOne } from "@/lib/db";
 
-const supabase = createAdminClient();
+interface AboutPage {
+  about_page: {
+    sections?: unknown[];
+    meta?: {
+      last_updated?: string;
+      published_version?: string;
+    };
+  } | null;
+}
 
 export async function PUT(
   request: Request,
@@ -12,25 +19,25 @@ export async function PUT(
     const { communitySlug } = params;
     const { aboutPage } = await request.json();
 
-    // Get and update the community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .update({
-        about_page: {
-          ...aboutPage,
-          meta: {
-            last_updated: new Date().toISOString(),
-            published_version: new Date().toISOString(),
-          },
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("slug", communitySlug)
-      .select()
-      .single();
+    // Update the community
+    const aboutPageData = {
+      ...aboutPage,
+      meta: {
+        last_updated: new Date().toISOString(),
+        published_version: new Date().toISOString(),
+      },
+    };
 
-    if (communityError) {
-      console.error("Error updating community:", communityError);
+    const result = await sql`
+      UPDATE communities
+      SET
+        about_page = ${JSON.stringify(aboutPageData)}::jsonb,
+        updated_at = NOW()
+      WHERE slug = ${communitySlug}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -58,14 +65,13 @@ export async function GET(
     const { communitySlug } = params;
 
     // Get the community
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("about_page")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<AboutPage>`
+      SELECT about_page
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError) {
-      console.error("Error fetching community:", communityError);
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -88,4 +94,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}

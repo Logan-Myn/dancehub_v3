@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { sql, queryOne } from "@/lib/db";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-10-28.acacia",
 });
 
-const supabase = createAdminClient();
+interface CommunityDetails {
+  id: string;
+  membership_price: number | null;
+  stripe_account_id: string;
+  stripe_price_id: string | null;
+  active_member_count: number;
+  created_at: string;
+  promotional_fee_percentage: number | null;
+  status: string;
+  opening_date: string | null;
+}
+
+interface ExistingMember {
+  id: string;
+}
 
 export async function POST(
   request: Request,
@@ -16,13 +30,22 @@ export async function POST(
     const { userId, email } = await request.json();
 
     // Get community details
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, membership_price, stripe_account_id, stripe_price_id, active_member_count, created_at, promotional_fee_percentage, status, opening_date")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<CommunityDetails>`
+      SELECT
+        id,
+        membership_price,
+        stripe_account_id,
+        stripe_price_id,
+        active_member_count,
+        created_at,
+        promotional_fee_percentage,
+        status,
+        opening_date
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -60,12 +83,12 @@ export async function POST(
     }
 
     // Check if user is already a member or pre-registered
-    const { data: existingMember } = await supabase
-      .from("community_members")
-      .select()
-      .eq("community_id", community.id)
-      .eq("user_id", userId)
-      .single();
+    const existingMember = await queryOne<ExistingMember>`
+      SELECT id
+      FROM community_members
+      WHERE community_id = ${community.id}
+        AND user_id = ${userId}
+    `;
 
     if (existingMember) {
       return NextResponse.json(

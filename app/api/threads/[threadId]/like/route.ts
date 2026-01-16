@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { sql, queryOne } from '@/lib/db';
+
+interface ThreadLikes {
+  likes: string[] | null;
+}
 
 export async function POST(
   request: Request,
@@ -8,14 +12,13 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId } = params;
-    const supabase = createAdminClient();
 
     // Get current thread likes
-    const { data: thread } = await supabase
-      .from('threads')
-      .select('likes')
-      .eq('id', threadId)
-      .single();
+    const thread = await queryOne<ThreadLikes>`
+      SELECT likes
+      FROM threads
+      WHERE id = ${threadId}
+    `;
 
     if (!thread) {
       return NextResponse.json(
@@ -31,14 +34,11 @@ export async function POST(
       : [...likes, userId];
 
     // Update thread likes
-    const { error } = await supabase
-      .from('threads')
-      .update({
-        likes: updatedLikes,
-      })
-      .eq('id', threadId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE threads
+      SET likes = ${JSON.stringify(updatedLikes)}::jsonb
+      WHERE id = ${threadId}
+    `;
 
     return NextResponse.json({
       liked: !isLiked,
@@ -51,4 +51,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

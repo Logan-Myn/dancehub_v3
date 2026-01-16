@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { sql, queryOne } from '@/lib/db';
 
 interface Comment {
   id: string;
@@ -15,6 +15,10 @@ interface Comment {
   likes_count?: number;
 }
 
+interface ThreadComments {
+  comments: Comment[] | null;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: { threadId: string; commentId: string } }
@@ -22,14 +26,13 @@ export async function POST(
   try {
     const { userId } = await request.json();
     const { threadId, commentId } = params;
-    const supabase = createAdminClient();
 
     // Get the thread document
-    const { data: thread } = await supabase
-      .from('threads')
-      .select('comments')
-      .eq('id', threadId)
-      .single();
+    const thread = await queryOne<ThreadComments>`
+      SELECT comments
+      FROM threads
+      WHERE id = ${threadId}
+    `;
 
     if (!thread) {
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
@@ -42,7 +45,7 @@ export async function POST(
       if (comment.id === commentId) {
         const likes = comment.likes || [];
         const userLikeIndex = likes.indexOf(userId);
-        
+
         if (userLikeIndex === -1) {
           // Add like
           likes.push(userId);
@@ -50,7 +53,7 @@ export async function POST(
           // Remove like
           likes.splice(userLikeIndex, 1);
         }
-        
+
         return {
           ...comment,
           likes,
@@ -61,12 +64,11 @@ export async function POST(
     });
 
     // Update the thread with modified comments
-    const { error } = await supabase
-      .from('threads')
-      .update({ comments: updatedComments })
-      .eq('id', threadId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE threads
+      SET comments = ${JSON.stringify(updatedComments)}::jsonb
+      WHERE id = ${threadId}
+    `;
 
     // Find the updated comment to return its new state
     const updatedComment = updatedComments.find((c: Comment) => c.id === commentId);
@@ -83,4 +85,4 @@ export async function POST(
       { status: 500 }
     );
   }
-} 
+}

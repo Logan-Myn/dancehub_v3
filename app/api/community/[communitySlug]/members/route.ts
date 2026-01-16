@@ -1,21 +1,34 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { sql, query, queryOne } from "@/lib/db";
+
+interface CommunityId {
+  id: string;
+}
+
+interface MemberWithProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  joined_at: string;
+  status: string | null;
+  last_active: string | null;
+  user_id: string;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { communitySlug: string } }
 ) {
   try {
-    const supabase = createAdminClient();
-
     // Get community ID first
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<CommunityId>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -23,18 +36,11 @@ export async function GET(
     }
 
     // Get members with their profiles
-    const { data: membersData, error: membersError } = await supabase
-      .from("community_members_with_profiles")
-      .select("*")
-      .eq("community_id", community.id);
-
-    if (membersError) {
-      console.error("Error fetching members:", membersError);
-      return NextResponse.json(
-        { error: "Failed to fetch members" },
-        { status: 500 }
-      );
-    }
+    const membersData = await query<MemberWithProfile>`
+      SELECT *
+      FROM community_members_with_profiles
+      WHERE community_id = ${community.id}
+    `;
 
     // Format the members data
     const formattedMembers = membersData.map(member => ({

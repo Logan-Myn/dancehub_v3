@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { videoRoomService } from "@/lib/video-room-service";
 import { getDailyDomain } from "@/lib/get-daily-domain";
 
-const supabase = createAdminClient();
+interface BookingWithLesson {
+  id: string;
+  student_id: string;
+  payment_status: string;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  daily_room_expires_at: string | null;
+  lesson_title: string;
+  lesson_duration_minutes: number;
+  community_created_by: string;
+}
 
 export async function POST(
   request: Request,
@@ -22,45 +33,37 @@ export async function POST(
       );
     }
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      console.log("Missing or invalid Authorization header");
+    // Get the current user from Better Auth session
+    const session = await getSession();
+    if (!session) {
+      console.log("No session found");
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    const user = session.user;
 
     // Get the booking with lesson and community info
-    const { data: booking, error: bookingError } = await supabase
-      .from("lesson_bookings")
-      .select(`
-        *,
-        private_lessons!inner(
-          title,
-          duration_minutes,
-          communities!inner(
-            name,
-            slug,
-            created_by
-          )
-        )
-      `)
-      .eq("id", bookingId)
-      .single();
+    const booking = await queryOne<BookingWithLesson>`
+      SELECT
+        lb.id,
+        lb.student_id,
+        lb.payment_status,
+        lb.daily_room_name,
+        lb.daily_room_url,
+        lb.daily_room_expires_at,
+        pl.title as lesson_title,
+        pl.duration_minutes as lesson_duration_minutes,
+        c.created_by as community_created_by
+      FROM lesson_bookings lb
+      INNER JOIN private_lessons pl ON pl.id = lb.private_lesson_id
+      INNER JOIN communities c ON c.id = pl.community_id
+      WHERE lb.id = ${bookingId}
+    `;
 
-    if (bookingError || !booking) {
+    if (!booking) {
       return NextResponse.json(
         { error: "Booking not found" },
         { status: 404 }
@@ -69,7 +72,7 @@ export async function POST(
 
     // Check if user is authorized (student or teacher)
     const isStudent = booking.student_id === user.id;
-    const isTeacher = booking.private_lessons.communities.created_by === user.id;
+    const isTeacher = booking.community_created_by === user.id;
 
     if (!isStudent && !isTeacher) {
       return NextResponse.json(
@@ -97,7 +100,7 @@ export async function POST(
     // Check if room has expired
     const now = new Date();
     const expiresAt = booking.daily_room_expires_at ? new Date(booking.daily_room_expires_at) : null;
-    
+
     if (expiresAt && now.getTime() > expiresAt.getTime()) {
       return NextResponse.json(
         { error: "Video room has expired" },
@@ -111,11 +114,11 @@ export async function POST(
       const tokens = await videoRoomService.generateTokensForRoom(bookingId);
       const teacherToken = tokens.teacherToken;
       const studentToken = tokens.studentToken;
-      
+
       // Track session start when user requests tokens
       const userRole = isTeacher ? 'teacher' : 'student';
       await videoRoomService.startSession(bookingId, userRole);
-      
+
       console.log("Tokens generated and session started successfully");
 
       // Debug logging
@@ -127,7 +130,7 @@ export async function POST(
 
       // If no URL is stored, we need to construct it properly
       let roomUrl = booking.daily_room_url;
-      
+
       if (!roomUrl && booking.daily_room_name) {
         // Get the actual Daily domain from the API
         const dailyDomain = await getDailyDomain();
@@ -142,8 +145,8 @@ export async function POST(
         room_url: roomUrl,
         token: isTeacher ? teacherToken : studentToken,
         expires_at: booking.daily_room_expires_at,
-        lesson_title: booking.private_lessons.title,
-        duration_minutes: booking.private_lessons.duration_minutes,
+        lesson_title: booking.lesson_title,
+        duration_minutes: booking.lesson_duration_minutes,
         is_teacher: isTeacher,
       });
     } catch (tokenError) {

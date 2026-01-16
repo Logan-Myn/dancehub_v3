@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createAdminClient } from '@/lib/supabase';
+import { queryOne } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
+
+interface CommunityOwnership {
+  id: string;
+  created_by: string;
+}
 
 export async function POST(
   request: Request,
@@ -10,29 +16,21 @@ export async function POST(
     const { accountId } = params;
     const { iban, accountHolderName } = await request.json();
 
-    // Verify authentication
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabase = createAdminClient();
-    const token = authHeader.split('Bearer ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    // Verify authentication using Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify user owns a community with this Stripe account
-    const { data: community, error: communityError } = await supabase
-      .from('communities')
-      .select('id, created_by')
-      .eq('stripe_account_id', accountId)
-      .eq('created_by', user.id)
-      .single();
+    const community = await queryOne<CommunityOwnership>`
+      SELECT id, created_by
+      FROM communities
+      WHERE stripe_account_id = ${accountId}
+        AND created_by = ${session.user.id}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: 'Account not found or unauthorized' },
         { status: 404 }
@@ -49,7 +47,7 @@ export async function POST(
 
     // Get the connected account details
     const account = await stripe.accounts.retrieve(accountId);
-    
+
     if (account.type !== 'custom') {
       return NextResponse.json(
         { error: 'Bank account updates are only supported for custom accounts' },
@@ -101,7 +99,7 @@ export async function POST(
 
     // Cast the response to BankAccount type for proper property access
     const bankAccountData = newBankAccount as any;
-    
+
     return NextResponse.json({
       success: true,
       bankAccount: {
@@ -117,14 +115,14 @@ export async function POST(
 
   } catch (error: any) {
     console.error('Error updating bank account IBAN:', error);
-    
+
     if (error.type === 'StripeError') {
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode || 400 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to update bank account' },
       { status: 500 }
