@@ -1,8 +1,32 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { query, queryOne, sql } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 import { CreatePrivateLessonData } from "@/types/private-lessons";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+  created_by: string;
+}
+
+interface PrivateLesson {
+  id: string;
+  community_id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  duration_minutes: number;
+  regular_price: number;
+  member_price: number | null;
+  is_active: boolean;
+  daily_room_name: string | null;
+  daily_room_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Booking {
+  id: string;
+}
 
 export async function GET(
   request: Request,
@@ -12,13 +36,13 @@ export async function GET(
     const { communitySlug, lessonId } = params;
 
     // Get community ID from slug
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<{ id: string }>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
@@ -26,14 +50,14 @@ export async function GET(
     }
 
     // Get the specific private lesson
-    const { data: lesson, error: lessonError } = await supabase
-      .from("private_lessons")
-      .select("*")
-      .eq("id", lessonId)
-      .eq("community_id", community.id)
-      .single();
+    const lesson = await queryOne<PrivateLesson>`
+      SELECT *
+      FROM private_lessons
+      WHERE id = ${lessonId}
+        AND community_id = ${community.id}
+    `;
 
-    if (lessonError || !lesson) {
+    if (!lesson) {
       return NextResponse.json(
         { error: "Private lesson not found" },
         { status: 404 }
@@ -59,32 +83,23 @@ export async function PUT(
     const updateData: Partial<CreatePrivateLessonData> & { is_active?: boolean } = await request.json();
 
     // Get community and verify ownership
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    // Get the current user from session
+    const session = await getSession();
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user || user.id !== community.created_by) {
+    if (!session || session.user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can update private lessons" },
         { status: 403 }
@@ -106,22 +121,21 @@ export async function PUT(
       );
     }
 
-    // Update the private lesson
-    const { data: lesson, error: updateError } = await supabase
-      .from("private_lessons")
-      .update(updateData)
-      .eq("id", lessonId)
-      .eq("community_id", community.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Error updating private lesson:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update private lesson" },
-        { status: 500 }
-      );
-    }
+    // Build dynamic update query
+    const lesson = await queryOne<PrivateLesson>`
+      UPDATE private_lessons
+      SET
+        title = COALESCE(${updateData.title ?? null}, title),
+        description = COALESCE(${updateData.description ?? null}, description),
+        duration_minutes = COALESCE(${updateData.duration_minutes ?? null}, duration_minutes),
+        regular_price = COALESCE(${updateData.regular_price ?? null}, regular_price),
+        member_price = COALESCE(${updateData.member_price ?? null}, member_price),
+        is_active = COALESCE(${updateData.is_active ?? null}, is_active),
+        updated_at = NOW()
+      WHERE id = ${lessonId}
+        AND community_id = ${community.id}
+      RETURNING *
+    `;
 
     if (!lesson) {
       return NextResponse.json(
@@ -149,32 +163,23 @@ export async function PATCH(
     const { is_active } = await request.json();
 
     // Get community and verify ownership
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    // Get the current user from session
+    const session = await getSession();
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user || user.id !== community.created_by) {
+    if (!session || session.user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can update private lessons" },
         { status: 403 }
@@ -182,21 +187,13 @@ export async function PATCH(
     }
 
     // Update only the is_active status
-    const { data: lesson, error: updateError } = await supabase
-      .from("private_lessons")
-      .update({ is_active })
-      .eq("id", lessonId)
-      .eq("community_id", community.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Error updating lesson status:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update lesson status" },
-        { status: 500 }
-      );
-    }
+    const lesson = await queryOne<PrivateLesson>`
+      UPDATE private_lessons
+      SET is_active = ${is_active}, updated_at = NOW()
+      WHERE id = ${lessonId}
+        AND community_id = ${community.id}
+      RETURNING *
+    `;
 
     if (!lesson) {
       return NextResponse.json(
@@ -223,32 +220,23 @@ export async function DELETE(
     const { communitySlug, lessonId } = params;
 
     // Get community and verify ownership
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id, created_by")
-      .eq("slug", communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id, created_by
+      FROM communities
+      WHERE slug = ${communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json(
         { error: "Community not found" },
         { status: 404 }
       );
     }
 
-    // Get the current user from authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
+    // Get the current user from session
+    const session = await getSession();
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user || user.id !== community.created_by) {
+    if (!session || session.user.id !== community.created_by) {
       return NextResponse.json(
         { error: "Unauthorized - only community creators can delete private lessons" },
         { status: 403 }
@@ -256,19 +244,12 @@ export async function DELETE(
     }
 
     // Check if there are any pending or scheduled bookings
-    const { data: bookings, error: bookingsError } = await supabase
-      .from("lesson_bookings")
-      .select("id")
-      .eq("private_lesson_id", lessonId)
-      .in("lesson_status", ["booked", "scheduled"]);
-
-    if (bookingsError) {
-      console.error("Error checking bookings:", bookingsError);
-      return NextResponse.json(
-        { error: "Failed to check existing bookings" },
-        { status: 500 }
-      );
-    }
+    const bookings = await query<Booking>`
+      SELECT id
+      FROM lesson_bookings
+      WHERE private_lesson_id = ${lessonId}
+        AND lesson_status IN ('booked', 'scheduled')
+    `;
 
     if (bookings && bookings.length > 0) {
       return NextResponse.json(
@@ -278,21 +259,13 @@ export async function DELETE(
     }
 
     // Soft delete by setting is_active to false
-    const { data: lesson, error: deleteError } = await supabase
-      .from("private_lessons")
-      .update({ is_active: false })
-      .eq("id", lessonId)
-      .eq("community_id", community.id)
-      .select()
-      .single();
-
-    if (deleteError) {
-      console.error("Error deleting private lesson:", deleteError);
-      return NextResponse.json(
-        { error: "Failed to delete private lesson" },
-        { status: 500 }
-      );
-    }
+    const lesson = await queryOne<PrivateLesson>`
+      UPDATE private_lessons
+      SET is_active = false, updated_at = NOW()
+      WHERE id = ${lessonId}
+        AND community_id = ${community.id}
+      RETURNING *
+    `;
 
     if (!lesson) {
       return NextResponse.json(
@@ -309,4 +282,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}
