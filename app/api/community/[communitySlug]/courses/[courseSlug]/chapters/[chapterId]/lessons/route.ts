@@ -1,93 +1,125 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth-session";
 
-const supabase = createAdminClient();
+interface Community {
+  id: string;
+}
+
+interface Course {
+  id: string;
+}
+
+interface Chapter {
+  id: string;
+}
+
+interface LessonPosition {
+  lesson_position: number;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  content: string | null;
+  video_asset_id: string | null;
+  playback_id: string | null;
+  lesson_position: number;
+  chapter_id: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
 
 export async function POST(
   req: Request,
   { params }: { params: { communitySlug: string; courseSlug: string; chapterId: string } }
 ) {
   try {
-    // Verify auth token
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Verify auth using Better Auth session
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = session.user;
 
     const { title } = await req.json();
 
     // Get community and verify it exists
-    const { data: community, error: communityError } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("slug", params.communitySlug)
-      .single();
+    const community = await queryOne<Community>`
+      SELECT id
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
 
-    if (communityError || !community) {
+    if (!community) {
       return NextResponse.json({ error: "Community not found" }, { status: 404 });
     }
 
     // Get course and verify it exists
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("community_id", community.id)
-      .eq("slug", params.courseSlug)
-      .single();
+    const course = await queryOne<Course>`
+      SELECT id
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
 
-    if (courseError || !course) {
+    if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
     // Verify chapter exists
-    const { data: chapter, error: chapterError } = await supabase
-      .from("chapters")
-      .select("id")
-      .eq("course_id", course.id)
-      .eq("id", params.chapterId)
-      .single();
+    const chapter = await queryOne<Chapter>`
+      SELECT id
+      FROM chapters
+      WHERE course_id = ${course.id}
+        AND id = ${params.chapterId}
+    `;
 
-    if (chapterError || !chapter) {
+    if (!chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
     // Get current highest position
-    const { data: highestPositionLesson } = await supabase
-      .from("lessons")
-      .select("lesson_position")
-      .eq("chapter_id", params.chapterId)
-      .order("lesson_position", { ascending: false })
-      .limit(1)
-      .single();
+    const highestPositionLesson = await queryOne<LessonPosition>`
+      SELECT lesson_position
+      FROM lessons
+      WHERE chapter_id = ${params.chapterId}
+      ORDER BY lesson_position DESC
+      LIMIT 1
+    `;
 
     const newPosition = (highestPositionLesson?.lesson_position ?? -1) + 1;
 
     // Create the new lesson
-    const { data: lesson, error: lessonError } = await supabase
-      .from("lessons")
-      .insert({
+    const lesson = await queryOne<Lesson>`
+      INSERT INTO lessons (
         title,
-        content: "",
-        video_asset_id: null,
-        playback_id: null,
-        lesson_position: newPosition,
-        chapter_id: params.chapterId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: user.id,
-      })
-      .select()
-      .single();
+        content,
+        video_asset_id,
+        playback_id,
+        lesson_position,
+        chapter_id,
+        created_at,
+        updated_at,
+        created_by
+      ) VALUES (
+        ${title},
+        '',
+        NULL,
+        NULL,
+        ${newPosition},
+        ${params.chapterId},
+        NOW(),
+        NOW(),
+        ${user.id}
+      )
+      RETURNING *
+    `;
 
-    if (lessonError) {
-      console.error("Error creating lesson:", lessonError);
+    if (!lesson) {
+      console.error("Error creating lesson: no row returned");
       return NextResponse.json({ error: "Failed to create lesson" }, { status: 500 });
     }
 

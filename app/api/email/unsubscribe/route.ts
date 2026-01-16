@@ -1,7 +1,20 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
+import { queryOne, sql } from "@/lib/db";
 
-const supabase = createAdminClient();
+interface EmailPreferences {
+  id: string;
+  user_id: string;
+  email: string;
+  unsubscribe_token: string;
+  marketing_emails: boolean;
+  course_announcements: boolean;
+  community_updates: boolean;
+  weekly_digest: boolean;
+  unsubscribed_all: boolean;
+  unsubscribed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,78 +27,89 @@ export async function GET(request: NextRequest) {
     }
 
     // Find the email preferences by unsubscribe token
-    const { data: preferences, error: fetchError } = await supabase
-      .from('email_preferences')
-      .select('*')
-      .eq('unsubscribe_token', token)
-      .single();
+    const preferences = await queryOne<EmailPreferences>`
+      SELECT *
+      FROM email_preferences
+      WHERE unsubscribe_token = ${token}
+    `;
 
-    if (fetchError || !preferences) {
-      console.error('Error fetching preferences:', fetchError);
+    if (!preferences) {
+      console.error('Error fetching preferences: not found');
       return NextResponse.redirect(new URL('/unsubscribe/invalid', request.url));
     }
 
     // Update preferences based on type
-    let updateData: any = {
-      updated_at: new Date().toISOString(),
-    };
-
     if (type) {
       // Unsubscribe from specific type
       switch (type) {
         case 'marketing':
-          updateData.marketing_emails = false;
+          await sql`
+            UPDATE email_preferences
+            SET marketing_emails = false, updated_at = NOW()
+            WHERE unsubscribe_token = ${token}
+          `;
           break;
         case 'course_announcements':
-          updateData.course_announcements = false;
+          await sql`
+            UPDATE email_preferences
+            SET course_announcements = false, updated_at = NOW()
+            WHERE unsubscribe_token = ${token}
+          `;
           break;
         case 'community_updates':
-          updateData.community_updates = false;
+          await sql`
+            UPDATE email_preferences
+            SET community_updates = false, updated_at = NOW()
+            WHERE unsubscribe_token = ${token}
+          `;
           break;
         case 'weekly_digest':
-          updateData.weekly_digest = false;
+          await sql`
+            UPDATE email_preferences
+            SET weekly_digest = false, updated_at = NOW()
+            WHERE unsubscribe_token = ${token}
+          `;
           break;
         default:
           // Unknown type, unsubscribe from all non-transactional
-          updateData.marketing_emails = false;
-          updateData.course_announcements = false;
-          updateData.community_updates = false;
-          updateData.weekly_digest = false;
+          await sql`
+            UPDATE email_preferences
+            SET
+              marketing_emails = false,
+              course_announcements = false,
+              community_updates = false,
+              weekly_digest = false,
+              updated_at = NOW()
+            WHERE unsubscribe_token = ${token}
+          `;
       }
     } else {
       // Unsubscribe from all non-transactional emails
-      updateData = {
-        ...updateData,
-        marketing_emails: false,
-        course_announcements: false,
-        community_updates: false,
-        weekly_digest: false,
-        unsubscribed_all: true,
-        unsubscribed_at: new Date().toISOString(),
-      };
-    }
-
-    // Update the preferences
-    const { error: updateError } = await supabase
-      .from('email_preferences')
-      .update(updateData)
-      .eq('unsubscribe_token', token);
-
-    if (updateError) {
-      console.error('Error updating preferences:', updateError);
-      return NextResponse.redirect(new URL('/unsubscribe/error', request.url));
+      await sql`
+        UPDATE email_preferences
+        SET
+          marketing_emails = false,
+          course_announcements = false,
+          community_updates = false,
+          weekly_digest = false,
+          unsubscribed_all = true,
+          unsubscribed_at = NOW(),
+          updated_at = NOW()
+        WHERE unsubscribe_token = ${token}
+      `;
     }
 
     // Log the unsubscribe event
-    await supabase
-      .from('email_events')
-      .insert({
-        user_id: preferences.user_id,
-        email: preferences.email,
-        event_type: 'unsubscribed',
-        email_type: type || 'all_marketing',
-        metadata: { token, type },
-      });
+    await sql`
+      INSERT INTO email_events (user_id, email, event_type, email_type, metadata)
+      VALUES (
+        ${preferences.user_id},
+        ${preferences.email},
+        'unsubscribed',
+        ${type || 'all_marketing'},
+        ${JSON.stringify({ token, type })}::jsonb
+      )
+    `;
 
     // Redirect to success page
     return NextResponse.redirect(new URL('/unsubscribe/success', request.url));
@@ -107,13 +131,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the email preferences by unsubscribe token
-    const { data: existingPreferences, error: fetchError } = await supabase
-      .from('email_preferences')
-      .select('*')
-      .eq('unsubscribe_token', token)
-      .single();
+    const existingPreferences = await queryOne<EmailPreferences>`
+      SELECT *
+      FROM email_preferences
+      WHERE unsubscribe_token = ${token}
+    `;
 
-    if (fetchError || !existingPreferences) {
+    if (!existingPreferences) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 400 }
@@ -121,34 +145,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Update preferences
-    const { error: updateError } = await supabase
-      .from('email_preferences')
-      .update({
-        ...newPreferences,
-        updated_at: new Date().toISOString(),
-        // Reset unsubscribed_all if user is re-subscribing to something
-        unsubscribed_all: false,
-      })
-      .eq('unsubscribe_token', token);
-
-    if (updateError) {
-      console.error('Error updating preferences:', updateError);
-      return NextResponse.json(
-        { error: "Failed to update preferences" },
-        { status: 500 }
-      );
-    }
+    await sql`
+      UPDATE email_preferences
+      SET
+        marketing_emails = ${newPreferences.marketing_emails ?? existingPreferences.marketing_emails},
+        course_announcements = ${newPreferences.course_announcements ?? existingPreferences.course_announcements},
+        community_updates = ${newPreferences.community_updates ?? existingPreferences.community_updates},
+        weekly_digest = ${newPreferences.weekly_digest ?? existingPreferences.weekly_digest},
+        unsubscribed_all = false,
+        updated_at = NOW()
+      WHERE unsubscribe_token = ${token}
+    `;
 
     // Log the preference update
-    await supabase
-      .from('email_events')
-      .insert({
-        user_id: existingPreferences.user_id,
-        email: existingPreferences.email,
-        event_type: 'preferences_updated',
-        email_type: 'preferences',
-        metadata: { newPreferences },
-      });
+    await sql`
+      INSERT INTO email_events (user_id, email, event_type, email_type, metadata)
+      VALUES (
+        ${existingPreferences.user_id},
+        ${existingPreferences.email},
+        'preferences_updated',
+        'preferences',
+        ${JSON.stringify({ newPreferences })}::jsonb
+      )
+    `;
 
     return NextResponse.json({
       message: "Preferences updated successfully",
