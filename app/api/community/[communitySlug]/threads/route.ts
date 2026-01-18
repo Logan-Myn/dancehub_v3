@@ -61,7 +61,7 @@ export async function GET(
         (SELECT COUNT(*) FROM thread_likes tl WHERE tl.thread_id = t.id)::int as likes_count,
         (SELECT COUNT(*) FROM thread_comments tc WHERE tc.thread_id = t.id)::int as comments_count
       FROM threads t
-      LEFT JOIN profiles p ON p.id = t.user_id
+      LEFT JOIN profiles p ON p.auth_user_id = t.user_id
       WHERE t.community_id = ${community.id}
       ORDER BY t.created_at DESC
     `;
