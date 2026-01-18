@@ -97,9 +97,9 @@ async function getCommunities(): Promise<Community[]> {
   // Fetch creators and member counts in parallel
   const [creators, memberCounts] = await Promise.all([
     sql`
-      SELECT id, full_name, email
+      SELECT auth_user_id, full_name, email
       FROM profiles
-      WHERE id = ANY(${creatorIds})
+      WHERE auth_user_id = ANY(${creatorIds})
     `,
     sql`
       SELECT community_id, COUNT(*) as count
@@ -108,12 +108,12 @@ async function getCommunities(): Promise<Community[]> {
       GROUP BY community_id
     `
   ]) as [
-    { id: string; full_name: string | null; email: string }[],
+    { auth_user_id: string; full_name: string | null; email: string }[],
     { community_id: string; count: number }[]
   ];
 
   // Create lookup maps
-  const creatorMap = new Map(creators.map(c => [c.id, c]));
+  const creatorMap = new Map(creators.map(c => [c.auth_user_id, c]));
   const memberCountMap = new Map(memberCounts.map(m => [m.community_id, Number(m.count)]));
 
   // Fetch Stripe data for each community (needs to be done sequentially due to rate limits)

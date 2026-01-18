@@ -92,9 +92,9 @@ async function getThreads(communityId?: string): Promise<Thread[]> {
       WHERE id = ANY(${communityIds})
     `,
     sql`
-      SELECT id, full_name, email, avatar_url
+      SELECT auth_user_id, full_name, email, avatar_url
       FROM profiles
-      WHERE id = ANY(${authorIds})
+      WHERE auth_user_id = ANY(${authorIds})
     `,
     sql`
       SELECT thread_id, COUNT(*) as count
@@ -104,13 +104,13 @@ async function getThreads(communityId?: string): Promise<Thread[]> {
     `
   ]) as [
     { id: string; name: string; slug: string }[],
-    { id: string; full_name: string; email: string; avatar_url: string }[],
+    { auth_user_id: string; full_name: string; email: string; avatar_url: string }[],
     { thread_id: string; count: number }[]
   ];
 
   // Create lookup maps
   const communityMap = new Map(communities.map(c => [c.id, c]));
-  const authorMap = new Map(authors.map(a => [a.id, a]));
+  const authorMap = new Map(authors.map(a => [a.auth_user_id, a]));
   const reportCountMap = new Map(reportCounts.map(r => [r.thread_id, Number(r.count)]));
 
   // Build the final result
