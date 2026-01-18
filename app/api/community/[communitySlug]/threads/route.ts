@@ -11,7 +11,7 @@ interface ThreadRow {
   content: string;
   created_at: string;
   user_id: string;
-  category: string | null;
+  category_name: string | null;
   category_id: string | null;
   pinned: boolean;
   profile_id: string | null;
@@ -51,7 +51,7 @@ export async function GET(
         t.content,
         t.created_at,
         t.user_id,
-        t.category,
+        t.category_name,
         t.category_id,
         t.pinned,
         p.id as profile_id,
@@ -77,7 +77,7 @@ export async function GET(
         name: thread.profile_display_name || thread.profile_full_name || "Anonymous",
         image: thread.profile_avatar_url || "",
       },
-      category: thread.category || "General",
+      category: thread.category_name || "General",
       categoryId: thread.category_id,
       likesCount: thread.likes_count || 0,
       commentsCount: thread.comments_count || 0,

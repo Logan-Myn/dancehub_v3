@@ -210,7 +210,7 @@ export default function CommunityPage() {
     error: membersError,
     isLoading: isMembersLoading,
   } = useSWR<Member[]>(
-    communityData?.id ? `community-members:${communityData.id}` : null,
+    communitySlug ? `community-members:${communitySlug}` : null,
     fetcher
   );
 
@@ -220,7 +220,7 @@ export default function CommunityPage() {
     error: threadsError,
     isLoading: isThreadsLoading,
   } = useSWR<Thread[]>(
-    communityData?.id ? `community-threads:${communityData.id}` : null,
+    communitySlug ? `community-threads:${communitySlug}` : null,
     fetcher
   );
 
