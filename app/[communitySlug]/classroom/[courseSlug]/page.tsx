@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
@@ -323,8 +322,7 @@ export default function CoursePage() {
     title: string;
   } | null>(null);
 
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, session } = useAuth();
 
   // Add SWR hook for course data
   const { data: courseData, error: courseError, mutate: mutateCourse } = useSWR(
@@ -334,14 +332,9 @@ export default function CoursePage() {
 
   // Wait for auth to be initialized
   useEffect(() => {
-    const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setIsAuthChecked(true);
-    };
-    checkAuth();
-  }, [supabase]);
+    // With Better Auth, session is available from useAuth hook
+    setIsAuthChecked(true);
+  }, []);
 
   // Check authentication and membership
   useEffect(() => {
@@ -357,27 +350,26 @@ export default function CoursePage() {
 
       try {
         // First check if user is admin
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", user.id)
-          .single();
+        const profileResponse = await fetch(`/api/profile?userId=${user.id}`);
+        if (profileResponse.ok) {
+          const profile = await profileResponse.json();
+          // Admins have access to all communities
+          if (profile?.is_admin) {
+            setIsAccessChecked(true);
+            return;
+          }
+        }
 
-        // Admins have access to all communities
-        if (profile?.is_admin) {
-          setIsAccessChecked(true);
+        // Get the community data
+        const communityResponse = await fetch(`/api/community/${communitySlug}`);
+        if (!communityResponse.ok) {
+          console.error("Error fetching community");
+          router.push(`/${communitySlug}/about`);
           return;
         }
 
-        // First get the community ID
-        const { data: communityData, error: communityError } = await supabase
-          .from("communities")
-          .select("id, name, created_by")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (communityError || !communityData) {
-          console.error("Error fetching community:", communityError);
+        const communityData = await communityResponse.json();
+        if (!communityData) {
           router.push(`/${communitySlug}/about`);
           return;
         }
@@ -391,22 +383,20 @@ export default function CoursePage() {
         }
 
         // Check if user is a member of the community
-        const { data: membership, error: membershipError } = await supabase
-          .from("community_members")
-          .select("status")
-          .eq("community_id", communityData.id)
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .maybeSingle();
+        const membershipResponse = await fetch(
+          `/api/community/${communitySlug}/membership?userId=${user.id}`
+        );
 
-        if (membershipError) {
-          console.error("Error checking membership:", membershipError);
+        if (!membershipResponse.ok) {
+          console.error("Error checking membership");
           router.push(`/${communitySlug}/about`);
           return;
         }
 
-        // If not a member, redirect to about page
-        if (!membership) {
+        const membership = await membershipResponse.json();
+
+        // If not a member or not active, redirect to about page
+        if (!membership || membership.status !== "active") {
           router.push(`/${communitySlug}/about`);
           return;
         }
@@ -422,7 +412,7 @@ export default function CoursePage() {
     if (communitySlug) {
       checkAccess();
     }
-  }, [user, communitySlug, router, supabase, isAuthChecked]);
+  }, [user, communitySlug, router, isAuthChecked]);
 
   // Add selected lesson logic
   useEffect(() => {
@@ -519,17 +509,18 @@ export default function CoursePage() {
   const handleAddLesson = async (chapterId: string, title: string) => {
     if (!title.trim()) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({ title }),
         }
@@ -580,17 +571,18 @@ export default function CoursePage() {
     );
     if (!currentChapter) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${currentChapter.id}/lessons/${selectedLesson.id}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
           },
           body: JSON.stringify({
             title: selectedLesson.title,
@@ -663,17 +655,16 @@ export default function CoursePage() {
     );
     if (!confirmDelete) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
         }
       );
 
@@ -713,17 +704,16 @@ export default function CoursePage() {
   const confirmDeleteLesson = async () => {
     if (!lessonToDelete) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${lessonToDelete.chapterId}/lessons/${lessonToDelete.lessonId}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
         }
       );
 
@@ -892,17 +882,18 @@ export default function CoursePage() {
   const updateChaptersOrder = async (chapters: Chapter[]) => {
     if (!isCreator || !isEditMode || isSavingOrder) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
       setIsSavingOrder(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/reorder`,
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ chapters }),
@@ -930,18 +921,18 @@ export default function CoursePage() {
   const updateLessonsOrder = async (chapterId: string, lessons: Lesson[]) => {
     if (!isCreator || !isEditMode || isSavingOrder) return;
 
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
+
     try {
       setIsSavingOrder(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${chapterId}/lessons/reorder`,
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ lessons }),
@@ -967,18 +958,16 @@ export default function CoursePage() {
   };
 
   const toggleLessonCompletion = async (lessonId: string) => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error("Please sign in");
+      return;
+    }
 
+    try {
       const response = await fetch(
         `/api/community/${communitySlug}/courses/${courseSlug}/chapters/${selectedLesson?.chapter_id}/lessons/${lessonId}/completion`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
         }
       );
 

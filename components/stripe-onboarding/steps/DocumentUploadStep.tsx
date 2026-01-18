@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, Upload, File, CheckCircle, X, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DocumentInfo {
   type: string;
@@ -51,17 +51,7 @@ export function DocumentUploadStep({
   const [documents, setDocuments] = useState<DocumentInfo[]>(data.documents || []);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [dragOver, setDragOver] = useState<string | null>(null);
-  const supabase = createClient();
-  const [session, setSession] = useState<any>(null);
-
-  // Get session with access token
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, [supabase]);
+  const { session } = useAuth();
 
   useEffect(() => {
     const hasChanges = JSON.stringify(documents) !== JSON.stringify(data.documents || []);
@@ -85,7 +75,7 @@ export function DocumentUploadStep({
       throw new Error("Account ID is missing");
     }
 
-    if (!session?.access_token) {
+    if (!session) {
       throw new Error("Not authenticated");
     }
 
@@ -96,9 +86,6 @@ export function DocumentUploadStep({
 
     const response = await fetch(`/api/stripe/custom-account/${data.accountId}/upload-document`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${session.access_token}`,
-      },
       body: formData,
     });
 

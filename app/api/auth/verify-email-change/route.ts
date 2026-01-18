@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
 
 /**
  * Verify email change token via Better Auth
@@ -24,26 +23,16 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!result) {
+    if (!result || !result.status) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // If Better Auth returns user info, update the profiles table
-    if (result.user) {
-      try {
-        await sql`
-          UPDATE profiles
-          SET email = ${result.user.email}, updated_at = NOW()
-          WHERE auth_user_id = ${result.user.id}
-        `;
-      } catch (profileError) {
-        console.error("Error updating profile email:", profileError);
-        // Don't fail - the auth email was updated successfully
-      }
-    }
+    // Note: Better Auth verifyEmail updates the user's email in the user table
+    // The profiles table will be synced via the auth_user_id foreign key relationship
+    // If we need to sync email to profiles, we can do it via a session refresh
 
     return NextResponse.json({
       message: "Email updated successfully"

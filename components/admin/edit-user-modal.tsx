@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
@@ -46,7 +46,7 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
   const [userData, setUserData] = useState<UserData | null>(null);
   const [communities, setCommunities] = useState<Community[]>([]);
   const [selectedCommunity, setSelectedCommunity] = useState<string>('');
-  const supabase = createClient();
+  const { session } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
@@ -57,14 +57,17 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
 
   const loadUserData = async () => {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, display_name, email')
-        .eq('id', userId)
-        .single();
-
+      const response = await fetch(`/api/profile?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load user data');
+      }
+      const profile = await response.json();
       if (profile) {
-        setUserData(profile);
+        setUserData({
+          full_name: profile.full_name || '',
+          display_name: profile.display_name || '',
+          email: profile.email || '',
+        });
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -74,10 +77,11 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
 
   const loadCommunities = async () => {
     try {
-      const { data } = await supabase
-        .from('communities')
-        .select('id, name, slug');
-
+      const response = await fetch('/api/communities');
+      if (!response.ok) {
+        throw new Error('Failed to load communities');
+      }
+      const data = await response.json();
       if (data) {
         setCommunities(data);
       }
@@ -91,7 +95,6 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
     setIsLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('No active session');
       }
@@ -101,7 +104,6 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(userData)
       });
@@ -112,18 +114,18 @@ export default function EditUserModal({ isOpen, onClose, userId }: EditUserModal
 
       // Add to community if selected
       if (selectedCommunity) {
-        const { error: membershipError } = await supabase
-          .from('community_members')
-          .upsert({
-            community_id: selectedCommunity,
-            user_id: userId,
-            role: 'member',
-            status: 'active',
-            joined_at: new Date().toISOString()
-          });
+        const membershipResponse = await fetch(`/api/admin/users/${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            addToCommunity: selectedCommunity,
+          })
+        });
 
-        if (membershipError) {
-          console.error('Error adding to community:', membershipError);
+        if (!membershipResponse.ok) {
+          console.error('Error adding to community');
           toast.error('Failed to add user to community');
         }
       }

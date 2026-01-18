@@ -38,7 +38,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Editor from "./Editor";
-import { createClient } from "@/lib/supabase";
 
 interface ThreadModalProps {
   isOpen: boolean;
@@ -128,7 +127,7 @@ export default function ThreadModal({
   onDelete,
   isCreator = false,
 }: ThreadModalProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
   const [localLikesCount, setLocalLikesCount] = useState(thread.likes_count);
   const [localLikes, setLocalLikes] = useState(thread.likes || []);
@@ -142,28 +141,29 @@ export default function ThreadModal({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [localComments, setLocalComments] = useState(thread.comments || []);
   const [userProfile, setUserProfile] = useState<any>(null);
-  const supabase = createClient();
 
   // Fetch user profile when modal opens
   useEffect(() => {
     async function fetchUserProfile() {
       if (!user) return;
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      if (profile) {
-        setUserProfile(profile);
+
+      try {
+        const response = await fetch(`/api/profile?userId=${user.id}`);
+        if (response.ok) {
+          const profile = await response.json();
+          if (profile) {
+            setUserProfile(profile);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
       }
     }
 
     if (isOpen) {
       fetchUserProfile();
     }
-  }, [isOpen, user, supabase]);
+  }, [isOpen, user]);
 
   // Update local state when thread comments change
   useEffect(() => {
@@ -184,7 +184,7 @@ export default function ThreadModal({
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (!user) {
+    if (!user || !session) {
       toast.error("Please sign in to like threads");
       return;
     }
@@ -193,18 +193,10 @@ export default function ThreadModal({
 
     setIsLiking(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
-
       const response = await fetch(`/api/threads/${thread.id}/like`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ userId: user.id }),
       });
@@ -219,17 +211,13 @@ export default function ThreadModal({
       onLikeUpdate(thread.id, data.likesCount, data.liked);
       // Update local state
       setLocalLikesCount(data.likesCount);
-      setLocalLikes(data.liked 
+      setLocalLikes(data.liked
         ? [...localLikes, user.id]
         : localLikes.filter(id => id !== user.id)
       );
     } catch (error) {
       console.error("Error liking thread:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to like threads");
-      } else {
-        toast.error("Failed to like thread. Please try again.");
-      }
+      toast.error("Failed to like thread. Please try again.");
     } finally {
       setIsLiking(false);
     }
@@ -238,7 +226,7 @@ export default function ThreadModal({
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
+    if (!user || !session) {
       toast.error("Please sign in to comment");
       return;
     }
@@ -248,33 +236,22 @@ export default function ThreadModal({
     setIsSubmitting(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
-
-      // Get user's profile data to ensure we have the latest avatar URL
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Use userProfile fetched on modal open, or fallback to user data
+      const displayName = userProfile?.display_name || userProfile?.full_name || user.name || "Anonymous";
+      const avatarUrl = userProfile?.avatar_url || user.image;
 
       const response = await fetch(`/api/threads/${thread.id}/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           content: comment.trim(),
           userId: user.id,
           author: {
             id: user.id,
-            name: profile?.display_name || profile?.full_name || user.user_metadata?.full_name || "Anonymous",
-            avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url,
+            name: displayName,
+            avatar_url: avatarUrl,
           },
         }),
       });
@@ -290,11 +267,7 @@ export default function ThreadModal({
       toast.success("Comment posted successfully");
     } catch (error) {
       console.error("Error posting comment:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to comment");
-      } else {
-        toast.error("Failed to post comment. Please try again.");
-      }
+      toast.error("Failed to post comment. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -306,19 +279,16 @@ export default function ThreadModal({
       return;
     }
 
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
+    if (!session) {
+      toast.error("Please sign in to edit the thread");
+      return;
+    }
 
+    try {
       const response = await fetch(`/api/threads/${thread.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           title: editedTitle.trim(),
@@ -343,11 +313,7 @@ export default function ThreadModal({
       toast.success("Thread updated successfully");
     } catch (error) {
       console.error("Error updating thread:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to edit the thread");
-      } else {
-        toast.error("Failed to update thread. Please try again.");
-      }
+      toast.error("Failed to update thread. Please try again.");
     }
   };
 
@@ -358,19 +324,14 @@ export default function ThreadModal({
   };
 
   const handleDelete = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
+    if (!session) {
+      toast.error("Please sign in to delete the thread");
+      return;
+    }
 
+    try {
       const response = await fetch(`/api/threads/${thread.id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       if (!response.ok) {
@@ -383,27 +344,20 @@ export default function ThreadModal({
       toast.success("Thread deleted successfully");
     } catch (error) {
       console.error("Error deleting thread:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to delete the thread");
-      } else {
-        toast.error("Failed to delete thread. Please try again.");
-      }
+      toast.error("Failed to delete thread. Please try again.");
     }
   };
 
   const handleReply = async (commentId: string, content: string) => {
-    if (!user) {
+    if (!user || !session) {
       toast.error("Please sign in to reply");
       return;
     }
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
+      // Use userProfile fetched on modal open, or fallback to user data
+      const displayName = userProfile?.display_name || userProfile?.full_name || user.name || "Anonymous";
+      const avatarUrl = userProfile?.avatar_url || user.image;
 
       const response = await fetch(
         `/api/threads/${thread.id}/comments/${commentId}/reply`,
@@ -411,15 +365,14 @@ export default function ThreadModal({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             content: content.trim(),
             userId: user.id,
             author: {
               id: user.id,
-              name: user.user_metadata?.full_name || "Anonymous",
-              avatar_url: user.user_metadata?.avatar_url,
+              name: displayName,
+              avatar_url: avatarUrl,
             },
           }),
         }
@@ -464,11 +417,7 @@ export default function ThreadModal({
       return newReply;
     } catch (error) {
       console.error("Error posting reply:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to reply");
-      } else {
-        toast.error("Failed to post reply. Please try again.");
-      }
+      toast.error("Failed to post reply. Please try again.");
       throw error;
     }
   };
@@ -564,28 +513,25 @@ export default function ThreadModal({
   });
 
   const userDisplayName =
-    userProfile?.display_name || 
-    userProfile?.full_name || 
-    user?.user_metadata?.full_name || 
-    user?.email?.split("@")[0] || 
+    userProfile?.display_name ||
+    userProfile?.full_name ||
+    user?.name ||
+    user?.email?.split("@")[0] ||
     "Anonymous";
-  const userAvatarUrl = userProfile?.avatar_url || user?.user_metadata?.avatar_url;
+  const userAvatarUrl = userProfile?.avatar_url || user?.image;
   const userInitial = userDisplayName[0]?.toUpperCase() || "A";
 
   const handleTogglePin = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session");
-      }
+    if (!session) {
+      toast.error("Please sign in to pin/unpin threads");
+      return;
+    }
 
+    try {
       const response = await fetch(`/api/threads/${thread.id}/pin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
@@ -601,11 +547,7 @@ export default function ThreadModal({
       );
     } catch (error) {
       console.error("Error toggling pin status:", error);
-      if (error instanceof Error && error.message.includes("session")) {
-        toast.error("Please sign in again to pin/unpin threads");
-      } else {
-        toast.error("Failed to toggle pin status. Please try again.");
-      }
+      toast.error("Failed to toggle pin status. Please try again.");
     }
   };
 

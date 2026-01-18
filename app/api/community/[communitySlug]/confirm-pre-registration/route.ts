@@ -6,7 +6,7 @@ import { getEmailService } from "@/lib/resend/email-service";
 import { PreRegistrationConfirmationEmail } from "@/lib/resend/templates/community/pre-registration-confirmation";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-10-28.acacia",
+  apiVersion: "2025-02-24.acacia",
 });
 
 const emailService = getEmailService();
@@ -168,11 +168,11 @@ export async function POST(
       );
     }
 
-    // Get user profile for email
+    // Get user profile for email (userId is Better Auth user ID)
     const userProfile = await queryOne<UserProfile>`
       SELECT full_name, email
       FROM profiles
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     // Send pre-registration confirmation email

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 import {
   AlertDialog,
@@ -29,14 +29,11 @@ export function DeleteCommunityButton({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const { session } = useAuth();
 
   const handleDelete = async () => {
     try {
       setIsDeleting(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error("Not authenticated");
@@ -44,9 +41,6 @@ export function DeleteCommunityButton({
 
       const response = await fetch(`/api/admin/communities/${communityId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       if (!response.ok) {

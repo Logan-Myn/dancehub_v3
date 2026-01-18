@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, CreditCard, Building2, AlertCircle, Shield, AlertTriangle } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BankAccount {
   // International fields
@@ -71,17 +71,7 @@ export function BankAccountStep({
   const [bankAccount, setBankAccount] = useState<BankAccount>(initializeBankAccount());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isValidating, setIsValidating] = useState(false);
-  const supabase = createClient();
-  const [session, setSession] = useState<any>(null);
-
-  // Get session with access token
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, [supabase]);
+  const { session } = useAuth();
 
   // Only update parent when bankAccount actually changes
   useEffect(() => {
@@ -174,7 +164,7 @@ export function BankAccountStep({
     setIsValidating(true);
 
     try {
-      if (!session?.access_token) {
+      if (!session) {
         throw new Error("Not authenticated");
       }
 
@@ -200,7 +190,6 @@ export function BankAccountStep({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           step: "bank_account",

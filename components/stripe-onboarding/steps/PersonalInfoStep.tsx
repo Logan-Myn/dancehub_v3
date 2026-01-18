@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, User, Calendar, MapPin, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PersonalInfo {
   firstName: string;
@@ -166,17 +166,7 @@ export function PersonalInfoStep({
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>(data.personalInfo);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sameAsBusinessAddress, setSameAsBusinessAddress] = useState(false);
-  const supabase = createClient();
-  const [session, setSession] = useState<any>(null);
-
-  // Get session with access token
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, [supabase]);
+  const { session } = useAuth();
 
   // Only update parent when personalInfo actually changes
   useEffect(() => {
@@ -293,7 +283,7 @@ export function PersonalInfoStep({
     }
 
     try {
-      if (!session?.access_token) {
+      if (!session) {
         throw new Error("Not authenticated");
       }
 
@@ -328,7 +318,6 @@ export function PersonalInfoStep({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           step: "personal_info",

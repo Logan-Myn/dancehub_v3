@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "@/lib/db";
 import LiveClassVideoPage from "@/components/LiveClassVideoPage";
 
 interface LiveClassPageProps {
@@ -8,18 +8,37 @@ interface LiveClassPageProps {
   };
 }
 
+interface LiveClass {
+  id: string;
+  title: string;
+  description?: string;
+  scheduled_start_time: string;
+  duration_minutes: number;
+  daily_room_name?: string;
+  status: 'scheduled' | 'live' | 'ended' | 'cancelled';
+  community_slug: string;
+  community_name: string;
+  teacher_name: string;
+  teacher_avatar_url?: string;
+  is_currently_active: boolean;
+  is_starting_soon: boolean;
+}
+
 export default async function LiveClassPage({ params }: LiveClassPageProps) {
   const { classId } = params;
-  const supabase = createAdminClient();
 
-  // Fetch live class details
-  const { data: liveClass, error: classError } = await supabase
-    .from("live_classes_with_details")
-    .select("*")
-    .eq("id", classId)
-    .single();
+  // Fetch live class details from the view
+  const liveClasses = await sql`
+    SELECT id, title, description, scheduled_start_time, duration_minutes,
+           daily_room_name, status, community_slug, community_name,
+           teacher_name, teacher_avatar_url, is_currently_active, is_starting_soon
+    FROM live_classes_with_details
+    WHERE id = ${classId}
+  ` as LiveClass[];
 
-  if (classError || !liveClass) {
+  const liveClass = liveClasses[0];
+
+  if (!liveClass) {
     redirect("/");
   }
 

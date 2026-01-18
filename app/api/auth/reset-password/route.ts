@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     // Use Better Auth's server-side API to request password reset
     // This will trigger the sendResetPassword callback in auth-server.ts
-    await auth.api.forgetPassword({
+    await auth.api.requestPasswordReset({
       body: {
         email,
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,

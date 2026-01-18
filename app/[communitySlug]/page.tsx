@@ -29,9 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ThreadCategory } from "@/types/community";
-import { User } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 import { cn, formatDisplayName } from "@/lib/utils";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
@@ -125,7 +123,12 @@ interface ThreadCardProps {
     likes?: string[];
     comments?: any[];
   };
-  currentUser: User | null;
+  currentUser: {
+    id: string;
+    email: string;
+    name?: string;
+    image?: string | null;
+  } | null;
   onLike: (threadId: string, newLikesCount: number, liked: boolean) => void;
   onClick: () => void;
 }
@@ -185,7 +188,6 @@ export default function CommunityPage() {
   const router = useRouter();
   const communitySlug = params?.communitySlug as string;
   const { user: currentUser, loading: isAuthLoading } = useAuth();
-  const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState("");
 
   if (reservedPaths.includes(communitySlug)) {
@@ -419,56 +421,42 @@ export default function CommunityPage() {
       }
 
       try {
-        // First check if user is admin
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", currentUser?.id)
-          .single();
-
-        // Admins have access to all communities
-        if (profile?.is_admin) {
-          setMembershipChecked(true);
-          setIsMember(true);
-          return;
-        }
-
-        const { data: communityData } = await supabase
-          .from("communities")
-          .select("id")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (!communityData) {
-          notFound();
-          return;
-        }
-
-        // Only proceed with membership check if we have a user
-        if (currentUser) {
-          const { data: memberData } = await supabase
-            .from("community_members")
-            .select("*")
-            .eq("community_id", communityData.id)
-            .eq("user_id", currentUser.id)
-            .maybeSingle();
-
-          if (!memberData) {
-            router.replace(`/${communitySlug}/about`);
-            return;
-          }
-
-          // Check if user is pre-registered
-          if (memberData.status === 'pre_registered' || memberData.status === 'pending_pre_registration') {
-            setIsPreRegistered(true);
+        // First check if user is admin via API
+        const profileResponse = await fetch(`/api/profile?userId=${currentUser?.id}`);
+        if (profileResponse.ok) {
+          const profile = await profileResponse.json();
+          // Admins have access to all communities
+          if (profile?.is_admin) {
             setMembershipChecked(true);
-          } else if (memberData.status === 'active') {
             setIsMember(true);
-            setMembershipChecked(true);
-          } else {
-            router.replace(`/${communitySlug}/about`);
             return;
           }
+        }
+
+        // Check membership status via API
+        const membershipResponse = await fetch(`/api/community/${communitySlug}/check-subscription?userId=${currentUser?.id}`);
+        if (!membershipResponse.ok) {
+          router.replace(`/${communitySlug}/about`);
+          return;
+        }
+
+        const memberData = await membershipResponse.json();
+
+        if (!memberData || memberData.error) {
+          router.replace(`/${communitySlug}/about`);
+          return;
+        }
+
+        // Check if user is pre-registered
+        if (memberData.status === 'pre_registered' || memberData.status === 'pending_pre_registration') {
+          setIsPreRegistered(true);
+          setMembershipChecked(true);
+        } else if (memberData.status === 'active' || memberData.isMember) {
+          setIsMember(true);
+          setMembershipChecked(true);
+        } else {
+          router.replace(`/${communitySlug}/about`);
+          return;
         }
       } catch (error) {
         console.error("Error checking membership:", error);
@@ -478,7 +466,7 @@ export default function CommunityPage() {
     }
 
     checkMembership();
-  }, [communitySlug, currentUser, isAuthLoading]);
+  }, [communitySlug, currentUser, isAuthLoading, router]);
 
   // Only fetch data after membership is confirmed
   useEffect(() => {
@@ -486,43 +474,37 @@ export default function CommunityPage() {
 
     async function fetchData() {
       try {
-        // Get community data
-        const { data: communityData, error: communityError } = await supabase
-          .from("communities")
-          .select("*")
-          .eq("slug", communitySlug)
-          .single();
-
-        if (communityError || !communityData) {
+        // Get community data via API
+        const communityResponse = await fetch(`/api/community/${communitySlug}`);
+        if (!communityResponse.ok) {
           notFound();
           return;
         }
+        const communityData = await communityResponse.json();
 
-        // Get members with profiles
-        const { data: membersData, error: membersError } = await supabase
-          .from("community_members_with_profiles")
-          .select("*")
-          .eq("community_id", communityData.id);
-
-        if (membersError) {
-          console.error("Members error:", membersError);
-          throw membersError;
+        // Get members with profiles via API
+        const membersResponse = await fetch(`/api/community/${communitySlug}/members`);
+        if (!membersResponse.ok) {
+          throw new Error("Failed to fetch members");
         }
+        const { members: membersData } = await membersResponse.json();
 
         // Format members data with profile information
-        const formattedMembers = membersData.map((member) => ({
+        const formattedMembers = (membersData || []).map((member: any) => ({
           ...member,
+          user_id: member.user_id,
           profile: {
             id: member.user_id,
-            full_name: member.full_name || "Anonymous",
-            avatar_url: member.avatar_url,
+            full_name: member.displayName || "Anonymous",
+            display_name: member.displayName,
+            avatar_url: member.imageUrl,
           },
         }));
 
         // Check current user's membership status
         if (currentUser) {
-          const currentMember = membersData.find(
-            (m) => m.user_id === currentUser.id
+          const currentMember = formattedMembers.find(
+            (m: any) => m.user_id === currentUser.id
           );
           if (currentMember) {
             setMemberStatus(currentMember.status);
@@ -532,76 +514,52 @@ export default function CommunityPage() {
           }
         }
 
-        // Get threads with profile data
-        const { data: threadsData, error } = await supabase
-          .from("threads")
-          .select("*")
-          .eq("community_id", communityData.id)
-          .order("created_at", { ascending: false });
+        // Get threads via API
+        const threadsResponse = await fetch(`/api/community/${communitySlug}/threads`);
+        if (!threadsResponse.ok) {
+          throw new Error("Failed to fetch threads");
+        }
+        const threadsData = await threadsResponse.json();
 
-        if (error) throw error;
-
-        // Get all unique user IDs from threads
-        const userIds = Array.from(
-          new Set(threadsData.map((thread: any) => thread.user_id))
-        );
-
-        // Fetch profiles for these users
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url, display_name")
-          .in("id", userIds);
-
-        // Create a map of profiles for easy lookup
-        const profilesMap = (profilesData || []).reduce(
-          (acc: any, profile: any) => {
-            acc[profile.id] = profile;
-            return acc;
+        // Format threads data (API already formats author info)
+        const formattedThreads = (threadsData || []).map((thread: any) => ({
+          id: thread.id,
+          title: thread.title,
+          content: thread.content,
+          createdAt: thread.created_at || thread.createdAt,
+          userId: thread.user_id || thread.userId,
+          author: thread.author || {
+            name: "Anonymous",
+            image: "",
           },
-          {}
-        );
-
-        const formattedThreads = threadsData.map((thread: any) => {
-          const profile = profilesMap[thread.user_id];
-          return {
-            id: thread.id,
-            title: thread.title,
-            content: thread.content,
-            createdAt: thread.created_at,
-            userId: thread.user_id,
-            author: {
-              name: profile?.display_name || profile?.full_name || "Anonymous",
-              image: profile?.avatar_url || thread.author_image || "",
-            },
-            category: thread.category || "General",
-            category_type: thread.category_type || null,
-            categoryId: thread.category_id,
-            likesCount: thread.likes?.length || 0,
-            commentsCount: thread.comments?.length || 0,
-            likes: thread.likes || [],
-            comments: thread.comments || [],
-            pinned: thread.pinned || false,
-          };
-        });
+          category: thread.category || "General",
+          category_type: thread.category_type || null,
+          categoryId: thread.category_id || thread.categoryId,
+          likesCount: thread.likes_count || thread.likesCount || 0,
+          commentsCount: thread.comments_count || thread.commentsCount || 0,
+          likes: thread.likes || [],
+          comments: thread.comments || [],
+          pinned: thread.pinned || false,
+        }));
 
         // Format community data
         const formattedCommunity: Community = {
           ...communityData,
-          membersCount: membersData.length,
-          createdBy: communityData.created_by,
-          imageUrl: communityData.image_url,
-          threadCategories: communityData.thread_categories || [],
-          customLinks: communityData.custom_links || [],
-          membershipEnabled: communityData.membership_enabled || false,
-          membershipPrice: communityData.membership_price || 0,
-          stripeAccountId: communityData.stripe_account_id || null,
+          membersCount: formattedMembers.length,
+          createdBy: communityData.created_by || communityData.createdBy,
+          imageUrl: communityData.image_url || communityData.imageUrl,
+          threadCategories: communityData.thread_categories || communityData.threadCategories || [],
+          customLinks: communityData.custom_links || communityData.customLinks || [],
+          membershipEnabled: communityData.membership_enabled || communityData.membershipEnabled || false,
+          membershipPrice: communityData.membership_price || communityData.membershipPrice || 0,
+          stripeAccountId: communityData.stripe_account_id || communityData.stripeAccountId || null,
         };
 
         setCommunity(formattedCommunity);
         setMembers(formattedMembers);
         setThreads(formattedThreads);
-        setIsCreator(currentUser?.id === communityData.created_by);
-        setTotalMembers(membersData.length);
+        setIsCreator(currentUser?.id === (communityData.created_by || communityData.createdBy));
+        setTotalMembers(formattedMembers.length);
       } catch (error) {
         console.error("Error:", error);
         setError(error instanceof Error ? error : new Error("Unknown error"));
@@ -765,21 +723,25 @@ export default function CommunityPage() {
       (cat) => cat.id === newThread.categoryId
     );
 
-    // Get the current user's profile to get the display name
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("display_name, full_name, avatar_url")
-      .eq("id", currentUser?.id)
-      .single();
+    // Get the current user's profile to get the display name via API
+    let profileData = null;
+    try {
+      const profileResponse = await fetch(`/api/profile?userId=${currentUser?.id}`);
+      if (profileResponse.ok) {
+        profileData = await profileResponse.json();
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    }
 
     const threadWithAuthor = {
       ...newThread,
       author: {
         name:
-          profileData?.display_name || profileData?.full_name || "Anonymous",
+          profileData?.display_name || profileData?.full_name || currentUser?.name || "Anonymous",
         image:
           profileData?.avatar_url ||
-          currentUser?.user_metadata?.avatar_url ||
+          currentUser?.image ||
           "",
       },
       categoryId: newThread.categoryId,
@@ -889,61 +851,33 @@ export default function CommunityPage() {
     if (!community) return;
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      // Get threads via API
+      const threadsResponse = await fetch(`/api/community/${communitySlug}/threads`);
+      if (!threadsResponse.ok) {
+        throw new Error("Failed to fetch threads");
+      }
+      const threadsData = await threadsResponse.json();
 
-      // Get threads with profile data
-      const { data: threadsData, error } = await supabase
-        .from("threads")
-        .select("*")
-        .eq("community_id", community.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Get all unique user IDs from threads
-      const userIds = Array.from(
-        new Set(threadsData.map((thread: any) => thread.user_id))
-      );
-
-      // Fetch profiles for these users
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, display_name")
-        .in("id", userIds);
-
-      // Create a map of profiles for easy lookup
-      const profilesMap = (profilesData || []).reduce(
-        (acc: any, profile: any) => {
-          acc[profile.id] = profile;
-          return acc;
+      // Format threads data (API already formats author info)
+      const formattedThreads = (threadsData || []).map((thread: any) => ({
+        id: thread.id,
+        title: thread.title,
+        content: thread.content,
+        createdAt: thread.created_at || thread.createdAt,
+        userId: thread.user_id || thread.userId,
+        author: thread.author || {
+          name: "Anonymous",
+          image: "",
         },
-        {}
-      );
-
-      const formattedThreads = threadsData.map((thread: any) => {
-        const profile = profilesMap[thread.user_id];
-        return {
-          id: thread.id,
-          title: thread.title,
-          content: thread.content,
-          createdAt: thread.created_at,
-          userId: thread.user_id,
-          author: {
-            name: profile?.display_name || profile?.full_name || "Anonymous",
-            image: profile?.avatar_url || thread.author_image || "",
-          },
-          category: thread.category || "General",
-          category_type: thread.category_type || null,
-          categoryId: thread.category_id,
-          likesCount: thread.likes?.length || 0,
-          commentsCount: thread.comments?.length || 0,
-          likes: thread.likes || [],
-          comments: thread.comments || [],
-          pinned: thread.pinned || false,
-        };
-      });
+        category: thread.category || "General",
+        category_type: thread.category_type || null,
+        categoryId: thread.category_id || thread.categoryId,
+        likesCount: thread.likes_count || thread.likesCount || 0,
+        commentsCount: thread.comments_count || thread.commentsCount || 0,
+        likes: thread.likes || [],
+        comments: thread.comments || [],
+        pinned: thread.pinned || false,
+      }));
 
       setThreads(formattedThreads);
     } catch (error) {
@@ -1044,7 +978,7 @@ export default function CommunityPage() {
                         src={
                           members.find((m) => m.user_id === currentUser?.id)
                             ?.profile?.avatar_url ||
-                          currentUser?.user_metadata?.avatar_url ||
+                          currentUser?.image ||
                           ""
                         }
                         alt={

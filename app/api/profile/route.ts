@@ -8,12 +8,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const requestedUserId = searchParams.get('userId');
 
-    // If userId is provided, fetch that specific profile
+    // If userId is provided, fetch that specific profile (userId is Better Auth user ID)
     if (requestedUserId) {
       const profiles = await sql`
-        SELECT id, full_name, display_name, avatar_url, email, is_admin
+        SELECT id, full_name, display_name, avatar_url, email, is_admin, auth_user_id
         FROM profiles
-        WHERE id = ${requestedUserId}
+        WHERE auth_user_id = ${requestedUserId}
       `;
 
       if (profiles.length === 0) {
@@ -36,9 +36,9 @@ export async function GET(request: Request) {
     }
 
     const profiles = await sql`
-      SELECT id, full_name, display_name, avatar_url, email, is_admin
+      SELECT id, full_name, display_name, avatar_url, email, is_admin, auth_user_id
       FROM profiles
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     if (profiles.length === 0) {
@@ -75,7 +75,7 @@ export async function PUT(request: Request) {
     if (displayName) {
       const existing = await sql`
         SELECT id FROM profiles
-        WHERE display_name = ${displayName} AND id != ${session.user.id}
+        WHERE display_name = ${displayName} AND auth_user_id != ${session.user.id}
         LIMIT 1
       `;
 
@@ -103,7 +103,7 @@ export async function PUT(request: Request) {
         display_name = ${displayName || null},
         avatar_url = COALESCE(${avatarUrl}, avatar_url),
         updated_at = NOW()
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     return NextResponse.json({ success: true });

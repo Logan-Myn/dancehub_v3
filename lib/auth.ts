@@ -78,7 +78,7 @@ export async function signOut() {
  * Request password reset email
  */
 export async function resetPassword(email: string) {
-  const { error } = await authClient.forgetPassword({
+  const { error } = await authClient.requestPasswordReset({
     email,
     redirectTo: `${window.location.origin}/auth/reset-password`,
   });
@@ -130,7 +130,9 @@ export async function changeEmail(newEmail: string) {
  */
 export async function verifyEmail(token: string) {
   const { error } = await authClient.verifyEmail({
-    token,
+    query: {
+      token,
+    },
   });
 
   if (error) {

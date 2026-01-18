@@ -1,5 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { sql } from '@/lib/db';
 import {
   Table,
   TableBody,
@@ -35,78 +34,108 @@ type Course = {
   lessons_count: number;
 };
 
-async function getCourses(communityId?: string) {
-  const supabase = createServerComponentClient({ cookies });
+type Community = {
+  id: string;
+  name: string;
+  slug: string;
+};
 
-  // Fetch courses with community info
-  let query = supabase
-    .from('courses')
-    .select(`
-      *,
-      community:communities(name, slug)
-    `)
-    .order('created_at', { ascending: false });
-
+async function getCourses(communityId?: string): Promise<Course[]> {
+  // Fetch courses
+  let courses;
   if (communityId && communityId !== 'all') {
-    query = query.eq('community_id', communityId);
+    courses = await sql`
+      SELECT c.id, c.title, c.description, c.image_url, c.created_at, c.community_id,
+             com.name as community_name, com.slug as community_slug
+      FROM courses c
+      JOIN communities com ON com.id = c.community_id
+      WHERE c.community_id = ${communityId}
+      ORDER BY c.created_at DESC
+    ` as { id: string; title: string; description: string | null; image_url: string | null; created_at: string; community_id: string; community_name: string; community_slug: string }[];
+  } else {
+    courses = await sql`
+      SELECT c.id, c.title, c.description, c.image_url, c.created_at, c.community_id,
+             com.name as community_name, com.slug as community_slug
+      FROM courses c
+      JOIN communities com ON com.id = c.community_id
+      ORDER BY c.created_at DESC
+    ` as { id: string; title: string; description: string | null; image_url: string | null; created_at: string; community_id: string; community_name: string; community_slug: string }[];
   }
 
-  const { data: courses, error } = await query;
-
-  if (error) {
-    console.error('Error fetching courses:', error);
+  if (!courses || courses.length === 0) {
     return [];
   }
 
-  // Get chapter and lesson counts for each course
-  const coursesWithCounts = await Promise.all(
-    (courses || []).map(async (course) => {
-      const [{ count: chaptersCount }, { data: chapters }] = await Promise.all([
-        supabase
-          .from('chapters')
-          .select('*', { count: 'exact', head: true })
-          .eq('course_id', course.id),
-        supabase
-          .from('chapters')
-          .select('id')
-          .eq('course_id', course.id)
-      ]);
+  // Get all course IDs
+  const courseIds = courses.map(c => c.id);
 
-      // Get total lessons count across all chapters
-      let lessonsCount = 0;
-      if (chapters && chapters.length > 0) {
-        const { count } = await supabase
-          .from('lessons')
-          .select('*', { count: 'exact', head: true })
-          .in('chapter_id', chapters.map(chapter => chapter.id));
-        
-        lessonsCount = count || 0;
-      }
+  // Fetch chapter counts and chapter IDs
+  const chapterData = await sql`
+    SELECT course_id, id, COUNT(*) OVER (PARTITION BY course_id) as chapter_count
+    FROM chapters
+    WHERE course_id = ANY(${courseIds})
+  ` as { course_id: string; id: string; chapter_count: number }[];
 
-      return {
-        ...course,
-        chapters_count: chaptersCount || 0,
-        lessons_count: lessonsCount,
-      };
-    })
-  );
+  // Get unique chapter IDs
+  const chapterIds = chapterData.map(c => c.id);
+
+  // Fetch lesson counts by chapter
+  let lessonCountsByChapter: { chapter_id: string; count: number }[] = [];
+  if (chapterIds.length > 0) {
+    lessonCountsByChapter = await sql`
+      SELECT chapter_id, COUNT(*) as count
+      FROM lessons
+      WHERE chapter_id = ANY(${chapterIds})
+      GROUP BY chapter_id
+    ` as { chapter_id: string; count: number }[];
+  }
+
+  // Create lookup maps
+  const chapterCountMap = new Map<string, number>();
+  const chaptersByCourse = new Map<string, string[]>();
+
+  chapterData.forEach(c => {
+    chapterCountMap.set(c.course_id, Number(c.chapter_count));
+    if (!chaptersByCourse.has(c.course_id)) {
+      chaptersByCourse.set(c.course_id, []);
+    }
+    chaptersByCourse.get(c.course_id)!.push(c.id);
+  });
+
+  const lessonCountByChapter = new Map(lessonCountsByChapter.map(l => [l.chapter_id, Number(l.count)]));
+
+  // Build the final result
+  const coursesWithCounts = courses.map(course => {
+    const chapters = chaptersByCourse.get(course.id) || [];
+    const lessonsCount = chapters.reduce((sum, chapterId) => sum + (lessonCountByChapter.get(chapterId) || 0), 0);
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      image_url: course.image_url,
+      created_at: course.created_at,
+      community_id: course.community_id,
+      community: {
+        name: course.community_name,
+        slug: course.community_slug,
+      },
+      chapters_count: chapterCountMap.get(course.id) || 0,
+      lessons_count: lessonsCount,
+    };
+  });
 
   return coursesWithCounts;
 }
 
-async function getCommunities() {
-  const supabase = createServerComponentClient({ cookies });
-  const { data: communities, error } = await supabase
-    .from('communities')
-    .select('id, name, slug')
-    .order('name');
+async function getCommunities(): Promise<Community[]> {
+  const communities = await sql`
+    SELECT id, name, slug
+    FROM communities
+    ORDER BY name
+  ` as Community[];
 
-  if (error) {
-    console.error('Error fetching communities:', error);
-    return [];
-  }
-
-  return communities;
+  return communities || [];
 }
 
 export default async function CoursesPage({

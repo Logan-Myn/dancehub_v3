@@ -1,5 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { sql } from '@/lib/db';
 import {
   Table,
   TableBody,
@@ -11,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Ban, CheckCircle, MoreVertical } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import DeleteUserButton from '@/components/admin/delete-user-button';
 
 type Community = {
@@ -19,54 +18,59 @@ type Community = {
   slug: string;
 };
 
-type UserWithCommunities = {
+type Profile = {
   id: string;
   email: string;
   full_name: string | null;
   display_name: string | null;
   avatar_url: string | null;
   is_admin: boolean;
-  banned_until: string | null;
   created_at: string;
+};
+
+type UserWithCommunities = Profile & {
   created_communities: Community[];
   joined_communities: Community[];
 };
 
-async function getUsers() {
-  const supabase = createServerComponentClient({ cookies });
-  
+async function getUsers(): Promise<UserWithCommunities[]> {
   // Fetch basic user profiles
-  const { data: profiles, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const profiles = await sql`
+    SELECT id, email, full_name, display_name, avatar_url, is_admin, created_at
+    FROM profiles
+    ORDER BY created_at DESC
+  ` as Profile[];
 
-  if (error) {
-    console.error('Error fetching users:', error);
+  if (!profiles || profiles.length === 0) {
     return [];
   }
 
-  // Fetch communities data separately
-  const usersWithCommunities = await Promise.all(
-    (profiles || []).map(async (user) => {
-      const [{ data: createdCommunities }, { data: joinedCommunities }] = await Promise.all([
-        supabase
-          .from('communities')
-          .select('name, slug')
-          .eq('created_by', user.id),
-        supabase
-          .from('community_members')
-          .select('communities(name, slug)')
-          .eq('user_id', user.id)
-      ]);
+  // Fetch all communities created by these users
+  const userIds = profiles.map(p => p.id);
+  const createdCommunities = await sql`
+    SELECT created_by, name, slug
+    FROM communities
+    WHERE created_by = ANY(${userIds})
+  ` as { created_by: string; name: string; slug: string }[];
 
-      return {
-        ...user,
-        created_communities: createdCommunities || [],
-        joined_communities: joinedCommunities?.map(item => item.communities) || []
-      };
-    })
-  );
+  // Fetch all community memberships for these users
+  const joinedCommunities = await sql`
+    SELECT cm.user_id, c.name, c.slug
+    FROM community_members cm
+    JOIN communities c ON c.id = cm.community_id
+    WHERE cm.user_id = ANY(${userIds})
+  ` as { user_id: string; name: string; slug: string }[];
+
+  // Build the result with communities grouped by user
+  const usersWithCommunities = profiles.map(user => ({
+    ...user,
+    created_communities: createdCommunities
+      .filter(c => c.created_by === user.id)
+      .map(c => ({ name: c.name, slug: c.slug })),
+    joined_communities: joinedCommunities
+      .filter(c => c.user_id === user.id)
+      .map(c => ({ name: c.name, slug: c.slug }))
+  }));
 
   return usersWithCommunities;
 }
@@ -106,7 +110,7 @@ export default async function UsersPage() {
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar_url} />
+                      <AvatarImage src={user.avatar_url || undefined} />
                       <AvatarFallback>
                         {user.full_name?.charAt(0) || user.email?.charAt(0)}
                       </AvatarFallback>
@@ -125,10 +129,6 @@ export default async function UsersPage() {
                     {user.is_admin ? (
                       <span className="flex items-center gap-1 text-xs font-medium text-amber-600">
                         <CheckCircle className="h-3 w-3" /> Admin
-                      </span>
-                    ) : user.banned_until ? (
-                      <span className="flex items-center gap-1 text-xs font-medium text-destructive">
-                        <Ban className="h-3 w-3" /> Banned
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs font-medium text-green-600">

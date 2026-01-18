@@ -1,5 +1,4 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { sql } from '@/lib/db';
 import { stripe } from "@/lib/stripe";
 import {
   Table,
@@ -13,24 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  MoreVertical,
   Users,
   DollarSign,
   CheckCircle,
   XCircle,
-  Pencil,
-  Trash,
 } from "lucide-react";
 import { EditCommunityButton } from "@/components/admin/edit-community-button";
 import { DeleteCommunityButton } from "@/components/admin/delete-community-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
-type Community = {
+type CommunityBase = {
   id: string;
   name: string;
   slug: string;
@@ -41,6 +31,9 @@ type Community = {
   membership_enabled: boolean;
   membership_price: number | null;
   stripe_account_id: string | null;
+};
+
+type Community = CommunityBase & {
   creator: {
     full_name: string | null;
     email: string;
@@ -84,41 +77,55 @@ async function getStripeRevenue(stripeAccountId: string | null) {
   }
 }
 
-async function getCommunities() {
-  const supabase = createServerComponentClient({ cookies });
-
+async function getCommunities(): Promise<Community[]> {
   // First fetch all communities
-  const { data: communities, error: communitiesError } = await supabase
-    .from("communities")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const communities = await sql`
+    SELECT id, name, slug, description, image_url, created_at, created_by,
+           membership_enabled, membership_price, stripe_account_id
+    FROM communities
+    ORDER BY created_at DESC
+  ` as CommunityBase[];
 
-  if (communitiesError) {
-    console.error("Error fetching communities:", communitiesError);
+  if (!communities || communities.length === 0) {
     return [];
   }
 
-  // Then fetch creator profiles, member counts, and Stripe data separately
-  const communitiesWithDetails = await Promise.all(
-    (communities || []).map(async (community) => {
-      const [{ data: creatorData }, { count: membersCount }, stripeData] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("id", community.created_by)
-            .single(),
-          supabase
-            .from("community_members")
-            .select("*", { count: "exact", head: true })
-            .eq("community_id", community.id),
-          getStripeRevenue(community.stripe_account_id),
-        ]);
+  // Get unique creator IDs
+  const creatorIds = Array.from(new Set(communities.map(c => c.created_by)));
+  const communityIds = communities.map(c => c.id);
+
+  // Fetch creators and member counts in parallel
+  const [creators, memberCounts] = await Promise.all([
+    sql`
+      SELECT id, full_name, email
+      FROM profiles
+      WHERE id = ANY(${creatorIds})
+    `,
+    sql`
+      SELECT community_id, COUNT(*) as count
+      FROM community_members
+      WHERE community_id = ANY(${communityIds})
+      GROUP BY community_id
+    `
+  ]) as [
+    { id: string; full_name: string | null; email: string }[],
+    { community_id: string; count: number }[]
+  ];
+
+  // Create lookup maps
+  const creatorMap = new Map(creators.map(c => [c.id, c]));
+  const memberCountMap = new Map(memberCounts.map(m => [m.community_id, Number(m.count)]));
+
+  // Fetch Stripe data for each community (needs to be done sequentially due to rate limits)
+  const communitiesWithDetails: Community[] = await Promise.all(
+    communities.map(async (community) => {
+      const stripeData = await getStripeRevenue(community.stripe_account_id);
+      const creator = creatorMap.get(community.created_by);
 
       return {
         ...community,
-        creator: creatorData || { full_name: null, email: null },
-        members_count: membersCount || 0,
+        creator: creator || { full_name: null, email: '' },
+        members_count: memberCountMap.get(community.id) || 0,
         total_revenue: stripeData.revenue,
         platform_fees: stripeData.fees,
       };

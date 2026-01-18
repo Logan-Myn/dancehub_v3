@@ -1,17 +1,11 @@
 import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
-import { Resend } from "resend";
-import React from "react";
-import { render } from "@react-email/components";
-import { WelcomeEmail } from "@/lib/resend/templates/auth/welcome";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-const emailFrom = process.env.EMAIL_FROM_ADDRESS || "DanceHub <account@dance-hub.io>";
 
 /**
  * Verify email token via Better Auth
- * This endpoint handles the token verification and sends a welcome email
+ * This endpoint handles the token verification for signup
+ * Note: Welcome emails should be handled via Better Auth's onUserVerified callback
+ * or a separate workflow after the user is verified
  */
 export async function POST(request: Request) {
   try {
@@ -31,38 +25,15 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!result) {
+    if (!result || !result.status) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // Get user info to send welcome email
-    // The result might contain user info depending on Better Auth config
-    const user = result.user;
-
-    if (user) {
-      // Send welcome email (don't await)
-      const dashboardUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`;
-      const html = await render(
-        React.createElement(WelcomeEmail, {
-          name: user.name || "there",
-          dashboardUrl: dashboardUrl,
-        })
-      );
-
-      void resend.emails.send({
-        from: emailFrom,
-        to: user.email,
-        subject: "Welcome to DanceHub - Let's get started!",
-        html,
-      }).then(() => {
-        console.log(`Welcome email sent to: ${user.email}`);
-      }).catch((err) => {
-        console.error("Error sending welcome email:", err);
-      });
-    }
+    // Email verified successfully
+    // Better Auth's autoSignInAfterVerification will handle signing in the user
 
     return NextResponse.json({
       message: "Email verified successfully",

@@ -24,7 +24,7 @@ export async function DELETE(
     const requesterProfile = await queryOne<Profile>`
       SELECT id, is_admin
       FROM profiles
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     if (!requesterProfile?.is_admin) {
@@ -34,7 +34,7 @@ export async function DELETE(
     // Delete user's profile first (this will cascade delete community_members)
     await sql`
       DELETE FROM profiles
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     // Delete the user from Better Auth users table
@@ -83,7 +83,7 @@ export async function PATCH(
     const requesterProfile = await queryOne<Profile>`
       SELECT id, is_admin
       FROM profiles
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     if (!requesterProfile?.is_admin) {
@@ -98,7 +98,7 @@ export async function PATCH(
         display_name = ${updates.display_name},
         email = ${updates.email},
         updated_at = NOW()
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     // Update user email in Better Auth users table if changed

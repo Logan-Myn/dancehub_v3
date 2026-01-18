@@ -29,7 +29,9 @@ function VerifyEmailContent() {
       try {
         // Use Better Auth client to verify email
         const result = await authClient.verifyEmail({
-          token,
+          query: {
+            token,
+          },
         });
 
         if (result.error) {

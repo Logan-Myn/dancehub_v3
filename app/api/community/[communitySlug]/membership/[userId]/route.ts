@@ -25,11 +25,11 @@ export async function GET(
   try {
     const { communitySlug, userId } = params;
 
-    // Check if user is admin
+    // Check if user is admin (userId is Better Auth user ID)
     const profile = await queryOne<Profile>`
       SELECT id, is_admin
       FROM profiles
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     // Admins have access to all communities

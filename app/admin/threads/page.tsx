@@ -1,5 +1,4 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { sql } from '@/lib/db';
 import {
   Table,
   TableBody,
@@ -48,74 +47,80 @@ type Community = {
   slug: string;
 };
 
-async function getCommunities() {
-  const supabase = createServerComponentClient({ cookies });
-  const { data: communities, error } = await supabase
-    .from("communities")
-    .select("id, name, slug")
-    .order("name");
+async function getCommunities(): Promise<Community[]> {
+  const communities = await sql`
+    SELECT id, name, slug
+    FROM communities
+    ORDER BY name
+  ` as Community[];
 
-  if (error) {
-    console.error("Error fetching communities:", error);
-    return [];
-  }
-
-  return communities;
+  return communities || [];
 }
 
-async function getThreads(communityId?: string) {
-  const supabase = createServerComponentClient({ cookies });
-
-  // Fetch threads
-  let query = supabase
-    .from("threads")
-    .select("*, comments_count")
-    .order("created_at", { ascending: false });
-
-  if (communityId && communityId !== "all") {
-    query = query.eq("community_id", communityId);
+async function getThreads(communityId?: string): Promise<Thread[]> {
+  // Build the base query
+  let threads;
+  if (communityId && communityId !== 'all') {
+    threads = await sql`
+      SELECT id, title, content, created_at, community_id, created_by, is_hidden, comments_count
+      FROM threads
+      WHERE community_id = ${communityId}
+      ORDER BY created_at DESC
+    ` as { id: string; title: string; content: string; created_at: string; community_id: string; created_by: string; is_hidden: boolean; comments_count: number }[];
+  } else {
+    threads = await sql`
+      SELECT id, title, content, created_at, community_id, created_by, is_hidden, comments_count
+      FROM threads
+      ORDER BY created_at DESC
+    ` as { id: string; title: string; content: string; created_at: string; community_id: string; created_by: string; is_hidden: boolean; comments_count: number }[];
   }
 
-  const { data: threads, error } = await query;
-
-  if (error) {
-    console.error("Error fetching threads:", error);
+  if (!threads || threads.length === 0) {
     return [];
   }
 
-  // Get additional data for each thread
-  const threadsWithDetails = await Promise.all(
-    (threads || []).map(async (thread) => {
-      const [
-        { data: communityData },
-        { data: authorData },
-        { count: reportsCount }
-      ] = await Promise.all([
-        supabase
-          .from("communities")
-          .select("name, slug")
-          .eq("id", thread.community_id)
-          .single(),
-        supabase
-          .from("profiles")
-          .select("full_name, email, avatar_url")
-          .eq("id", thread.created_by)
-          .single(),
-        supabase
-          .from("thread_reports")
-          .select("*", { count: "exact", head: true })
-          .eq("thread_id", thread.id),
-      ]);
+  // Get unique community IDs and author IDs
+  const communityIds = Array.from(new Set(threads.map(t => t.community_id)));
+  const authorIds = Array.from(new Set(threads.map(t => t.created_by)));
+  const threadIds = threads.map(t => t.id);
 
-      return {
-        ...thread,
-        community: communityData || { name: "Unknown", slug: "" },
-        author: authorData || { full_name: "Unknown", email: "", avatar_url: "" },
-        reports_count: reportsCount || 0,
-        replies_count: thread.comments_count || 0,
-      };
-    })
-  );
+  // Fetch all communities, authors, and report counts in parallel
+  const [communities, authors, reportCounts] = await Promise.all([
+    sql`
+      SELECT id, name, slug
+      FROM communities
+      WHERE id = ANY(${communityIds})
+    `,
+    sql`
+      SELECT id, full_name, email, avatar_url
+      FROM profiles
+      WHERE id = ANY(${authorIds})
+    `,
+    sql`
+      SELECT thread_id, COUNT(*) as count
+      FROM thread_reports
+      WHERE thread_id = ANY(${threadIds})
+      GROUP BY thread_id
+    `
+  ]) as [
+    { id: string; name: string; slug: string }[],
+    { id: string; full_name: string; email: string; avatar_url: string }[],
+    { thread_id: string; count: number }[]
+  ];
+
+  // Create lookup maps
+  const communityMap = new Map(communities.map(c => [c.id, c]));
+  const authorMap = new Map(authors.map(a => [a.id, a]));
+  const reportCountMap = new Map(reportCounts.map(r => [r.thread_id, Number(r.count)]));
+
+  // Build the final result
+  const threadsWithDetails = threads.map(thread => ({
+    ...thread,
+    community: communityMap.get(thread.community_id) || { name: "Unknown", slug: "" },
+    author: authorMap.get(thread.created_by) || { full_name: "Unknown", email: "", avatar_url: "" },
+    reports_count: reportCountMap.get(thread.id) || 0,
+    replies_count: thread.comments_count || 0,
+  }));
 
   return threadsWithDetails;
 }
@@ -234,7 +239,7 @@ export default async function ThreadsPage({
                           <Eye className="mr-2 h-4 w-4" />
                           View Thread
                         </DropdownMenuItem>
-                        <DeleteThreadButton 
+                        <DeleteThreadButton
                           threadId={thread.id}
                           threadTitle={thread.title}
                         />

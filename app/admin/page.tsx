@@ -1,38 +1,40 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { sql } from '@/lib/db';
 import { Users, MessageSquare, CreditCard, DollarSign, Percent } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { headers } from 'next/headers';
 
+interface AdminAccessLog {
+  id: string;
+  action: string;
+  resource_type: string;
+  created_at: string;
+}
+
 async function getAdminStats() {
-  const supabase = createServerComponentClient({ cookies });
   const headersList = headers();
   const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https';
   const host = headersList.get('host') || '';
   const baseUrl = `${protocol}://${host}`;
 
   const [
-    { count: usersCount },
-    { count: communitiesCount },
-    { count: threadsCount },
-    { data: recentActivity },
+    usersCountResult,
+    communitiesCountResult,
+    threadsCountResult,
+    recentActivity,
     subscriptionStats
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('communities').select('*', { count: 'exact', head: true }),
-    supabase.from('threads').select('*', { count: 'exact', head: true }),
-    supabase.from('admin_access_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5),
+    sql`SELECT COUNT(*) as count FROM profiles`,
+    sql`SELECT COUNT(*) as count FROM communities`,
+    sql`SELECT COUNT(*) as count FROM threads`,
+    sql`SELECT * FROM admin_access_log ORDER BY created_at DESC LIMIT 5`,
     fetch(`${baseUrl}/api/admin/subscriptions`).then(res => res.json())
   ]);
 
   return {
-    usersCount,
-    communitiesCount,
-    threadsCount,
-    recentActivity,
+    usersCount: Number(usersCountResult[0]?.count) || 0,
+    communitiesCount: Number(communitiesCountResult[0]?.count) || 0,
+    threadsCount: Number(threadsCountResult[0]?.count) || 0,
+    recentActivity: recentActivity as AdminAccessLog[],
     subscriptionStats
   };
 }
@@ -40,10 +42,10 @@ async function getAdminStats() {
 export default async function AdminDashboard() {
   const stats = await getAdminStats();
 
-  const StatCard = ({ title, value, icon: Icon, subtitle }: { 
-    title: string; 
-    value: number | string; 
-    icon: any;
+  const StatCard = ({ title, value, icon: Icon, subtitle }: {
+    title: string;
+    value: number | string;
+    icon: React.ComponentType<{ className?: string }>;
     subtitle?: string;
   }) => (
     <Card className="overflow-hidden">
@@ -111,7 +113,7 @@ export default async function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {stats.recentActivity?.map((activity: any) => (
+            {stats.recentActivity?.map((activity) => (
               <div
                 key={activity.id}
                 className="flex flex-col space-y-1 border-b pb-4 last:border-0"
@@ -129,4 +131,4 @@ export default async function AdminDashboard() {
       </Card>
     </div>
   );
-} 
+}

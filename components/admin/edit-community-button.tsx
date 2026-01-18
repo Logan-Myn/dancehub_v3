@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 import {
   Dialog,
@@ -37,15 +37,12 @@ export function EditCommunityButton({
   const [description, setDescription] = useState(communityDescription);
   const [slug, setSlug] = useState(communitySlug);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const { session } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsLoading(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error("Not authenticated");
@@ -55,7 +52,6 @@ export function EditCommunityButton({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           name,

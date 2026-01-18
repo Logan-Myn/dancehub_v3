@@ -28,7 +28,7 @@ export async function DELETE(
     const requesterProfile = await queryOne<Profile>`
       SELECT id, is_admin
       FROM profiles
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     if (!requesterProfile?.is_admin) {
@@ -67,7 +67,7 @@ export async function PATCH(
     const requesterProfile = await queryOne<Profile>`
       SELECT id, is_admin
       FROM profiles
-      WHERE id = ${session.user.id}
+      WHERE auth_user_id = ${session.user.id}
     `;
 
     if (!requesterProfile?.is_admin) {

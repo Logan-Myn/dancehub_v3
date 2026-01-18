@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Building, User, Globe, Phone, MapPin, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createClient } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BusinessInfo {
   businessType: "individual" | "company";
@@ -147,20 +147,10 @@ export function BusinessInfoStep({
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo>(data.businessInfo);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tosAccepted, setTosAccepted] = useState(false);
-  const supabase = createClient();
-  const [session, setSession] = useState<any>(null);
+  const { session } = useAuth();
 
   // Auto-fill website URL with community page
   const communityWebsiteUrl = `https://dance-hub.io/${communitySlug}`;
-
-  // Get session with access token
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, [supabase]);
 
   // Auto-fill website URL if not already set
   useEffect(() => {
@@ -256,7 +246,7 @@ export function BusinessInfoStep({
         console.log("Using existing accountId:", accountId);
       }
 
-      if (!session?.access_token) {
+      if (!session) {
         throw new Error("Not authenticated");
       }
 
@@ -271,7 +261,6 @@ export function BusinessInfoStep({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           step: "business_info",

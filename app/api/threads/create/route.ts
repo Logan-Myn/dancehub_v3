@@ -61,11 +61,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get user's profile to ensure we have the correct avatar URL
+    // Get user's profile to ensure we have the correct avatar URL (userId is Better Auth user ID)
     const profile = await queryOne<Profile>`
       SELECT avatar_url
       FROM profiles
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     // Create the thread with author info included

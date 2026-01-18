@@ -53,7 +53,7 @@ export async function GET() {
         .filter((c) => c.stripe_account_id)
         .map(async ({ stripe_account_id }) => {
           const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: '2024-10-28.acacia',
+            apiVersion: '2025-02-24.acacia',
             stripeAccount: stripe_account_id!
           });
 

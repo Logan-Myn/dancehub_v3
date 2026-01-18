@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
 import { ArrowLeft, ArrowRight, CheckCircle, X } from "lucide-react";
-import { createClient } from "@/lib/supabase";
 
 import ErrorBoundary from "./ErrorBoundary";
 import { ProgressIndicator } from "./ProgressIndicator";
@@ -137,30 +136,18 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
     documents: [],
   });
 
-  const { user } = useAuth();
-  const supabase = createClient();
-  const [session, setSession] = useState<any>(null);
-
-  // Get session with access token
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, [supabase]);
+  const { user, session } = useAuth();
 
   // Check for existing Stripe account when wizard opens
   useEffect(() => {
     const checkExistingAccount = async () => {
-      console.log("useEffect triggered", { 
-        isOpen, 
-        hasSession: !!session, 
-        hasAccessToken: !!session?.access_token,
-        communitySlug 
+      console.log("useEffect triggered", {
+        isOpen,
+        hasSession: !!session,
+        communitySlug
       });
 
-      if (isOpen && session?.access_token) {
+      if (isOpen && session) {
         console.log("Checking for existing Stripe account...", { 
           communitySlug, 
           hasSession: !!session, 
@@ -205,9 +192,9 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
           console.error("Error checking existing Stripe account:", error);
         }
       } else {
-        console.log("Skipping account check:", { 
-          isOpen, 
-          hasSession: !!session?.access_token 
+        console.log("Skipping account check:", {
+          isOpen,
+          hasSession: !!session
         });
       }
     };
@@ -278,10 +265,10 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
 
   const handleCreateAccount = async () => {
     console.log("handleCreateAccount called, current accountId:", onboardingData.accountId);
-    
+
     setIsLoading(true);
     try {
-      if (!session?.access_token) {
+      if (!session) {
         throw new Error("Not authenticated");
       }
 
@@ -297,7 +284,6 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           communityId,

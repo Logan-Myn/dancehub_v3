@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
 
 /**
  * Verify email via Better Auth
@@ -24,30 +23,19 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!result) {
+    if (!result || !result.status) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 400 }
       );
     }
 
-    // If we have user info, sync the email to profiles table
-    if (result.user) {
-      try {
-        await sql`
-          UPDATE profiles
-          SET email = ${result.user.email}, updated_at = NOW()
-          WHERE auth_user_id = ${result.user.id}
-        `;
-      } catch (profileError) {
-        console.error("Error syncing profile email:", profileError);
-        // Don't fail - auth email was verified successfully
-      }
-    }
+    // Note: Better Auth verifyEmail marks the user's email as verified
+    // The user info is not returned, but the verification is complete
 
     return NextResponse.json({
       message: "Email verified successfully",
-      user: result.user,
+      verified: true,
     });
 
   } catch (error) {

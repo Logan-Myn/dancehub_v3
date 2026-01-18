@@ -144,7 +144,7 @@ export async function POST(
         ${lessonData.duration_minutes},
         ${lessonData.regular_price},
         ${lessonData.member_price || null},
-        ${lessonData.is_active ?? true}
+        true
       )
       RETURNING *
     `;

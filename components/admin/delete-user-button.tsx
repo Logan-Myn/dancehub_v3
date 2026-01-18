@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Trash2, Pencil } from "lucide-react";
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,20 +30,16 @@ interface DeleteUserButtonProps {
 export default function DeleteUserButton({ userId }: DeleteUserButtonProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const supabase = createClient();
+  const { session } = useAuth();
 
   const handleDelete = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('No active session');
       }
 
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
       });
 
       if (!response.ok) {

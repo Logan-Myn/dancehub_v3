@@ -20,11 +20,11 @@ export async function POST(
     const { content, userId, author } = await request.json();
     const { threadId } = params;
 
-    // Get user data
+    // Get user data (userId is Better Auth user ID)
     const userData = await queryOne<Profile>`
       SELECT *
       FROM profiles
-      WHERE id = ${userId}
+      WHERE auth_user_id = ${userId}
     `;
 
     const comment = {
