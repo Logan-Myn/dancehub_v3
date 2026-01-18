@@ -27,7 +27,16 @@ async function getAdminStats() {
     sql`SELECT COUNT(*) as count FROM communities`,
     sql`SELECT COUNT(*) as count FROM threads`,
     sql`SELECT * FROM admin_access_log ORDER BY created_at DESC LIMIT 5`,
-    fetch(`${baseUrl}/api/admin/subscriptions`).then(res => res.json())
+    fetch(`${baseUrl}/api/admin/subscriptions`).then(res => {
+      if (!res.ok) {
+        console.error('Failed to fetch subscription stats:', res.status);
+        return { total_active_subscriptions: 0, total_recurring_revenue: 0, platform_revenue: 0 };
+      }
+      return res.json();
+    }).catch(err => {
+      console.error('Error fetching subscription stats:', err);
+      return { total_active_subscriptions: 0, total_recurring_revenue: 0, platform_revenue: 0 };
+    })
   ]);
 
   return {
