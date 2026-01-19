@@ -43,7 +43,9 @@ export default function LiveClassVideoPage({ classId, liveClass }: LiveClassVide
   const [error, setError] = useState("");
   const [hasJoined, setHasJoined] = useState(false);
 
-  const startTime = parseISO(liveClass.scheduled_start_time);
+  const startTime = typeof liveClass.scheduled_start_time === 'string'
+    ? parseISO(liveClass.scheduled_start_time)
+    : new Date(liveClass.scheduled_start_time);
   const endTime = new Date(startTime.getTime() + liveClass.duration_minutes * 60000);
   const now = new Date();
 

@@ -64,7 +64,7 @@ export async function GET(
     const profile = await queryOne<Profile>`
       SELECT display_name, full_name
       FROM profiles
-      WHERE id = ${user.id}
+      WHERE auth_user_id = ${user.id}
     `;
 
     const userName = profile?.display_name || profile?.full_name || user.email?.split('@')[0] || 'Guest';

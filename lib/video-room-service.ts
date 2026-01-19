@@ -631,7 +631,7 @@ export class VideoRoomService {
         daily_room_url,
         daily_room_expires_at,
         community_id,
-        created_by
+        teacher_id as created_by
       FROM live_classes
       WHERE id = ${classId}
     `;
