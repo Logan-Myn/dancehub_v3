@@ -59,21 +59,11 @@ export async function GET(
       );
     }
 
-    console.log('=== DEBUG: Community API ===');
-    console.log('DATABASE_URL endpoint:', process.env.DATABASE_URL?.split('@')[1]?.split('/')[0]);
-    console.log('Raw community data from DB:', JSON.stringify(community, null, 2));
-    console.log('stripe_account_id value:', community.stripe_account_id);
-    console.log('typeof stripe_account_id:', typeof community.stripe_account_id);
-    console.log('=== END DEBUG ===');
-
     const communityData = {
       ...community,
       membersCount: community.members_count,
       community_members: [{ count: community.members_count }],
     };
-
-    console.log('Final community data being returned:', communityData);
-    console.log('stripe_account_id in final data:', communityData.stripe_account_id);
 
     const response = NextResponse.json(communityData);
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');

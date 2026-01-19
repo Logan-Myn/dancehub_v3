@@ -277,8 +277,6 @@ export default function CommunitySettingsModal({
         if (!response.ok) throw new Error("Failed to fetch community data");
 
         const data = await response.json();
-        console.log("Fetched membership state from API - FULL RESPONSE:", data);
-        console.log("stripe_account_id from API:", data.stripe_account_id);
 
         // Set membership data based on database values
         setIsMembershipEnabled(data.membership_enabled || false);
