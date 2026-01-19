@@ -9,6 +9,10 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			display: ['var(--font-fraunces)', 'serif'],
+  			sans: ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -55,6 +59,36 @@ const config: Config = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
+  		},
+  		animation: {
+  			'gradient-shift': 'gradient-shift 8s ease infinite',
+  			'float': 'float 3s ease-in-out infinite',
+  			'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+  			'bounce-subtle': 'bounce-subtle 0.3s ease-out',
+  			'slide-in-left': 'slide-in-left 0.2s ease-out',
+  		},
+  		keyframes: {
+  			'gradient-shift': {
+  				'0%, 100%': { backgroundPosition: '0% 50%' },
+  				'50%': { backgroundPosition: '100% 50%' },
+  			},
+  			'float': {
+  				'0%, 100%': { transform: 'translateY(0px)' },
+  				'50%': { transform: 'translateY(-5px)' },
+  			},
+  			'glow-pulse': {
+  				'0%, 100%': { boxShadow: '0 0 20px hsl(265 65% 60% / 0.3)' },
+  				'50%': { boxShadow: '0 0 30px hsl(265 65% 60% / 0.5)' },
+  			},
+  			'bounce-subtle': {
+  				'0%': { transform: 'scale(0.95)' },
+  				'50%': { transform: 'scale(1.02)' },
+  				'100%': { transform: 'scale(1)' },
+  			},
+  			'slide-in-left': {
+  				'0%': { transform: 'translateX(-10px)', opacity: '0' },
+  				'100%': { transform: 'translateX(0)', opacity: '1' },
+  			},
   		}
   	}
   },

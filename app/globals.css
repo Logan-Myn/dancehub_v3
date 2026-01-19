@@ -105,6 +105,66 @@ html {
   scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted) / 0.5); /* thumb and track */
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Prose styling for thread content */
+.prose-sm {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.prose-sm p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose-sm p:first-child {
+  margin-top: 0;
+}
+
+.prose-sm a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.prose-sm strong {
+  font-weight: 600;
+}
+
+.prose-sm ul, .prose-sm ol {
+  padding-left: 1.25em;
+  margin: 0.5em 0;
+}
+
+.prose-sm img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin: 0.5em 0;
+}
+
 @theme inline {
   @keyframes meteor {
   0% {

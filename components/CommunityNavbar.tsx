@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface CommunityNavbarProps {
   communitySlug: string;
@@ -18,24 +19,25 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
   ];
 
   // Filter items based on membership status
-  const visibleItems = navItems.filter(item => 
+  const visibleItems = navItems.filter(item =>
     !item.memberOnly || isMember
   );
 
   return (
-    <nav className="bg-white border-b" id="navigation-tabs">
+    <nav className="bg-card border-b border-border/50 sticky top-0 z-40 backdrop-blur-sm bg-card/95" id="navigation-tabs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex" id="navigation-tab-buttons">
+        <div className="flex justify-between h-14">
+          <div className="flex gap-1" id="navigation-tab-buttons">
             {visibleItems.map((item) => (
               <Link
                 key={item.label}
                 href={item.href}
-                className={`inline-flex items-center px-4 pt-1 border-b-2 text-sm font-medium ${
+                className={cn(
+                  "inline-flex items-center px-4 py-2 my-2 rounded-lg text-sm font-medium transition-all duration-200",
                   activePage === item.label.toLowerCase()
-                    ? "border-black text-gray-900"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                }`}
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
                 id={`tab-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 {item.label}

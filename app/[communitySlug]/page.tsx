@@ -18,6 +18,11 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import ThreadCard from "@/components/ThreadCard";
 import ThreadModal from "@/components/ThreadModal";
 import ThreadCategories from "@/components/ThreadCategories";
+import CommunityHeader from "@/components/community/CommunityHeader";
+import ComposerBox from "@/components/community/ComposerBox";
+import CategoryPills from "@/components/community/CategoryPills";
+import ThreadCardFluid from "@/components/community/ThreadCardFluid";
+import CommunitySidebar from "@/components/community/CommunitySidebar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -958,8 +963,13 @@ export default function CommunityPage() {
     return null;
   }
 
+  // Get current user info for composer
+  const currentUserMember = members.find((m) => m.user_id === currentUser?.id);
+  const currentUserAvatar = currentUserMember?.profile?.avatar_url || currentUser?.image || "";
+  const currentUserName = currentUserMember?.profile?.display_name || currentUserMember?.profile?.full_name || currentUser?.name || "User";
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
+    <div className="flex flex-col min-h-screen bg-background font-sans">
       <Navbar />
       <CommunityNavbar
         communitySlug={communitySlug}
@@ -967,59 +977,45 @@ export default function CommunityPage() {
         isMember={isMember}
       />
       <main className="flex-grow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex space-x-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Curved Community Header */}
+          <CommunityHeader
+            name={community.name}
+            description={community.description}
+            imageUrl={community.imageUrl}
+            membersCount={totalMembers}
+            members={members}
+            isCreator={isCreator}
+            onManageClick={() => setShowSettingsModal(true)}
+          />
+
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
             {/* Main Content Area */}
-            <div className="w-3/4">
-              <div className="bg-white rounded-lg shadow p-4 mb-6" id="write-post">
+            <div className="flex-1 min-w-0">
+              {/* Composer Box */}
+              <div id="write-post" className="mb-6">
                 {isWriting ? (
-                  <Thread
-                    communityId={community.id}
-                    userId={currentUser?.id || ""}
-                    communityName={community.name}
-                    community={community}
-                    onSave={handleNewThread}
-                    onCancel={() => setIsWriting(false)}
-                  />
-                ) : (
-                  <div className="flex items-center space-x-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={
-                          members.find((m) => m.user_id === currentUser?.id)
-                            ?.profile?.avatar_url ||
-                          currentUser?.image ||
-                          ""
-                        }
-                        alt={
-                          members.find((m) => m.user_id === currentUser?.id)
-                            ?.profile?.display_name ||
-                          members.find((m) => m.user_id === currentUser?.id)
-                            ?.profile?.full_name ||
-                          "User"
-                        }
-                      />
-                      <AvatarFallback>
-                        {(
-                          members.find((m) => m.user_id === currentUser?.id)
-                            ?.profile?.display_name?.[0] ||
-                          members.find((m) => m.user_id === currentUser?.id)
-                            ?.profile?.full_name?.[0] ||
-                          "U"
-                        ).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div
-                      onClick={() =>
-                        currentUser
-                          ? setIsWriting(true)
-                          : toast.error("Please sign in to post")
-                      }
-                      className="flex-grow cursor-text rounded-full border border-gray-200 bg-gray-50 hover:bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition-colors"
-                    >
-                      Write something...
-                    </div>
+                  <div className="bg-card rounded-2xl p-4 shadow-sm border border-border/50">
+                    <Thread
+                      communityId={community.id}
+                      userId={currentUser?.id || ""}
+                      communityName={community.name}
+                      community={community}
+                      onSave={handleNewThread}
+                      onCancel={() => setIsWriting(false)}
+                    />
                   </div>
+                ) : (
+                  <ComposerBox
+                    userAvatar={currentUserAvatar}
+                    userName={currentUserName}
+                    onClick={() =>
+                      currentUser
+                        ? setIsWriting(true)
+                        : toast.error("Please sign in to post")
+                    }
+                    disabled={!currentUser}
+                  />
                 )}
               </div>
 
@@ -1027,7 +1023,7 @@ export default function CommunityPage() {
               {community.threadCategories &&
                 community.threadCategories.length > 0 && (
                   <div id="thread-categories">
-                    <ThreadCategories
+                    <CategoryPills
                       categories={community.threadCategories}
                       selectedCategory={selectedCategory}
                       onSelectCategory={setSelectedCategory}
@@ -1038,7 +1034,7 @@ export default function CommunityPage() {
               {/* Threads list */}
               <div className="space-y-4">
                 {filteredThreads.map((thread) => (
-                  <ThreadCard
+                  <ThreadCardFluid
                     key={thread.id}
                     id={thread.id}
                     title={thread.title}
@@ -1068,155 +1064,39 @@ export default function CommunityPage() {
                   />
                 ))}
                 {filteredThreads.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No threads in this category yet.
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p className="text-lg font-medium mb-2">No threads yet</p>
+                    <p className="text-sm">Be the first to start a conversation!</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Right Sidebar */}
-            <div className="w-1/4">
-              <div className="bg-white shadow rounded-lg overflow-hidden" id="community-header">
-                <img
-                  src={community.imageUrl || "/placeholder.svg"}
-                  alt={community.name}
-                  className="w-full h-40 object-cover"
-                />
-                <div className="p-4">
-                  <div className="mb-2">
-                    <h2 className="text-xl font-semibold">
-                      {community.name}
-                    </h2>
-                  </div>
-                  <p className="text-sm mb-2">{community.description}</p>
-
-                  <div className="flex items-center text-sm text-gray-500 mb-4" id="member-count">
-                    <Users className="h-4 w-4 mr-1" />
-                    <span>{totalMembers - 1} members</span>
-                  </div>
-
-                  <div className="space-y-2" id="community-sharing">
-                    {community.customLinks?.map((link, index) => (
-                      <Link
-                        key={index}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-sm text-gray-600 hover:underline"
-                      >
-                        <ExternalLink className="inline-block w-4 h-4 mr-2" />
-                        {link.title}
-                      </Link>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex items-center space-x-2">
-                    {Array.isArray(members) && members.length > 0 ? (
-                      <>
-                        {members
-                          .filter(
-                            (member) => member.user_id !== community.created_by
-                          )
-                          .slice(0, 5)
-                          .map((member) => (
-                            <div key={member.id}>
-                              <div className="relative group/avatar">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage
-                                    src={
-                                      member.profile?.avatar_url ||
-                                      "/placeholder-avatar.png"
-                                    }
-                                    alt={member.profile?.full_name || "Member"}
-                                  />
-                                  <AvatarFallback>
-                                    {member.profile?.full_name?.[0]?.toUpperCase() ||
-                                      member.user_id
-                                        .substring(0, 2)
-                                        .toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/avatar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                  {member.profile?.display_name || formatDisplayName(member.profile?.full_name) || "Anonymous"}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        {members.filter(
-                          (member) => member.user_id !== community.created_by
-                        ).length > 5 && (
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-500">
-                            +
-                            {members.filter(
-                              (member) =>
-                                member.user_id !== community.created_by
-                            ).length - 5}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No members yet
-                      </div>
-                    )}
-                  </div>
-
-                  {isCreator ? (
-                    <Button
-                      onClick={() => setShowSettingsModal(true)}
-                      className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
-                      id="manage-community-button"
-                    >
-                      Manage Community
-                    </Button>
-                  ) : isMember ? (
-                    <>
-                      {memberStatus === "inactive" ? (
-                        <>
-                          <Button
-                            onClick={handleReactivateMembership}
-                            className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white"
-                          >
-                            Join Again
-                          </Button>
-                          {accessEndDate && (
-                            <p className="mt-2 text-sm text-center text-yellow-600">
-                              Your membership will end on{" "}
-                              {new Date(accessEndDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <Button
-                          onClick={() => setShowLeaveDialog(true)}
-                          className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white"
-                        >
-                          Leave Community
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <Button
-                      onClick={handleJoinCommunity}
-                      className="w-full mt-4 bg-black hover:bg-gray-800 text-white"
-                    >
-                      {community?.membershipEnabled &&
-                      community?.membershipPrice &&
-                      community?.stripeAccountId
-                        ? `Join for €${community.membershipPrice}/month`
-                        : "Join for free"}
-                    </Button>
-                  )}
-                </div>
-              </div>
+            <div className="w-full lg:w-72 flex-shrink-0">
+              <CommunitySidebar
+                customLinks={community.customLinks || []}
+                members={members}
+                membersCount={totalMembers}
+                creatorId={community.created_by}
+                isMember={isMember}
+                isCreator={isCreator}
+                memberStatus={memberStatus}
+                accessEndDate={accessEndDate}
+                membershipPrice={community.membershipPrice}
+                membershipEnabled={community.membershipEnabled}
+                stripeAccountId={community.stripeAccountId}
+                onLeaveClick={() => setShowLeaveDialog(true)}
+                onReactivateClick={handleReactivateMembership}
+                onJoinClick={handleJoinCommunity}
+              />
             </div>
           </div>
         </div>
       </main>
 
-      <footer className="bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-gray-500">
+      <footer className="bg-card border-t border-border/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-muted-foreground">
           © 2025 DanceHub. All rights reserved.
         </div>
       </footer>
