@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, ArrowRight, CheckCircle, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react";
 
 import ErrorBoundary from "./ErrorBoundary";
 import { ProgressIndicator } from "./ProgressIndicator";
@@ -411,22 +411,12 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
   return (
     <ErrorBoundary>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
-          <DialogHeader className="space-y-4">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-xl sm:text-2xl font-bold">
-                Stripe Payment Setup
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="h-6 w-6 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
+        <DialogContent className="max-w-4xl h-[90vh] w-[95vw] sm:w-full flex flex-col overflow-hidden">
+          <DialogHeader className="space-y-4 flex-shrink-0">
+            <DialogTitle className="text-xl sm:text-2xl font-bold">
+              Stripe Payment Setup
+            </DialogTitle>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>Step {currentStep} of {STEPS.length}</span>
@@ -436,9 +426,9 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
             </div>
           </DialogHeader>
 
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden">
             {/* Progress Sidebar */}
-            <div className="w-full lg:w-64 flex-shrink-0">
+            <div className="w-full lg:w-64 flex-shrink-0 lg:overflow-y-auto">
               <ProgressIndicator
                 steps={STEPS}
                 currentStep={currentStep}
@@ -452,7 +442,7 @@ export function OnboardingWizard({ isOpen, onClose, communityId, communitySlug, 
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-y-auto">
               <Card className="p-4 sm:p-6">
                 {renderCurrentStep()}
               </Card>
