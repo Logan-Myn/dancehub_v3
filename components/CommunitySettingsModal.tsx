@@ -860,8 +860,8 @@ export default function CommunitySettingsModal({
 
   const handleOnboardingComplete = async (accountId: string) => {
     try {
-      // Update the community with the new Stripe account ID
-      onCommunityUpdate({ stripe_account_id: accountId });
+      // Update the community with the new Stripe account ID (use camelCase to match community state)
+      onCommunityUpdate({ stripeAccountId: accountId });
       
       // Refetch Stripe status to get the latest information
       const response = await fetch(`/api/stripe/account-status/${accountId}`);
