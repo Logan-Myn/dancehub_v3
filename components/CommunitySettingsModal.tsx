@@ -248,7 +248,8 @@ export default function CommunitySettingsModal({
   // Fetch revenue data
   useEffect(() => {
     async function fetchRevenueData() {
-      if (activeCategory === "dashboard" && stripeAccountId) {
+      // Only fetch revenue if Stripe account is fully enabled
+      if (activeCategory === "dashboard" && stripeAccountId && stripeAccountStatus.isEnabled) {
         try {
           const response = await fetch(
             `/api/community/${communitySlug}/stripe-revenue`
@@ -258,7 +259,7 @@ export default function CommunitySettingsModal({
           setRevenueData(data);
         } catch (error) {
           console.error("Error fetching revenue data:", error);
-          toast.error("Failed to fetch revenue data");
+          // Don't show error toast for revenue - it's not critical
         }
       }
     }
@@ -266,7 +267,7 @@ export default function CommunitySettingsModal({
     if (isOpen) {
       fetchRevenueData();
     }
-  }, [communitySlug, activeCategory, isOpen, stripeAccountId]);
+  }, [communitySlug, activeCategory, isOpen, stripeAccountId, stripeAccountStatus.isEnabled]);
 
   // Add effect to fetch initial membership state
   useEffect(() => {

@@ -32,6 +32,19 @@ export async function GET(
       return NextResponse.json({ monthlyRevenue: 0 });
     }
 
+    // Check if the Stripe account is fully enabled before fetching data
+    try {
+      const account = await stripe.accounts.retrieve(community.stripe_account_id);
+      if (!account.charges_enabled) {
+        // Account exists but isn't fully onboarded - return 0 instead of error
+        return NextResponse.json({ monthlyRevenue: 0 });
+      }
+    } catch (accountError) {
+      console.error("Error checking Stripe account status:", accountError);
+      // If we can't verify the account, return 0 rather than fail
+      return NextResponse.json({ monthlyRevenue: 0 });
+    }
+
     // Get the first day of the current month
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
