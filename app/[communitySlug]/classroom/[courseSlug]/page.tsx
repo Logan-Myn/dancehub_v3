@@ -322,7 +322,7 @@ export default function CoursePage() {
     title: string;
   } | null>(null);
 
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
 
   // Add SWR hook for course data
   const { data: courseData, error: courseError, mutate: mutateCourse } = useSWR(
@@ -332,9 +332,11 @@ export default function CoursePage() {
 
   // Wait for auth to be initialized
   useEffect(() => {
-    // With Better Auth, session is available from useAuth hook
-    setIsAuthChecked(true);
-  }, []);
+    // Only mark auth as checked once loading is complete
+    if (!authLoading) {
+      setIsAuthChecked(true);
+    }
+  }, [authLoading]);
 
   // Check authentication and membership
   useEffect(() => {

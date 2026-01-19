@@ -23,6 +23,11 @@ const nextConfig = {
         hostname: "placehold.co",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "**.backblazeb2.com",
+        pathname: "/**",
+      },
     ],
   },
   async redirects() {
