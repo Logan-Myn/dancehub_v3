@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 
+// Force dynamic - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface CommunityId {
   id: string;
 }
@@ -86,7 +90,9 @@ export async function GET(
       pinned: thread.pinned || false,
     }));
 
-    return NextResponse.json(formattedThreads);
+    const response = NextResponse.json(formattedThreads);
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
   } catch (error) {
     console.error("Error fetching threads:", error);
     return NextResponse.json(
