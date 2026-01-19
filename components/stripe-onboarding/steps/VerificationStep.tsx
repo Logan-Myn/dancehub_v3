@@ -276,52 +276,6 @@ export function VerificationStep({
         </CardContent>
       </Card>
 
-      {/* Account Capabilities */}
-      {accountStatus && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Charges Enabled</span>
-                <div className="flex items-center gap-2">
-                  {accountStatus.chargesEnabled ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span className="text-green-600">Yes</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4 text-yellow-500" />
-                      <span className="text-yellow-600">Pending</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Payouts Enabled</span>
-                <div className="flex items-center gap-2">
-                  {accountStatus.payoutsEnabled ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span className="text-green-600">Yes</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4 text-yellow-500" />
-                      <span className="text-yellow-600">Pending</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Next Steps */}
       {status === "complete" && (
         <Card className="border-green-200 bg-green-50">
