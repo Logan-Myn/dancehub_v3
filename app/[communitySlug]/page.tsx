@@ -23,6 +23,7 @@ import ComposerBox from "@/components/community/ComposerBox";
 import CategoryPills from "@/components/community/CategoryPills";
 import ThreadCardFluid from "@/components/community/ThreadCardFluid";
 import CommunitySidebar from "@/components/community/CommunitySidebar";
+import ThreadModalFluid from "@/components/community/ThreadModalFluid";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1103,7 +1104,7 @@ export default function CommunityPage() {
 
       {/* Modals */}
       {selectedThread && (
-        <ThreadModal
+        <ThreadModalFluid
           thread={{
             id: selectedThread.id,
             user_id: selectedThread.userId,
