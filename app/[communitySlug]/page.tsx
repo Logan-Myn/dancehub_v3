@@ -421,6 +421,16 @@ export default function CommunityPage() {
       }
 
       try {
+        // Fetch community data early to determine creator status before rendering
+        const communityResponse = await fetch(`/api/community/${communitySlug}`);
+        if (communityResponse.ok) {
+          const communityInfo = await communityResponse.json();
+          const creatorId = communityInfo.created_by || communityInfo.createdBy;
+          if (currentUser?.id === creatorId) {
+            setIsCreator(true);
+          }
+        }
+
         // First check if user is admin via API
         const profileResponse = await fetch(`/api/profile?userId=${currentUser?.id}`);
         if (profileResponse.ok) {
@@ -558,7 +568,7 @@ export default function CommunityPage() {
         setCommunity(formattedCommunity);
         setMembers(formattedMembers);
         setThreads(formattedThreads);
-        setIsCreator(currentUser?.id === (communityData.created_by || communityData.createdBy));
+        // isCreator is already set during membership check to prevent UI flash
         setTotalMembers(formattedMembers.length);
       } catch (error) {
         console.error("Error:", error);
