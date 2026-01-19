@@ -12,10 +12,6 @@ interface Thread {
   community_id: string;
 }
 
-interface Payment {
-  amount: number | null;
-}
-
 interface MemberCount {
   count: number;
 }
@@ -74,37 +70,13 @@ export async function GET(
 
     const totalThreads = threadsData?.length || 0;
 
-    // Get monthly revenue (assuming we store this in a subscriptions or payments table)
+    // Revenue is fetched from Stripe directly via stripe-revenue API
+    // We don't track payments in local database, so set these to 0
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    // Get current month's revenue
-    const monthlyPayments = await query<Payment>`
-      SELECT amount
-      FROM payments
-      WHERE community_id = ${community.id}
-        AND created_at >= ${thirtyDaysAgo.toISOString()}
-    `;
-
-    // Get previous month's revenue
-    const previousMonthPayments = await query<Payment>`
-      SELECT amount
-      FROM payments
-      WHERE community_id = ${community.id}
-        AND created_at >= ${sixtyDaysAgo.toISOString()}
-        AND created_at < ${thirtyDaysAgo.toISOString()}
-    `;
-
-    const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
-    const previousMonthRevenue = previousMonthPayments?.reduce((sum, payment) => sum + (payment.amount || 0), 0) || 0;
-
-    // Calculate revenue growth percentage
-    const revenueGrowth = previousMonthRevenue === 0
-      ? 100 // If previous month was 0, then it's 100% growth
-      : Math.round(((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100);
+    const monthlyRevenue = 0;
+    const revenueGrowth = 0;
 
     // Get membership growth (new members in last 30 days)
     const newMembersResult = await queryOne<MemberCount>`
