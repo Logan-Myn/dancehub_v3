@@ -55,8 +55,12 @@ export async function GET(
       );
     }
 
-    console.log('Raw community data from DB:', community);
+    console.log('=== DEBUG: Community API ===');
+    console.log('DATABASE_URL endpoint:', process.env.DATABASE_URL?.split('@')[1]?.split('/')[0]);
+    console.log('Raw community data from DB:', JSON.stringify(community, null, 2));
     console.log('stripe_account_id value:', community.stripe_account_id);
+    console.log('typeof stripe_account_id:', typeof community.stripe_account_id);
+    console.log('=== END DEBUG ===');
 
     const communityData = {
       ...community,
