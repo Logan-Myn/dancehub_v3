@@ -10,7 +10,6 @@ import {
   Edit2,
   Trash2,
   Pin,
-  X,
   Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -405,18 +404,6 @@ export default function ThreadModalFluid({
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[750px] p-0 max-h-[90vh] flex flex-col bg-card border-border/50 rounded-2xl overflow-hidden">
-          {/* Header with close button */}
-          <div className="absolute right-4 top-4 z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
           {/* Thread Content */}
           <div className="p-6 pb-4 border-b border-border/50">
             {/* Pinned badge */}
