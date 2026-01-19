@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 
+// Force dynamic - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface CommunityWithMembersCount {
   id: string;
   created_at: string;
@@ -71,7 +75,9 @@ export async function GET(
     console.log('Final community data being returned:', communityData);
     console.log('stripe_account_id in final data:', communityData.stripe_account_id);
 
-    return NextResponse.json(communityData);
+    const response = NextResponse.json(communityData);
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
   } catch (error) {
     console.error('Error fetching community:', error);
     return NextResponse.json(
