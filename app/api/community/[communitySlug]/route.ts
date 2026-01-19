@@ -20,6 +20,8 @@ interface CommunityWithMembersCount {
   stripe_account_id: string | null;
   stripe_price_id: string | null;
   stripe_onboarding_type: string | null;
+  thread_categories: unknown;
+  custom_links: unknown;
   members_count: number;
 }
 
@@ -47,6 +49,8 @@ export async function GET(
         c.stripe_account_id,
         c.stripe_price_id,
         c.stripe_onboarding_type,
+        c.thread_categories,
+        c.custom_links,
         (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id)::int as members_count
       FROM communities c
       WHERE c.slug = ${communitySlug}
