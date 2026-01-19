@@ -36,7 +36,7 @@ export async function POST(
     // Update thread likes
     await sql`
       UPDATE threads
-      SET likes = ${JSON.stringify(updatedLikes)}::jsonb
+      SET likes = ${updatedLikes}::text[]
       WHERE id = ${threadId}
     `;
 
