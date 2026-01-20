@@ -226,6 +226,9 @@ export default function Thread({
         editable={true}
         showHeadings={false}
         showParagraphStyle={false}
+        showAlignment={false}
+        placeholder="Write your post here..."
+        minHeight="120px"
       />
 
       {/* Action buttons */}

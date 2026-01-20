@@ -655,6 +655,9 @@ export default function ThreadModal({
                   editable={true}
                   showHeadings={false}
                   showParagraphStyle={false}
+                  showAlignment={false}
+                  placeholder="Write your post..."
+                  minHeight="120px"
                 />
                 <div className="flex justify-end space-x-2">
                   <Button variant="outline" onClick={handleCancelEdit}>

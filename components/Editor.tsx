@@ -4,8 +4,8 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
+import Placeholder from "@tiptap/extension-placeholder";
 import { Extension } from "@tiptap/core";
-import { Button } from "./ui/button";
 import {
   Bold,
   Italic,
@@ -21,6 +21,13 @@ import {
   Heading3,
   Type,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Custom extension to handle text sizes
 const CustomTextStyle = Extension.create({
@@ -55,6 +62,56 @@ interface EditorProps {
   editable?: boolean;
   showHeadings?: boolean;
   showParagraphStyle?: boolean;
+  showAlignment?: boolean;
+  placeholder?: string;
+  minHeight?: string;
+}
+
+// Toolbar button component following Fluid Movement design
+function ToolbarButton({
+  onClick,
+  isActive,
+  tooltip,
+  children,
+}: {
+  onClick: () => void;
+  isActive: boolean;
+  tooltip: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          className={cn(
+            "h-8 w-8 flex items-center justify-center rounded-lg",
+            "transition-all duration-200 ease-out",
+            "hover:bg-primary/10 hover:text-primary",
+            "focus:outline-none focus:ring-2 focus:ring-primary/50",
+            isActive
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground"
+          )}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="text-xs">
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Toolbar group wrapper
+function ToolbarGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1">
+      {children}
+    </div>
+  );
 }
 
 export default function Editor({
@@ -63,13 +120,18 @@ export default function Editor({
   editable = true,
   showHeadings = true,
   showParagraphStyle = true,
+  showAlignment = true,
+  placeholder = "Write something...",
+  minHeight = "150px",
 }: EditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: showHeadings ? {
-          levels: [1, 2, 3],
-        } : false,
+        heading: showHeadings
+          ? {
+              levels: [1, 2, 3],
+            }
+          : false,
         bulletList: {
           HTMLAttributes: {
             class: "list-disc list-inside",
@@ -92,17 +154,18 @@ export default function Editor({
       }),
       TextStyle,
       CustomTextStyle,
+      Placeholder.configure({
+        placeholder,
+        emptyEditorClass:
+          "before:content-[attr(data-placeholder)] before:text-muted-foreground/50 before:float-left before:h-0 before:pointer-events-none",
+      }),
     ],
     content,
     editable,
     editorProps: {
       attributes: {
-        class: [
-          "prose",
-          "prose-sm",
-          "focus:outline-none",
-          "max-w-full",
-          "min-h-[150px]",
+        class: cn(
+          "prose prose-sm max-w-full focus:outline-none",
           "[&>ul>li>*]:inline",
           "[&>ol>li>*]:inline",
           "[&>blockquote]:relative",
@@ -110,25 +173,16 @@ export default function Editor({
           "[&>blockquote]:pr-4",
           "[&>blockquote]:my-4",
           "[&>blockquote]:border-l-4",
-          "[&>blockquote]:border-gray-300",
+          "[&>blockquote]:border-primary/30",
+          "[&>blockquote]:bg-muted/30",
+          "[&>blockquote]:rounded-r-xl",
+          "[&>blockquote]:py-2",
           "[&>blockquote]:not-italic",
           "[&>blockquote>p]:relative",
           "[&>blockquote>p]:m-0",
           "[&>blockquote>p]:leading-[1.6]",
-          "[&>blockquote>p]:text-inherit",
-          `[&>blockquote>p]:before:content-['\u201C']`,
-          "[&>blockquote>p]:before:absolute",
-          "[&>blockquote>p]:before:-left-4",
-          "[&>blockquote>p]:before:font-inherit",
-          "[&>blockquote>p]:before:text-inherit",
-          "[&>blockquote>p]:before:leading-[1]",
-          `[&>blockquote>p]:after:content-['\u201D']`,
-          "[&>blockquote>p]:after:relative",
-          "[&>blockquote>p]:after:ml-1",
-          "[&>blockquote>p]:after:font-inherit",
-          "[&>blockquote>p]:after:text-inherit",
-          "[&>blockquote>p]:after:leading-[1]"
-        ].join(" "),
+          "[&>blockquote>p]:text-muted-foreground"
+        ),
       },
     },
     onUpdate: ({ editor }) => {
@@ -145,184 +199,205 @@ export default function Editor({
   };
 
   return (
-    <div className="space-y-4">
-      {editable && (
-        <div className="flex items-center space-x-2 border-b pb-2">
-          <div className="flex items-center space-x-2 pr-4 border-r">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              className={editor.isActive("bold") ? "bg-gray-200" : ""}
-            >
-              <Bold className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={editor.isActive("italic") ? "bg-gray-200" : ""}
-            >
-              <Italic className="h-4 w-4" />
-            </Button>
-          </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="space-y-3">
+        {/* Toolbar */}
+        {editable && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Text formatting */}
+            <ToolbarGroup>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                isActive={editor.isActive("bold")}
+                tooltip="Bold"
+              >
+                <Bold className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                isActive={editor.isActive("italic")}
+                tooltip="Italic"
+              >
+                <Italic className="h-4 w-4" />
+              </ToolbarButton>
+            </ToolbarGroup>
 
-          {(showParagraphStyle || showHeadings) && (
-            <div className="flex items-center space-x-2 pr-4 border-r">
-              {showParagraphStyle && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => editor.chain().focus().setParagraph().run()}
-                  className={editor.isActive("paragraph") ? "bg-gray-200" : ""}
+            {/* Headings */}
+            {(showParagraphStyle || showHeadings) && (
+              <ToolbarGroup>
+                {showParagraphStyle && (
+                  <ToolbarButton
+                    onClick={() => editor.chain().focus().setParagraph().run()}
+                    isActive={
+                      editor.isActive("paragraph") &&
+                      !editor.isActive("heading")
+                    }
+                    tooltip="Paragraph"
+                  >
+                    <Type className="h-4 w-4" />
+                  </ToolbarButton>
+                )}
+                {showHeadings && (
+                  <>
+                    <ToolbarButton
+                      onClick={() => {
+                        const isInList = editor.isActive("listItem");
+                        if (isInList) {
+                          const hasCustomSize = editor.isActive("textStyle", {
+                            fontSize: "2.25rem",
+                          });
+                          setTextSize(hasCustomSize ? null : "2.25rem");
+                        } else {
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 1 })
+                            .run();
+                        }
+                      }}
+                      isActive={editor.isActive("heading", { level: 1 })}
+                      tooltip="Heading 1"
+                    >
+                      <Heading1 className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={() => {
+                        const isInList = editor.isActive("listItem");
+                        if (isInList) {
+                          const hasCustomSize = editor.isActive("textStyle", {
+                            fontSize: "1.875rem",
+                          });
+                          setTextSize(hasCustomSize ? null : "1.875rem");
+                        } else {
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 2 })
+                            .run();
+                        }
+                      }}
+                      isActive={editor.isActive("heading", { level: 2 })}
+                      tooltip="Heading 2"
+                    >
+                      <Heading2 className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                      onClick={() => {
+                        const isInList = editor.isActive("listItem");
+                        if (isInList) {
+                          const hasCustomSize = editor.isActive("textStyle", {
+                            fontSize: "1.5rem",
+                          });
+                          setTextSize(hasCustomSize ? null : "1.5rem");
+                        } else {
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 3 })
+                            .run();
+                        }
+                      }}
+                      isActive={editor.isActive("heading", { level: 3 })}
+                      tooltip="Heading 3"
+                    >
+                      <Heading3 className="h-4 w-4" />
+                    </ToolbarButton>
+                  </>
+                )}
+              </ToolbarGroup>
+            )}
+
+            {/* Lists & Quote */}
+            <ToolbarGroup>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                isActive={editor.isActive("bulletList")}
+                tooltip="Bullet list"
+              >
+                <List className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                isActive={editor.isActive("orderedList")}
+                tooltip="Numbered list"
+              >
+                <ListOrdered className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                isActive={editor.isActive("blockquote")}
+                tooltip="Quote"
+              >
+                <Quote className="h-4 w-4" />
+              </ToolbarButton>
+            </ToolbarGroup>
+
+            {/* Alignment */}
+            {showAlignment && (
+              <ToolbarGroup>
+                <ToolbarButton
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("left").run()
+                  }
+                  isActive={editor.isActive({ textAlign: "left" })}
+                  tooltip="Align left"
                 >
-                  <Type className="h-4 w-4" />
-                </Button>
-              )}
-              {showHeadings && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isInList = editor.isActive("listItem");
-                      if (isInList) {
-                        const hasCustomSize = editor.isActive("textStyle", { fontSize: "2.25rem" });
-                        setTextSize(hasCustomSize ? null : "2.25rem"); // Toggle between large and default size
-                      } else {
-                        editor.chain().focus().toggleHeading({ level: 1 }).run();
-                      }
-                    }}
-                    className={
-                      editor.isActive("heading", { level: 1 }) ? "bg-gray-200" : ""
-                    }
-                  >
-                    <Heading1 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isInList = editor.isActive("listItem");
-                      if (isInList) {
-                        const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.875rem" });
-                        setTextSize(hasCustomSize ? null : "1.875rem"); // Toggle between medium and default size
-                      } else {
-                        editor.chain().focus().toggleHeading({ level: 2 }).run();
-                      }
-                    }}
-                    className={
-                      editor.isActive("heading", { level: 2 }) ? "bg-gray-200" : ""
-                    }
-                  >
-                    <Heading2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isInList = editor.isActive("listItem");
-                      if (isInList) {
-                        const hasCustomSize = editor.isActive("textStyle", { fontSize: "1.5rem" });
-                        setTextSize(hasCustomSize ? null : "1.5rem"); // Toggle between small and default size
-                      } else {
-                        editor.chain().focus().toggleHeading({ level: 3 }).run();
-                      }
-                    }}
-                    className={
-                      editor.isActive("heading", { level: 3 }) ? "bg-gray-200" : ""
-                    }
-                  >
-                    <Heading3 className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center space-x-2 pr-4 border-r">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className={editor.isActive("bulletList") ? "bg-gray-200" : ""}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className={editor.isActive("orderedList") ? "bg-gray-200" : ""}
-            >
-              <ListOrdered className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              className={editor.isActive("blockquote") ? "bg-gray-200" : ""}
-            >
-              <Quote className="h-4 w-4" />
-            </Button>
+                  <AlignLeft className="h-4 w-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("center").run()
+                  }
+                  isActive={editor.isActive({ textAlign: "center" })}
+                  tooltip="Align center"
+                >
+                  <AlignCenter className="h-4 w-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("right").run()
+                  }
+                  isActive={editor.isActive({ textAlign: "right" })}
+                  tooltip="Align right"
+                >
+                  <AlignRight className="h-4 w-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("justify").run()
+                  }
+                  isActive={editor.isActive({ textAlign: "justify" })}
+                  tooltip="Justify"
+                >
+                  <AlignJustify className="h-4 w-4" />
+                </ToolbarButton>
+              </ToolbarGroup>
+            )}
           </div>
+        )}
 
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setTextAlign("left").run()}
-              className={
-                editor.isActive({ textAlign: "left" }) ? "bg-gray-200" : ""
-              }
-            >
-              <AlignLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                editor.chain().focus().setTextAlign("center").run()
-              }
-              className={
-                editor.isActive({ textAlign: "center" }) ? "bg-gray-200" : ""
-              }
-            >
-              <AlignCenter className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setTextAlign("right").run()}
-              className={
-                editor.isActive({ textAlign: "right" }) ? "bg-gray-200" : ""
-              }
-            >
-              <AlignRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                editor.chain().focus().setTextAlign("justify").run()
-              }
-              className={
-                editor.isActive({ textAlign: "justify" }) ? "bg-gray-200" : ""
-              }
-            >
-              <AlignJustify className="h-4 w-4" />
-            </Button>
+        {/* Editor content area */}
+        <div
+          onClick={() => editable && editor?.chain().focus().run()}
+          className={cn(
+            "w-full rounded-2xl bg-muted/30 transition-all duration-200 cursor-text",
+            editable && [
+              "border-2 border-transparent",
+              "focus-within:border-primary/20 focus-within:bg-card",
+              "hover:border-border/50",
+            ],
+            !editable && "bg-transparent cursor-default"
+          )}
+          style={{ minHeight: editable ? minHeight : "auto" }}
+        >
+          <div className={cn("p-4 h-full", !editable && "p-0")}>
+            <EditorContent
+              editor={editor}
+              className={cn(editable && "min-h-full [&>.tiptap]:min-h-full [&>.tiptap]:outline-none")}
+            />
           </div>
         </div>
-      )}
-
-      <div
-        className={`min-h-[200px] w-full rounded-lg border border-input bg-background p-3 ${
-          !editable && "border-none p-0"
-        }`}
-      >
-        <EditorContent editor={editor} />
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
