@@ -26,6 +26,7 @@ export interface Section {
     description?: string;
     width?: 'narrow' | 'medium' | 'full';
     background?: 'white' | 'light' | 'dark';
+    overlayStyle?: 'gradient' | 'dark' | 'none';
   };
 }
 

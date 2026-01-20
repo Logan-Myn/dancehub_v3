@@ -279,7 +279,10 @@ export default function HeroSection({
       }}
     >
       {/* Section Content - Fluid Movement Hero */}
-      <div className="relative h-[500px] md:h-[600px] flex items-center justify-center text-white overflow-hidden rounded-3xl mx-4 my-4">
+      <div className={cn(
+        "relative h-[500px] md:h-[600px] flex items-center justify-center overflow-hidden rounded-3xl mx-4 my-4",
+        section.content.overlayStyle === 'none' && !section.content.imageUrl ? "bg-muted" : "text-white"
+      )}>
         {/* Background Image */}
         {section.content.imageUrl && (
           <Image
@@ -291,22 +294,37 @@ export default function HeroSection({
           />
         )}
 
-        {/* Gradient Overlay - Dance-inspired purple tint */}
-        <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent" />
-
-        {/* Animated gradient accent */}
-        <div
-          className="absolute inset-0 opacity-30 animate-gradient-shift"
-          style={{
-            background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.5), hsl(275 55% 70% / 0.3), hsl(260 70% 65% / 0.4))',
-            backgroundSize: '400% 400%'
-          }}
-        />
+        {/* Overlay - Conditional based on overlayStyle */}
+        {section.content.overlayStyle !== 'none' && (
+          <>
+            {/* Gradient Overlay - Dance-inspired purple tint */}
+            {section.content.overlayStyle === 'gradient' || !section.content.overlayStyle ? (
+              <>
+                <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent" />
+                <div
+                  className="absolute inset-0 opacity-30 animate-gradient-shift"
+                  style={{
+                    background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.5), hsl(275 55% 70% / 0.3), hsl(260 70% 65% / 0.4))',
+                    backgroundSize: '400% 400%'
+                  }}
+                />
+              </>
+            ) : section.content.overlayStyle === 'dark' ? (
+              <div className="absolute inset-0 bg-black/60" />
+            ) : null}
+          </>
+        )}
 
         {/* Content */}
-        <div className="relative z-10 text-center max-w-3xl mx-auto px-6">
+        <div className={cn(
+          "relative z-10 text-center max-w-3xl mx-auto px-6",
+          section.content.overlayStyle === 'none' && "text-foreground"
+        )}>
           <h1
-            className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 outline-none drop-shadow-lg"
+            className={cn(
+              "font-display text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 outline-none",
+              section.content.overlayStyle !== 'none' && "drop-shadow-lg"
+            )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
             suppressContentEditableWarning
@@ -314,7 +332,10 @@ export default function HeroSection({
             {section.content.title || 'Add title'}
           </h1>
           <p
-            className="text-lg md:text-xl lg:text-2xl mb-10 outline-none opacity-90 max-w-2xl mx-auto drop-shadow-md"
+            className={cn(
+              "text-lg md:text-xl lg:text-2xl mb-10 outline-none max-w-2xl mx-auto",
+              section.content.overlayStyle !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
+            )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
             suppressContentEditableWarning
@@ -325,11 +346,12 @@ export default function HeroSection({
             <Button
               size="lg"
               className={cn(
-                "bg-white text-primary hover:bg-white/90 font-semibold",
-                "rounded-xl h-14 px-8 text-lg",
+                "font-semibold rounded-xl h-14 px-8 text-lg",
                 "transition-all duration-300 ease-out",
-                "hover:scale-105 hover:shadow-xl",
-                "shadow-lg"
+                "hover:scale-105 hover:shadow-xl shadow-lg",
+                section.content.overlayStyle === 'none'
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-white text-primary hover:bg-white/90"
               )}
               onClick={section.content.buttonType === 'join' ? handleButtonClick : undefined}
               asChild={section.content.buttonType === 'link'}
@@ -363,15 +385,17 @@ export default function HeroSection({
           )}
         </div>
 
-        {/* Curved bottom edge */}
-        <svg
-          viewBox="0 0 1200 60"
-          className="absolute bottom-0 left-0 w-full h-8 md:h-12"
-          preserveAspectRatio="none"
-          fill="hsl(var(--background))"
-        >
-          <path d="M0,60 L0,30 Q600,0 1200,30 L1200,60 Z" />
-        </svg>
+        {/* Curved bottom edge - only show with overlays */}
+        {section.content.overlayStyle !== 'none' && (
+          <svg
+            viewBox="0 0 1200 60"
+            className="absolute bottom-0 left-0 w-full h-8 md:h-12"
+            preserveAspectRatio="none"
+            fill="hsl(var(--background))"
+          >
+            <path d="M0,60 L0,30 Q600,0 1200,30 L1200,60 Z" />
+          </svg>
+        )}
       </div>
 
       {/* Editor Toolbar - Fluid Movement */}
@@ -472,6 +496,25 @@ export default function HeroSection({
                 </div>
 
                 <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Overlay Style</label>
+                    <Select
+                      value={section.content.overlayStyle || 'gradient'}
+                      onValueChange={(value: 'gradient' | 'dark' | 'none') => {
+                        onUpdate({ ...section.content, overlayStyle: value });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl border-border/50">
+                        <SelectValue placeholder="Select overlay" />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="rounded-xl">
+                        <SelectItem value="gradient" className="rounded-lg">Purple Gradient</SelectItem>
+                        <SelectItem value="dark" className="rounded-lg">Dark Overlay</SelectItem>
+                        <SelectItem value="none" className="rounded-lg">No Overlay</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Button Type</label>
                     <Select

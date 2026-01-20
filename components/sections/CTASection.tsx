@@ -260,6 +260,25 @@ export default function CTASection({
             >
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Background Style</label>
+                  <Select
+                    value={section.content.overlayStyle || 'gradient'}
+                    onValueChange={(value: 'gradient' | 'dark' | 'none') => {
+                      onUpdate({ ...section.content, overlayStyle: value });
+                    }}
+                  >
+                    <SelectTrigger className="rounded-xl border-border/50">
+                      <SelectValue placeholder="Select style" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="rounded-xl">
+                      <SelectItem value="gradient" className="rounded-lg">Purple Gradient</SelectItem>
+                      <SelectItem value="dark" className="rounded-lg">Dark</SelectItem>
+                      <SelectItem value="none" className="rounded-lg">Light (Muted)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Button Type</label>
                   <Select
                     value={section.content.buttonType || 'link'}
@@ -319,23 +338,39 @@ export default function CTASection({
       )}
 
       {/* Section Content - Fluid Movement CTA */}
-      <div className="relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4 bg-gradient-to-br from-primary via-secondary to-accent">
-        {/* Animated gradient overlay */}
-        <div
-          className="absolute inset-0 opacity-50 animate-gradient-shift"
-          style={{
-            background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.6), hsl(275 55% 70% / 0.4), hsl(260 70% 65% / 0.5))',
-            backgroundSize: '400% 400%'
-          }}
-        />
+      <div className={cn(
+        "relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4",
+        section.content.overlayStyle === 'gradient' || !section.content.overlayStyle
+          ? "bg-gradient-to-br from-primary via-secondary to-accent"
+          : section.content.overlayStyle === 'dark'
+            ? "bg-foreground"
+            : "bg-muted"
+      )}>
+        {/* Animated gradient overlay - only for gradient style */}
+        {(section.content.overlayStyle === 'gradient' || !section.content.overlayStyle) && (
+          <>
+            <div
+              className="absolute inset-0 opacity-50 animate-gradient-shift"
+              style={{
+                background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.6), hsl(275 55% 70% / 0.4), hsl(260 70% 65% / 0.5))',
+                backgroundSize: '400% 400%'
+              }}
+            />
+            {/* Decorative circles */}
+            <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
+          </>
+        )}
 
-        {/* Decorative circles */}
-        <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
-
-        <div className="relative z-10 max-w-3xl mx-auto text-center text-white">
+        <div className={cn(
+          "relative z-10 max-w-3xl mx-auto text-center",
+          section.content.overlayStyle === 'none' ? "text-foreground" : "text-white"
+        )}>
           <h2
-            className="font-display text-3xl md:text-4xl lg:text-5xl font-semibold mb-4 outline-none drop-shadow-lg"
+            className={cn(
+              "font-display text-3xl md:text-4xl lg:text-5xl font-semibold mb-4 outline-none",
+              section.content.overlayStyle !== 'none' && "drop-shadow-lg"
+            )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
             suppressContentEditableWarning
@@ -343,7 +378,10 @@ export default function CTASection({
             {section.content.title || 'Add title'}
           </h2>
           <p
-            className="text-lg md:text-xl mb-10 outline-none opacity-90 max-w-xl mx-auto drop-shadow-md"
+            className={cn(
+              "text-lg md:text-xl mb-10 outline-none max-w-xl mx-auto",
+              section.content.overlayStyle !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
+            )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
             suppressContentEditableWarning
@@ -354,11 +392,12 @@ export default function CTASection({
             <Button
               size="lg"
               className={cn(
-                "bg-white text-primary hover:bg-white/90 font-semibold",
-                "rounded-xl h-14 px-8 text-lg",
+                "font-semibold rounded-xl h-14 px-8 text-lg",
                 "transition-all duration-300 ease-out",
-                "hover:scale-105 hover:shadow-xl",
-                "shadow-lg"
+                "hover:scale-105 hover:shadow-xl shadow-lg",
+                section.content.overlayStyle === 'none'
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-white text-primary hover:bg-white/90"
               )}
               onClick={section.content.buttonType === 'join' ? handleButtonClick : undefined}
               asChild={section.content.buttonType === 'link'}
