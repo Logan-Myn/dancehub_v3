@@ -16,7 +16,13 @@ import {
   FileText,
   CheckCircle,
   CheckCircle2,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Settings,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,13 +144,13 @@ function AddLessonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] rounded-2xl border-border/50 bg-card">
         <DialogHeader>
-          <DialogTitle>Add New Lesson</DialogTitle>
+          <DialogTitle className="font-display text-xl">Add New Lesson</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium">
+            <label htmlFor="title" className="text-sm font-medium text-foreground">
               Lesson Title
             </label>
             <Input
@@ -153,11 +159,12 @@ function AddLessonDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter lesson title"
               required
+              className="rounded-xl border-border/50 focus:border-primary focus:ring-primary/20"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">
+            <label className="text-sm font-medium text-foreground">
               Video Content (Optional)
             </label>
             <VideoUpload
@@ -170,7 +177,7 @@ function AddLessonDialog({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="content" className="text-sm font-medium">
+            <label htmlFor="content" className="text-sm font-medium text-foreground">
               Lesson Content
             </label>
             <Textarea
@@ -180,6 +187,7 @@ function AddLessonDialog({
               placeholder="Enter lesson content"
               rows={5}
               required
+              className="rounded-xl border-border/50 focus:border-primary focus:ring-primary/20"
             />
           </div>
 
@@ -189,10 +197,15 @@ function AddLessonDialog({
               variant="outline"
               onClick={onClose}
               disabled={isSubmitting}
+              className="rounded-xl border-border/50 hover:bg-muted"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-xl bg-primary hover:bg-primary/90"
+            >
               {isSubmitting ? "Creating..." : "Create Lesson"}
             </Button>
           </div>
@@ -254,24 +267,26 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
       {isCreator && (
         <>
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Video Content</h3>
-            <VideoUpload
-              onUploadComplete={(assetId, playbackId) => {
-                setVideoAssetId(assetId);
-                setPlaybackId(playbackId);
-                handleVideoUpload(assetId, playbackId);
-              }}
-              onUploadError={(error) => toast.error(error)}
-            />
+            <h3 className="font-display text-lg font-semibold text-foreground">Video Content</h3>
+            <div className="bg-muted/30 rounded-2xl p-4 border border-border/50">
+              <VideoUpload
+                onUploadComplete={(assetId, playbackId) => {
+                  setVideoAssetId(assetId);
+                  setPlaybackId(playbackId);
+                  handleVideoUpload(assetId, playbackId);
+                }}
+                onUploadError={(error) => toast.error(error)}
+              />
+            </div>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Lesson Content</h3>
+            <h3 className="font-display text-lg font-semibold text-foreground">Lesson Content</h3>
             <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={10}
-              className="w-full"
+              className="w-full rounded-xl border-border/50 focus:border-primary focus:ring-primary/20"
               placeholder="Enter lesson content..."
             />
           </div>
@@ -280,7 +295,7 @@ function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-blue-500 hover:bg-blue-600"
+              className="rounded-xl bg-primary hover:bg-primary/90 transition-all duration-200"
             >
               {isSaving ? "Saving..." : "Save Content"}
             </Button>
@@ -1007,8 +1022,12 @@ export default function CoursePage() {
   const renderLessonContent = (): JSX.Element => {
     if (!selectedLesson) {
       return (
-        <div className="flex items-center justify-center h-[400px]">
-          <p className="text-gray-500">Select a lesson to begin</p>
+        <div className="flex flex-col items-center justify-center h-[400px] text-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+            <BookOpen className="w-8 h-8 text-primary" />
+          </div>
+          <p className="text-muted-foreground font-medium">Select a lesson to begin</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">Choose from the course content on the left</p>
         </div>
       );
     }
@@ -1018,13 +1037,19 @@ export default function CoursePage() {
         {/* Lesson Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold mb-2">
+            <h2 className="font-display text-2xl md:text-3xl font-semibold text-foreground mb-2">
               {selectedLesson.title}
             </h2>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              {selectedLesson.playbackId && (
+                <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 rounded-full">
+                  <Play className="w-3.5 h-3.5" />
+                  <span className="font-medium">Video</span>
+                </div>
+              )}
               {selectedLesson.content && (
-                <div className="flex items-center gap-1">
-                  <FileText className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 bg-muted px-3 py-1 rounded-full">
+                  <FileText className="w-3.5 h-3.5" />
                   <span>Reading material</span>
                 </div>
               )}
@@ -1033,16 +1058,18 @@ export default function CoursePage() {
           <Button
             variant={selectedLesson.completed ? "default" : "outline"}
             onClick={() => toggleLessonCompletion(selectedLesson.id)}
-            className={`flex items-center gap-2 ${
+            className={cn(
+              "flex items-center gap-2 rounded-xl transition-all duration-200",
               selectedLesson.completed
-                ? "bg-green-500 hover:bg-green-600 text-white"
-                : ""
-            }`}
+                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                : "border-border/50 hover:bg-muted hover:border-primary/30"
+            )}
           >
             <CheckCircle2
-              className={`w-5 h-5 ${
-                selectedLesson.completed ? "text-white" : "text-gray-400"
-              }`}
+              className={cn(
+                "w-5 h-5",
+                selectedLesson.completed ? "text-white" : "text-muted-foreground"
+              )}
             />
             {selectedLesson.completed ? "Completed" : "Mark as Complete"}
           </Button>
@@ -1050,29 +1077,28 @@ export default function CoursePage() {
 
         {/* Video Content */}
         {selectedLesson.playbackId && (
-          <Card className="p-4">
+          <div className="rounded-2xl overflow-hidden border border-border/50 shadow-sm bg-black">
             <MuxPlayer playbackId={selectedLesson.playbackId} />
-          </Card>
+          </div>
         )}
 
         {/* Text Content */}
         {selectedLesson.content && (
-          <Card className="p-6 prose prose-slate max-w-none">
+          <div className="bg-muted/30 rounded-2xl p-6 md:p-8 border border-border/50">
             <div
-              className="prose max-w-none"
+              className="prose prose-slate max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
               dangerouslySetInnerHTML={{
                 __html: selectedLesson.content || "",
               }}
             />
-          </Card>
+          </div>
         )}
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between pt-4">
+        <div className="flex justify-between pt-4 border-t border-border/50">
           <Button
             variant="outline"
             onClick={() => {
-              // Find previous lesson logic
               const currentChapter = chapters.find((chapter) =>
                 chapter.lessons.some(
                   (lesson) => lesson.id === selectedLesson.id
@@ -1085,12 +1111,10 @@ export default function CoursePage() {
               );
 
               if (currentLessonIndex > 0) {
-                // Previous lesson in same chapter
                 setSelectedLesson(
                   currentChapter.lessons[currentLessonIndex - 1]
                 );
               } else {
-                // Go to last lesson of previous chapter
                 const currentChapterIndex = chapters.findIndex(
                   (chapter) => chapter.id === currentChapter.id
                 );
@@ -1103,12 +1127,13 @@ export default function CoursePage() {
               }
             }}
             disabled={selectedLesson.id === chapters[0]?.lessons[0]?.id}
+            className="rounded-xl border-border/50 hover:bg-muted hover:border-primary/30 transition-all duration-200 gap-2"
           >
+            <ChevronLeft className="w-4 h-4" />
             Previous Lesson
           </Button>
           <Button
             onClick={() => {
-              // Find next lesson logic
               const currentChapter = chapters.find((chapter) =>
                 chapter.lessons.some(
                   (lesson) => lesson.id === selectedLesson.id
@@ -1121,12 +1146,10 @@ export default function CoursePage() {
               );
 
               if (currentLessonIndex < currentChapter.lessons.length - 1) {
-                // Next lesson in same chapter
                 setSelectedLesson(
                   currentChapter.lessons[currentLessonIndex + 1]
                 );
               } else {
-                // Go to first lesson of next chapter
                 const currentChapterIndex = chapters.findIndex(
                   (chapter) => chapter.id === currentChapter.id
                 );
@@ -1142,8 +1165,10 @@ export default function CoursePage() {
                 chapters[chapters.length - 1]?.lessons.length - 1
               ]?.id
             }
+            className="rounded-xl bg-primary hover:bg-primary/90 transition-all duration-200 gap-2"
           >
             Next Lesson
+            <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
 
@@ -1162,14 +1187,25 @@ export default function CoursePage() {
 
   if (isLoading || !isAccessChecked) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-background">
+        <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center animate-pulse">
+          <BookOpen className="w-6 h-6 text-primary" />
+        </div>
+        <p className="mt-4 text-muted-foreground font-medium">Loading course...</p>
       </div>
     );
   }
 
   if (!course) {
-    return <div>Course not found</div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-background">
+        <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+          <BookOpen className="w-8 h-8 text-destructive" />
+        </div>
+        <h2 className="font-display text-xl font-semibold text-foreground">Course not found</h2>
+        <p className="text-muted-foreground mt-1">This course may have been removed or doesn&apos;t exist.</p>
+      </div>
+    );
   }
 
   const isCreator = Boolean(
@@ -1177,7 +1213,7 @@ export default function CoursePage() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
       <CommunityNavbar
         communitySlug={communitySlug}
@@ -1187,20 +1223,36 @@ export default function CoursePage() {
 
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold">{course.title}</h1>
+          {/* Course Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+              <h1 className="font-display text-3xl md:text-4xl font-semibold text-foreground">
+                {course.title}
+              </h1>
+              {course.description && (
+                <p className="text-muted-foreground mt-2 max-w-2xl">
+                  {course.description}
+                </p>
+              )}
+            </div>
             {isCreator && user && community && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <Button
                   onClick={handleEditCourse}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  variant="outline"
+                  className="rounded-xl border-border/50 hover:bg-muted hover:border-primary/30 transition-all duration-200"
                 >
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  Edit Course
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
                 </Button>
                 <Button
                   onClick={() => setIsEditMode(!isEditMode)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  className={cn(
+                    "rounded-xl transition-all duration-200",
+                    isEditMode
+                      ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                      : "bg-primary hover:bg-primary/90"
+                  )}
                 >
                   <Edit2 className="w-4 h-4 mr-2" />
                   {isEditMode ? "Done Editing" : "Edit Content"}
@@ -1208,12 +1260,19 @@ export default function CoursePage() {
               </div>
             )}
           </div>
-          <div className="flex">
+
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
             {/* Left section: Course index */}
-            <div className="w-1/4">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">Course Content</h2>
-              </div>
+            <div className="w-full lg:w-80 flex-shrink-0">
+              <div className="sticky top-24">
+                <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-border/50">
+                    <h2 className="font-display text-lg font-semibold text-foreground">Course Content</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {chapters.reduce((acc, ch) => acc + ch.lessons.length, 0)} lessons
+                    </p>
+                  </div>
+                  <div className="p-3 max-h-[60vh] overflow-y-auto">
 
               {isCreator && isEditMode ? (
                 <DndContext
@@ -1226,20 +1285,26 @@ export default function CoursePage() {
                     strategy={verticalListSortingStrategy}
                   >
                     {chapters.map((chapter) => (
-                      <div key={chapter.id} className="mb-4">
+                      <div key={chapter.id} className="mb-2">
                         <DraggableItem id={chapter.id}>
                           <div className="flex-1">
                             <div
-                              className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                              className={cn(
+                                "flex justify-between items-center cursor-pointer p-3 rounded-xl transition-all duration-200",
+                                "hover:bg-muted/50 group"
+                              )}
                               onClick={() => toggleChapter(chapter.id)}
                             >
-                              <h3 className="text-lg font-medium">
-                                {chapter.title}
-                              </h3>
                               <div className="flex items-center gap-2">
+                                <GripVertical className="w-4 h-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <h3 className="font-display font-medium text-foreground">
+                                  {chapter.title}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-1">
                                 {isCreator && isEditMode && (
                                   <div
-                                    className="flex gap-2"
+                                    className="flex gap-1"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <Button
@@ -1248,16 +1313,16 @@ export default function CoursePage() {
                                       }
                                       size="sm"
                                       variant="ghost"
-                                      className="text-red-500 hover:text-red-600"
+                                      className="h-8 w-8 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
                                   </div>
                                 )}
                                 {expandedChapters[chapter.id] ? (
-                                  <ChevronUp className="w-4 h-4 text-gray-500" />
+                                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
                                 ) : (
-                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                 )}
                               </div>
                             </div>
@@ -1277,26 +1342,35 @@ export default function CoursePage() {
                                     )}
                                     strategy={verticalListSortingStrategy}
                                   >
-                                    <ul className="ml-6 space-y-1">
+                                    <ul className="ml-4 space-y-1 border-l-2 border-border/30 pl-3">
                                       {(chapter.lessons || []).map((lesson) => (
                                         <DraggableItem
                                           key={lesson.id}
                                           id={lesson.id}
                                         >
-                                          <li className="flex-1 flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50">
-                                            <div className="flex items-center gap-2 flex-1">
-                                              <div className="w-4">
-                                                {lesson.completed && (
-                                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                          <li
+                                            className={cn(
+                                              "flex-1 flex justify-between items-center py-2 px-3 rounded-lg transition-all duration-200 group/lesson",
+                                              selectedLesson?.id === lesson.id
+                                                ? "bg-primary/10 border-l-2 border-primary -ml-[3px] pl-[11px]"
+                                                : "hover:bg-muted/50"
+                                            )}
+                                          >
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                              <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                                                {lesson.completed ? (
+                                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                                ) : (
+                                                  <div className="w-3 h-3 rounded-full border-2 border-muted-foreground/30" />
                                                 )}
                                               </div>
                                               <span
-                                                className={`cursor-pointer ${
-                                                  selectedLesson?.id ===
-                                                  lesson.id
-                                                    ? "text-blue-500"
-                                                    : "text-gray-700"
-                                                }`}
+                                                className={cn(
+                                                  "cursor-pointer text-sm truncate transition-colors duration-200",
+                                                  selectedLesson?.id === lesson.id
+                                                    ? "text-primary font-medium"
+                                                    : "text-foreground hover:text-primary"
+                                                )}
                                                 onClick={() =>
                                                   setSelectedLesson(lesson)
                                                 }
@@ -1315,9 +1389,9 @@ export default function CoursePage() {
                                                 }
                                                 size="sm"
                                                 variant="ghost"
-                                                className="text-red-500 hover:text-red-600"
+                                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg opacity-0 group-hover/lesson:opacity-100 transition-opacity"
                                               >
-                                                <Trash2 className="w-4 h-4" />
+                                                <Trash2 className="w-3.5 h-3.5" />
                                               </Button>
                                             )}
                                           </li>
@@ -1329,16 +1403,16 @@ export default function CoursePage() {
 
                                 {/* Add Lesson form at the bottom */}
                                 {isCreator && isEditMode && (
-                                  <div className="ml-6 mt-2">
+                                  <div className="ml-4 mt-2 pl-3 border-l-2 border-border/30">
                                     {isAddingLesson === chapter.id ? (
-                                      <div className="p-2 bg-gray-50 rounded-md">
+                                      <div className="p-3 bg-muted/30 rounded-xl">
                                         <Input
                                           value={newLessonTitle}
                                           onChange={(e) =>
                                             setNewLessonTitle(e.target.value)
                                           }
                                           placeholder="Lesson title"
-                                          className="mb-2"
+                                          className="mb-2 rounded-lg border-border/50 text-sm"
                                         />
                                         <div className="flex gap-2">
                                           <Button
@@ -1349,6 +1423,7 @@ export default function CoursePage() {
                                               )
                                             }
                                             size="sm"
+                                            className="rounded-lg bg-primary hover:bg-primary/90"
                                           >
                                             Save
                                           </Button>
@@ -1359,6 +1434,7 @@ export default function CoursePage() {
                                             }}
                                             variant="outline"
                                             size="sm"
+                                            className="rounded-lg border-border/50"
                                           >
                                             Cancel
                                           </Button>
@@ -1371,7 +1447,7 @@ export default function CoursePage() {
                                         }
                                         size="sm"
                                         variant="ghost"
-                                        className="w-full text-blue-500 hover:text-blue-600"
+                                        className="w-full text-primary hover:text-primary hover:bg-primary/10 rounded-lg text-sm"
                                       >
                                         <Plus className="w-4 h-4 mr-2" />
                                         Add Lesson
@@ -1390,76 +1466,61 @@ export default function CoursePage() {
               ) : (
                 // Regular view when not in edit mode
                 chapters.map((chapter) => (
-                  <div key={chapter.id} className="mb-4">
+                  <div key={chapter.id} className="mb-2">
                     <div
-                      className="flex justify-between items-center mb-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                      className={cn(
+                        "flex justify-between items-center cursor-pointer p-3 rounded-xl transition-all duration-200",
+                        "hover:bg-muted/50"
+                      )}
                       onClick={() => toggleChapter(chapter.id)}
                     >
-                      <h3 className="text-lg font-medium">{chapter.title}</h3>
+                      <h3 className="font-display font-medium text-foreground">
+                        {chapter.title}
+                      </h3>
                       <div className="flex items-center gap-2">
-                        {isCreator && isEditMode && (
-                          <div
-                            className="flex gap-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button
-                              onClick={() => handleDeleteChapter(chapter.id)}
-                              size="sm"
-                              variant="ghost"
-                              className="text-red-500 hover:text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        )}
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                          {chapter.lessons.filter(l => l.completed).length}/{chapter.lessons.length}
+                        </span>
                         {expandedChapters[chapter.id] ? (
-                          <ChevronUp className="w-4 h-4 text-gray-500" />
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-500" />
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
                         )}
                       </div>
                     </div>
 
                     {expandedChapters[chapter.id] && (
-                      <ul className="ml-6 space-y-1">
+                      <ul className="ml-4 space-y-1 border-l-2 border-border/30 pl-3">
                         {chapter.lessons.map((lesson) => (
                           <li
                             key={lesson.id}
-                            className="flex justify-between items-center py-1 px-2 rounded-md hover:bg-gray-50"
+                            className={cn(
+                              "flex justify-between items-center py-2 px-3 rounded-lg transition-all duration-200 cursor-pointer",
+                              selectedLesson?.id === lesson.id
+                                ? "bg-primary/10 border-l-2 border-primary -ml-[3px] pl-[11px]"
+                                : "hover:bg-muted/50"
+                            )}
+                            onClick={() => setSelectedLesson(lesson)}
                           >
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-4">
-                                {lesson.completed && (
-                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                                {lesson.completed ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <div className="w-3 h-3 rounded-full border-2 border-muted-foreground/30" />
                                 )}
                               </div>
                               <span
-                                className={`cursor-pointer ${
+                                className={cn(
+                                  "text-sm truncate transition-colors duration-200",
                                   selectedLesson?.id === lesson.id
-                                    ? "text-blue-500"
-                                    : "text-gray-700"
-                                }`}
-                                onClick={() => setSelectedLesson(lesson)}
+                                    ? "text-primary font-medium"
+                                    : "text-foreground"
+                                )}
                               >
                                 {lesson.title}
                               </span>
                             </div>
-                            {isCreator && isEditMode && (
-                              <Button
-                                onClick={() =>
-                                  handleDeleteLesson(
-                                    chapter.id,
-                                    lesson.id,
-                                    lesson.title
-                                  )
-                                }
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-500 hover:text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
                           </li>
                         ))}
                       </ul>
@@ -1469,17 +1530,21 @@ export default function CoursePage() {
               )}
 
               {isCreator && isEditMode && (
-                <div className="mt-6">
+                <div className="mt-4 pt-4 border-t border-border/50">
                   {isAddingChapter ? (
-                    <div className="p-2 bg-gray-50 rounded-md">
+                    <div className="p-3 bg-muted/30 rounded-xl">
                       <Input
                         value={newChapterTitle}
                         onChange={(e) => setNewChapterTitle(e.target.value)}
                         placeholder="Chapter title"
-                        className="mb-2"
+                        className="mb-2 rounded-lg border-border/50 text-sm"
                       />
                       <div className="flex gap-2">
-                        <Button onClick={handleAddChapter} size="sm">
+                        <Button
+                          onClick={handleAddChapter}
+                          size="sm"
+                          className="rounded-lg bg-primary hover:bg-primary/90"
+                        >
                           Save
                         </Button>
                         <Button
@@ -1489,6 +1554,7 @@ export default function CoursePage() {
                           }}
                           variant="outline"
                           size="sm"
+                          className="rounded-lg border-border/50"
                         >
                           Cancel
                         </Button>
@@ -1497,7 +1563,7 @@ export default function CoursePage() {
                   ) : (
                     <Button
                       onClick={() => setIsAddingChapter(true)}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white"
+                      className="w-full rounded-xl bg-primary hover:bg-primary/90 text-white"
                       size="sm"
                     >
                       <Plus className="w-4 h-4 mr-2" />
@@ -1506,11 +1572,14 @@ export default function CoursePage() {
                   )}
                 </div>
               )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Center/right section: Course content */}
-            <div className="w-3/4 pl-8">
-              <div className="bg-white rounded-lg shadow-sm p-8">
+            <div className="flex-1 min-w-0">
+              <div className="bg-card rounded-2xl border border-border/50 shadow-sm p-6 md:p-8">
                 {renderLessonContent()}
               </div>
             </div>
