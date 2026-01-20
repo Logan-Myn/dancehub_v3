@@ -12,12 +12,8 @@ import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
-
-interface Community {
-  id: string;
-  name: string;
-  created_by: string;
-}
+import { Plus, BookOpen, Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Course {
   id: string;
@@ -29,6 +25,52 @@ interface Course {
   slug: string;
   community_id: string;
   is_public: boolean;
+}
+
+// Loading spinner component following Fluid Movement design
+function LoadingSpinner() {
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-background">
+      <div className="relative">
+        <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="h-6 w-6 rounded-full bg-primary/10 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Skeleton card for loading state
+function CourseCardSkeleton() {
+  return (
+    <div className="bg-card rounded-2xl overflow-hidden border border-border/50 animate-pulse">
+      <div className="h-48 bg-muted/50" />
+      <div className="p-5 space-y-3">
+        <div className="h-5 bg-muted/50 rounded-xl w-3/4" />
+        <div className="h-4 bg-muted/50 rounded-xl w-1/2" />
+      </div>
+    </div>
+  );
+}
+
+// Empty state component
+function EmptyState({ isCreator }: { isCreator: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+        <BookOpen className="h-10 w-10 text-primary" />
+      </div>
+      <h3 className="font-display text-xl font-semibold text-foreground mb-2 text-center">
+        {isCreator ? "No courses yet" : "No courses available"}
+      </h3>
+      <p className="text-muted-foreground text-center max-w-md">
+        {isCreator
+          ? "Start building your classroom by creating your first course. Share your knowledge with your community members."
+          : "This community hasn't published any courses yet. Check back soon for new learning content."}
+      </p>
+    </div>
+  );
 }
 
 export default function ClassroomPage() {
@@ -147,23 +189,19 @@ export default function ClassroomPage() {
       }
 
       const createdCourse = await response.json();
-      mutateCourses([...courses, createdCourse], false); // Update the courses list optimistically
+      mutateCourses([...courses, createdCourse], false);
       setIsCreateCourseModalOpen(false);
       toast.success("Course created successfully");
     } catch (error) {
       console.error("Error creating course:", error);
       toast.error("Failed to create course");
-      mutateCourses(); // Revalidate the courses list if the optimistic update failed
+      mutateCourses();
     }
   };
 
   // Show loading state while checking membership
   if (isAuthLoading || !membershipChecked) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // If we're not a member, don't show anything while redirecting
@@ -174,28 +212,26 @@ export default function ClassroomPage() {
   // Show loading state for data fetching if we're confirmed as a member
   if (isCommunityLoading || isCoursesLoading) {
     return (
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col min-h-screen bg-background">
         <Navbar />
-        <CommunityNavbar 
-          communitySlug={communitySlug} 
-          activePage="classroom" 
-          isMember={isMember} 
+        <CommunityNavbar
+          communitySlug={communitySlug}
+          activePage="classroom"
+          isMember={isMember}
         />
         <main className="flex-grow">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Header skeleton */}
             <div className="flex justify-between items-center mb-8">
-              <div className="h-9 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-40 bg-muted/50 rounded-xl animate-pulse" />
               {isCreator && (
-                <div className="h-9 w-28 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-10 w-36 bg-muted/50 rounded-xl animate-pulse" />
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Course grid skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-100 rounded-lg p-4 h-64 animate-pulse">
-                  <div className="w-full h-40 bg-gray-200 rounded-lg mb-4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                </div>
+                <CourseCardSkeleton key={i} />
               ))}
             </div>
           </div>
@@ -206,72 +242,97 @@ export default function ClassroomPage() {
 
   // Show error state if any error occurred
   if (error || communityError) {
-    return <div>Error loading classroom: {(error || communityError)?.message}</div>;
-  }
-
-  // Only show loading state for data fetching if we're confirmed as a member
-  if (!community) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="flex flex-col min-h-screen bg-background">
+        <Navbar />
+        <CommunityNavbar
+          communitySlug={communitySlug}
+          activePage="classroom"
+          isMember={isMember}
+        />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-8 max-w-md text-center">
+            <h2 className="font-display text-xl font-semibold text-destructive mb-2">
+              Error loading classroom
+            </h2>
+            <p className="text-muted-foreground">
+              {(error || communityError)?.message}
+            </p>
+          </div>
+        </main>
       </div>
     );
   }
 
+  // Only show loading state for data fetching if we're confirmed as a member
+  if (!community) {
+    return <LoadingSpinner />;
+  }
+
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
-      <CommunityNavbar 
-        communitySlug={communitySlug} 
-        activePage="classroom" 
-        isMember={isMember} 
+      <CommunityNavbar
+        communitySlug={communitySlug}
+        activePage="classroom"
+        isMember={isMember}
       />
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold">Classroom</h1>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+            <div>
+              <h1 className="font-display text-3xl md:text-4xl font-semibold text-foreground">
+                Classroom
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                {courses.length > 0
+                  ? `${courses.length} course${courses.length !== 1 ? 's' : ''} available`
+                  : 'Explore courses and expand your skills'}
+              </p>
+            </div>
             {isCreator && (
-              <Button onClick={() => setIsCreateCourseModalOpen(true)}>
+              <Button
+                onClick={() => setIsCreateCourseModalOpen(true)}
+                className={cn(
+                  "bg-primary hover:bg-primary/90 text-primary-foreground",
+                  "rounded-xl px-5 h-11 font-medium",
+                  "transition-all duration-200 ease-out",
+                  "shadow-sm hover:shadow-md"
+                )}
+              >
+                <Plus className="h-5 w-5 mr-2" />
                 Create Course
               </Button>
             )}
           </div>
 
-          <div>
-            {courses.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {courses.map((course: Course) => (
-                  <Link
-                    key={course.id}
-                    href={`/${communitySlug}/classroom/${course.slug}`}
-                  >
+          {/* Course grid or empty state */}
+          {courses.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {courses.map((course: Course) => (
+                <div key={course.id} className="relative">
+                  <Link href={`/${communitySlug}/classroom/${course.slug}`}>
                     <CourseCard
                       course={course}
                       onClick={() => {}}
                     />
-                    {(isCreator || profile?.is_admin) && !course.is_public && (
-                      <div className="mt-2 text-sm text-gray-500 flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 bg-gray-500 rounded-full"></span>
-                        Private Course
-                      </div>
-                    )}
                   </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                {isCreator ? (
-                  <p className="text-xl text-gray-600">
-                    You don't have a course yet, click on the Create Course button to create your first course
-                  </p>
-                ) : (
-                  <p className="text-xl text-gray-600">
-                    This community doesn't have any public courses yet
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                  {/* Private badge */}
+                  {(isCreator || profile?.is_admin) && !course.is_public && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-card/90 backdrop-blur-sm text-muted-foreground text-xs font-medium px-3 py-1.5 rounded-full border border-border/50 shadow-sm">
+                      <Lock className="h-3 w-3" />
+                      Private
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-card rounded-2xl border border-border/50 shadow-sm">
+              <EmptyState isCreator={isCreator} />
+            </div>
+          )}
         </div>
 
         <CreateCourseModal
