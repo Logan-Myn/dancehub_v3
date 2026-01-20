@@ -278,8 +278,9 @@ export default function HeroSection({
         }
       }}
     >
-      {/* Section Content */}
-      <div className="relative h-[500px] flex items-center justify-center text-white">
+      {/* Section Content - Fluid Movement Hero */}
+      <div className="relative h-[500px] md:h-[600px] flex items-center justify-center text-white overflow-hidden rounded-3xl mx-4 my-4">
+        {/* Background Image */}
         {section.content.imageUrl && (
           <Image
             src={section.content.imageUrl}
@@ -289,10 +290,23 @@ export default function HeroSection({
             priority
           />
         )}
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="relative z-10 text-center max-w-3xl mx-auto px-4">
+
+        {/* Gradient Overlay - Dance-inspired purple tint */}
+        <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent" />
+
+        {/* Animated gradient accent */}
+        <div
+          className="absolute inset-0 opacity-30 animate-gradient-shift"
+          style={{
+            background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.5), hsl(275 55% 70% / 0.3), hsl(260 70% 65% / 0.4))',
+            backgroundSize: '400% 400%'
+          }}
+        />
+
+        {/* Content */}
+        <div className="relative z-10 text-center max-w-3xl mx-auto px-6">
           <h1
-            className="text-4xl md:text-5xl font-bold mb-4 outline-none"
+            className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 outline-none drop-shadow-lg"
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
             suppressContentEditableWarning
@@ -300,7 +314,7 @@ export default function HeroSection({
             {section.content.title || 'Add title'}
           </h1>
           <p
-            className="text-xl md:text-2xl mb-8 outline-none"
+            className="text-lg md:text-xl lg:text-2xl mb-10 outline-none opacity-90 max-w-2xl mx-auto drop-shadow-md"
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
             suppressContentEditableWarning
@@ -310,15 +324,21 @@ export default function HeroSection({
           {(section.content.buttonType === 'join' || section.content.buttonType === 'link') && (
             <Button
               size="lg"
-              className="bg-white text-black hover:bg-gray-100"
+              className={cn(
+                "bg-white text-primary hover:bg-white/90 font-semibold",
+                "rounded-xl h-14 px-8 text-lg",
+                "transition-all duration-300 ease-out",
+                "hover:scale-105 hover:shadow-xl",
+                "shadow-lg"
+              )}
               onClick={section.content.buttonType === 'join' ? handleButtonClick : undefined}
               asChild={section.content.buttonType === 'link'}
               disabled={section.content.buttonType === 'join' && communityData?.isMember}
             >
               {section.content.buttonType === 'link' ? (
-                <a 
-                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink || '#'}`} 
-                  target="_blank" 
+                <a
+                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink || '#'}`}
+                  target="_blank"
                   rel="noopener noreferrer"
                 >
                   {section.content.ctaText || 'Click here'}
@@ -342,22 +362,32 @@ export default function HeroSection({
             </Button>
           )}
         </div>
+
+        {/* Curved bottom edge */}
+        <svg
+          viewBox="0 0 1200 60"
+          className="absolute bottom-0 left-0 w-full h-8 md:h-12"
+          preserveAspectRatio="none"
+          fill="hsl(var(--background))"
+        >
+          <path d="M0,60 L0,30 Q600,0 1200,30 L1200,60 Z" />
+        </svg>
       </div>
 
-      {/* Editor Toolbar */}
+      {/* Editor Toolbar - Fluid Movement */}
       {isEditing && (isHovered || isSettingsOpen) && (
-        <div className="absolute top-0 right-0 p-2 flex items-center gap-2 bg-black/75 rounded-bl z-20">
+        <div className="absolute top-6 right-6 p-2 flex items-center gap-1 bg-card/95 backdrop-blur-sm rounded-xl border border-border/50 shadow-lg z-20">
           <Button
             variant="ghost"
             size="sm"
-            className="text-white hover:bg-white/20"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             {...attributes}
             {...listeners}
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover 
-            open={isSettingsOpen} 
+          <Popover
+            open={isSettingsOpen}
             onOpenChange={(open) => {
               setIsSettingsOpen(open);
               if (open) {
@@ -369,20 +399,18 @@ export default function HeroSection({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-white/20"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent 
-              className="w-80" 
+            <PopoverContent
+              className="w-80 rounded-xl border-border/50"
               onInteractOutside={(e) => {
-                // Allow closing when clicking outside the banner
                 const target = e.target as HTMLElement;
                 if (!target.closest('.hero-section-banner')) {
                   setIsSettingsOpen(false);
                 }
-                // Prevent closing when interacting with select
                 if (target.closest('[role="listbox"]')) {
                   e.preventDefault();
                 }
@@ -390,10 +418,10 @@ export default function HeroSection({
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Background Image</label>
+                  <label className="text-sm font-medium text-foreground">Background Image</label>
                   <div className="flex items-center gap-4">
                     {section.content.imageUrl && (
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-border/50">
                         <Image
                           src={section.content.imageUrl}
                           alt="Background"
@@ -403,42 +431,20 @@ export default function HeroSection({
                       </div>
                     )}
                     <div>
-                      <div className="h-[100px] border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                        <div 
+                      <div className="h-[100px] border-2 border-dashed border-border/50 rounded-xl flex items-center justify-center hover:border-primary/50 transition-colors">
+                        <div
                           className="cursor-pointer w-full h-full flex items-center justify-center"
                           onClick={() => {
-                            console.log('Upload area clicked');
                             const input = document.createElement('input');
                             input.type = 'file';
                             input.accept = 'image/*';
                             input.onchange = async (e) => {
-                              console.log('File input change event');
                               const file = (e.target as HTMLInputElement).files?.[0];
-                              if (!file) {
-                                console.log('No file selected');
-                                return;
-                              }
-
-                              console.log('File selected:', {
-                                name: file.name,
-                                type: file.type,
-                                size: file.size
-                              });
-
+                              if (!file) return;
                               try {
                                 setIsUploading(true);
-                                console.log('Starting upload process...');
-
-                                // Upload to B2 Storage via API
                                 const publicUrl = await uploadFileToStorage(file, STORAGE_FOLDERS.COMMUNITY_PAGES);
-
-                                console.log('Public URL:', publicUrl);
-
-                                onUpdate({
-                                  ...section.content,
-                                  imageUrl: publicUrl,
-                                });
-
+                                onUpdate({ ...section.content, imageUrl: publicUrl });
                                 toast.success('Image uploaded successfully');
                               } catch (error) {
                                 console.error('Error uploading image:', error);
@@ -451,15 +457,15 @@ export default function HeroSection({
                           }}
                         >
                           <div className="flex flex-col items-center gap-2">
-                            <UploadCloud className="h-8 w-8 text-gray-400" />
-                            <span className="text-sm text-gray-500">
+                            <UploadCloud className="h-8 w-8 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
                               {isUploading ? 'Uploading...' : 'Upload Image'}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Max size: 5MB. Supported formats: JPG, PNG, GIF
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Max size: 5MB. Supported: JPG, PNG, GIF
                       </p>
                     </div>
                   </div>
@@ -467,24 +473,23 @@ export default function HeroSection({
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Button Type</label>
+                    <label className="text-sm font-medium text-foreground">Button Type</label>
                     <Select
                       value={section.content.buttonType || 'link'}
                       onValueChange={(value: 'link' | 'join') => {
-                        onUpdate({ 
-                          ...section.content, 
+                        onUpdate({
+                          ...section.content,
                           buttonType: value,
-                          // Set default text when switching to link type
                           ctaText: value === 'link' ? (section.content.ctaText || 'Click here') : section.content.ctaText
                         });
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="rounded-xl border-border/50">
                         <SelectValue placeholder="Select button type" />
                       </SelectTrigger>
-                      <SelectContent position="popper">
-                        <SelectItem value="link">Regular Link</SelectItem>
-                        <SelectItem value="join">Join Community</SelectItem>
+                      <SelectContent position="popper" className="rounded-xl">
+                        <SelectItem value="link" className="rounded-lg">Regular Link</SelectItem>
+                        <SelectItem value="join" className="rounded-lg">Join Community</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -492,26 +497,21 @@ export default function HeroSection({
                   {section.content.buttonType === 'link' && (
                     <>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Button Text</label>
+                        <label className="text-sm font-medium text-foreground">Button Text</label>
                         <Input
                           value={section.content.ctaText || ''}
-                          onChange={(e) => onUpdate({ 
-                            ...section.content, 
-                            ctaText: e.target.value 
-                          })}
+                          onChange={(e) => onUpdate({ ...section.content, ctaText: e.target.value })}
                           placeholder="Enter button text"
+                          className="rounded-xl border-border/50"
                         />
                       </div>
-
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Button Link</label>
+                        <label className="text-sm font-medium text-foreground">Button Link</label>
                         <Input
                           value={section.content.ctaLink || ''}
-                          onChange={(e) => onUpdate({ 
-                            ...section.content, 
-                            ctaLink: e.target.value 
-                          })}
+                          onChange={(e) => onUpdate({ ...section.content, ctaLink: e.target.value })}
                           placeholder="Enter button link"
+                          className="rounded-xl border-border/50"
                         />
                       </div>
                     </>
@@ -523,7 +523,7 @@ export default function HeroSection({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:bg-red-500/20 hover:text-red-300"
+            className="h-9 w-9 rounded-lg text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
           >
             <Trash className="h-4 w-4" />

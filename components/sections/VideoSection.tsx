@@ -213,79 +213,68 @@ export default function VideoSection({
         }
       }}
     >
-      {/* Editor Toolbar */}
+      {/* Editor Toolbar - Fluid Movement */}
       {isEditing && (isHovered || isSettingsOpen) && (
-        <div className="absolute top-0 right-0 p-2 flex items-center gap-2 bg-black/75 rounded-bl z-20">
+        <div className="absolute top-4 right-4 p-2 flex items-center gap-1 bg-card/95 backdrop-blur-sm rounded-xl border border-border/50 shadow-lg z-20">
           <Button
             variant="ghost"
             size="sm"
-            className="text-white hover:bg-white/20"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             {...attributes}
             {...listeners}
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover 
-            open={isSettingsOpen} 
+          <Popover
+            open={isSettingsOpen}
             onOpenChange={(open) => {
               setIsSettingsOpen(open);
-              if (open) {
-                setIsHovered(false);
-              }
+              if (open) setIsHovered(false);
             }}
           >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-white/20"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent 
-              className="w-80"
+            <PopoverContent
+              className="w-80 rounded-xl border-border/50"
               onInteractOutside={(e) => {
                 const target = e.target as HTMLElement;
-                if (!target.closest('.video-section')) {
-                  setIsSettingsOpen(false);
-                }
+                if (!target.closest('.video-section')) setIsSettingsOpen(false);
               }}
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Video Title</label>
+                  <label className="text-sm font-medium text-foreground">Video Title</label>
                   <Input
                     value={section.content.title || ''}
-                    onChange={(e) => onUpdate({ 
-                      ...section.content, 
-                      title: e.target.value 
-                    })}
+                    onChange={(e) => onUpdate({ ...section.content, title: e.target.value })}
                     placeholder="Enter video title"
+                    className="rounded-xl border-border/50"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Video Description</label>
+                  <label className="text-sm font-medium text-foreground">Video Description</label>
                   <Input
                     value={section.content.description || ''}
-                    onChange={(e) => onUpdate({ 
-                      ...section.content, 
-                      description: e.target.value 
-                    })}
+                    onChange={(e) => onUpdate({ ...section.content, description: e.target.value })}
                     placeholder="Enter video description"
+                    className="rounded-xl border-border/50"
                   />
                 </div>
                 {section.content.videoId && (
-                  <div className="pt-2 border-t">
+                  <div className="pt-2 border-t border-border/50">
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       size="sm"
-                      className="w-full"
+                      className="w-full rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10"
                       onClick={() => {
-                        onUpdate({
-                          ...section.content,
-                          videoId: undefined
-                        });
+                        onUpdate({ ...section.content, videoId: undefined });
                         setIsSettingsOpen(false);
                       }}
                     >
@@ -300,7 +289,7 @@ export default function VideoSection({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:bg-red-500/20 hover:text-red-300"
+            className="h-9 w-9 rounded-lg text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
           >
             <Trash className="h-4 w-4" />
@@ -308,11 +297,11 @@ export default function VideoSection({
         </div>
       )}
 
-      {/* Content */}
-      <div className="py-12">
+      {/* Content - Fluid Movement */}
+      <div className="py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-4">
           {section.content.videoId ? (
-            <div className="aspect-video w-full relative rounded-lg overflow-hidden">
+            <div className="aspect-video w-full relative rounded-2xl overflow-hidden shadow-lg group">
               <MuxPlayerComponent
                 streamType="on-demand"
                 playbackId={section.content.videoId}
@@ -326,7 +315,7 @@ export default function VideoSection({
                   aspectRatio: '16/9',
                 }}
                 theme="dark"
-                primaryColor="#3b82f6"
+                primaryColor="hsl(265 65% 60%)"
                 autoPlay={false}
                 preload="metadata"
                 maxResolution="1080p"
@@ -341,11 +330,12 @@ export default function VideoSection({
             </div>
           ) : isEditing ? (
             <div
-              className={`aspect-video relative border-2 border-dashed rounded-lg transition-colors ${
+              className={cn(
+                "aspect-video relative border-2 border-dashed rounded-2xl transition-all duration-300",
                 isDragging
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-300 hover:border-gray-400"
-              }`}
+                  ? "border-primary bg-primary/5"
+                  : "border-border/50 hover:border-primary/50 bg-muted/20"
+              )}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
@@ -361,29 +351,31 @@ export default function VideoSection({
               />
 
               <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4">
-                <Upload className="w-12 h-12 text-gray-400" />
+                <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Upload className="w-8 h-8 text-primary" />
+                </div>
                 <div className="text-center">
-                  <p className="text-lg font-medium">
+                  <p className="text-lg font-medium text-foreground">
                     Drag and drop your video here, or{" "}
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-blue-500 hover:text-blue-600"
+                      className="text-primary hover:text-primary/80 font-semibold transition-colors"
                       disabled={isUploading}
                     >
                       browse
                     </button>
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-muted-foreground mt-2">
                     Maximum file size: 500MB
                   </p>
                 </div>
               </div>
 
               {isUploading && (
-                <div className="absolute inset-x-0 bottom-8 px-8 space-y-2">
-                  <Progress value={uploadProgress} className="w-full" />
-                  <div className="text-sm text-center text-gray-500">
-                    {uploadProgress === 100 ? 'Processing...' : `Uploading... ${uploadProgress}%`}
+                <div className="absolute inset-x-0 bottom-8 px-8 space-y-3">
+                  <Progress value={uploadProgress} className="w-full h-2 rounded-full" />
+                  <div className="text-sm text-center text-muted-foreground font-medium">
+                    {uploadProgress === 100 ? 'Processing video...' : `Uploading... ${uploadProgress}%`}
                   </div>
                 </div>
               )}
@@ -393,10 +385,10 @@ export default function VideoSection({
           {(section.content.title || section.content.description) && (
             <div className="mt-6 space-y-2">
               {section.content.title && (
-                <h3 className="text-2xl font-semibold">{section.content.title}</h3>
+                <h3 className="font-display text-2xl font-semibold text-foreground">{section.content.title}</h3>
               )}
               {section.content.description && (
-                <p className="text-gray-600">{section.content.description}</p>
+                <p className="text-muted-foreground">{section.content.description}</p>
               )}
             </div>
           )}

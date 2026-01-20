@@ -138,13 +138,30 @@ export default function AboutPage() {
   };
 
   if (error) {
-    return <div>Error loading community: {error.message}</div>;
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-8 max-w-md text-center">
+            <h2 className="font-display text-xl font-semibold text-destructive mb-2">
+              Error loading community
+            </h2>
+            <p className="text-muted-foreground">{error.message}</p>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   if (isLoading || !community) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="flex justify-center items-center min-h-screen bg-background">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-6 w-6 rounded-full bg-primary/10 animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -152,11 +169,11 @@ export default function AboutPage() {
   const isCreator = user?.id === community.created_by;
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
-      <CommunityNavbar 
-        communitySlug={communitySlug} 
-        activePage="about" 
+      <CommunityNavbar
+        communitySlug={communitySlug}
+        activePage="about"
         isMember={isMember}
       />
       <main className="flex-grow">

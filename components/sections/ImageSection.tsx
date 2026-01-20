@@ -100,56 +100,48 @@ export default function ImageSection({
         }
       }}
     >
-      {/* Editor Toolbar */}
+      {/* Editor Toolbar - Fluid Movement */}
       {isEditing && (isHovered || isSettingsOpen) && (
-        <div className="absolute top-0 right-0 p-2 flex items-center gap-2 bg-black/75 rounded-bl z-20">
+        <div className="absolute top-4 right-4 p-2 flex items-center gap-1 bg-card/95 backdrop-blur-sm rounded-xl border border-border/50 shadow-lg z-20">
           <Button
             variant="ghost"
             size="sm"
-            className="text-white hover:bg-white/20"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             {...attributes}
             {...listeners}
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover 
-            open={isSettingsOpen} 
+          <Popover
+            open={isSettingsOpen}
             onOpenChange={(open) => {
               setIsSettingsOpen(open);
-              if (open) {
-                setIsHovered(false);
-              }
+              if (open) setIsHovered(false);
             }}
           >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-white/20"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent 
-              className="w-80"
+            <PopoverContent
+              className="w-80 rounded-xl border-border/50"
               onInteractOutside={(e) => {
-                // Allow closing when clicking outside the section
                 const target = e.target as HTMLElement;
-                if (!target.closest('.image-section')) {
-                  setIsSettingsOpen(false);
-                }
-                // Prevent closing when interacting with select
-                if (target.closest('[role="listbox"]')) {
-                  e.preventDefault();
-                }
+                if (!target.closest('.image-section')) setIsSettingsOpen(false);
+                if (target.closest('[role="listbox"]')) e.preventDefault();
               }}
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Image</label>
+                  <label className="text-sm font-medium text-foreground">Image</label>
                   <div className="flex items-center gap-4">
                     {section.content.imageUrl && (
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-border/50">
                         <Image
                           src={section.content.imageUrl}
                           alt="Section image"
@@ -159,9 +151,9 @@ export default function ImageSection({
                       </div>
                     )}
                     <label className="cursor-pointer">
-                      <div className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                        <UploadCloud className="h-4 w-4" />
-                        <span>{isUploading ? 'Uploading...' : 'Upload Image'}</span>
+                      <div className="flex items-center gap-2 px-4 py-2 border border-border/50 rounded-xl hover:bg-muted transition-colors">
+                        <UploadCloud className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{isUploading ? 'Uploading...' : 'Upload Image'}</span>
                       </div>
                       <input
                         type="file"
@@ -175,46 +167,42 @@ export default function ImageSection({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Caption</label>
+                  <label className="text-sm font-medium text-foreground">Caption</label>
                   <Input
                     value={section.content.caption || ''}
-                    onChange={(e) => onUpdate({ 
-                      ...section.content, 
-                      caption: e.target.value 
-                    })}
+                    onChange={(e) => onUpdate({ ...section.content, caption: e.target.value })}
                     placeholder="Add image caption"
+                    className="rounded-xl border-border/50"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Layout</label>
+                  <label className="text-sm font-medium text-foreground">Layout</label>
                   <Select
                     value={section.content.layout || 'full'}
                     onValueChange={(value: "full" | "contained" | "float-left" | "float-right") => {
                       onUpdate({ ...section.content, layout: value });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl border-border/50">
                       <SelectValue placeholder="Select layout" />
                     </SelectTrigger>
-                    <SelectContent position="popper">
-                      <SelectItem value="full">Full Width</SelectItem>
-                      <SelectItem value="contained">Contained</SelectItem>
-                      <SelectItem value="float-left">Float Left</SelectItem>
-                      <SelectItem value="float-right">Float Right</SelectItem>
+                    <SelectContent position="popper" className="rounded-xl">
+                      <SelectItem value="full" className="rounded-lg">Full Width</SelectItem>
+                      <SelectItem value="contained" className="rounded-lg">Contained</SelectItem>
+                      <SelectItem value="float-left" className="rounded-lg">Float Left</SelectItem>
+                      <SelectItem value="float-right" className="rounded-lg">Float Right</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Alt Text</label>
+                  <label className="text-sm font-medium text-foreground">Alt Text</label>
                   <Input
                     value={section.content.altText || ''}
-                    onChange={(e) => onUpdate({ 
-                      ...section.content, 
-                      altText: e.target.value 
-                    })}
+                    onChange={(e) => onUpdate({ ...section.content, altText: e.target.value })}
                     placeholder="Describe the image for accessibility"
+                    className="rounded-xl border-border/50"
                   />
                 </div>
               </div>
@@ -223,7 +211,7 @@ export default function ImageSection({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:bg-red-500/20 hover:text-red-300"
+            className="h-9 w-9 rounded-lg text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
           >
             <Trash className="h-4 w-4" />
@@ -231,9 +219,9 @@ export default function ImageSection({
         </div>
       )}
 
-      {/* Content */}
-      <div className="py-12">
-        <div 
+      {/* Content - Fluid Movement */}
+      <div className="py-12 md:py-16">
+        <div
           className={cn(
             "mx-auto px-4 w-full",
             section.content.layout === 'contained' && "max-w-4xl",
@@ -242,11 +230,13 @@ export default function ImageSection({
           )}
         >
           {section.content.imageUrl ? (
-            <figure className="relative w-full min-h-[300px]">
+            <figure className="group relative w-full min-h-[300px]">
               <div className={cn(
-                "relative w-full h-full min-h-[300px]",
+                "relative w-full h-full min-h-[300px] overflow-hidden rounded-2xl",
+                "transition-all duration-300 ease-out",
+                "group-hover:shadow-xl",
                 section.content.layout === 'full' && "h-[calc(100vw*9/21)]",
-                section.content.layout === 'contained' && "h-[calc(100vw*9/16)]",
+                section.content.layout === 'contained' && "h-[calc(100vw*9/16)] max-h-[500px]",
                 (section.content.layout === 'float-left' || section.content.layout === 'float-right') && "h-[300px]"
               )}>
                 <Image
@@ -255,7 +245,7 @@ export default function ImageSection({
                   fill
                   priority
                   loading="eager"
-                  className="object-cover rounded-lg"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   onError={(e) => {
                     console.error('Image failed to load:', section.content.imageUrl);
@@ -263,20 +253,24 @@ export default function ImageSection({
                     target.style.display = 'none';
                   }}
                 />
+                {/* Subtle gradient overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
               {section.content.caption && (
-                <figcaption className="text-sm text-gray-500 mt-2 text-center">
+                <figcaption className="text-sm text-muted-foreground mt-4 text-center font-medium">
                   {section.content.caption}
                 </figcaption>
               )}
             </figure>
           ) : (
             isEditing && (
-              <div className="h-[300px] border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+              <div className="h-[300px] border-2 border-dashed border-border/50 rounded-2xl flex items-center justify-center bg-muted/20 hover:border-primary/50 transition-colors">
                 <label className="cursor-pointer">
-                  <div className="flex flex-col items-center gap-2">
-                    <UploadCloud className="h-8 w-8 text-gray-400" />
-                    <span className="text-sm text-gray-500">Upload an image</span>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <UploadCloud className="h-8 w-8 text-primary" />
+                    </div>
+                    <span className="text-sm text-muted-foreground font-medium">Upload an image</span>
                   </div>
                   <input
                     type="file"
@@ -290,7 +284,6 @@ export default function ImageSection({
             )
           )}
         </div>
-        {/* Add clearfix for floated layouts */}
         {(section.content.layout === 'float-left' || section.content.layout === 'float-right') && (
           <div className="clear-both" />
         )}

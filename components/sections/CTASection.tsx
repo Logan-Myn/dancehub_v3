@@ -222,70 +222,62 @@ export default function CTASection({
         }
       }}
     >
-      {/* Editor Toolbar */}
+      {/* Editor Toolbar - Fluid Movement */}
       {isEditing && (isHovered || isSettingsOpen) && (
-        <div className="absolute top-0 right-0 p-2 flex items-center gap-2 bg-black/75 rounded-bl z-20">
+        <div className="absolute top-6 right-6 p-2 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-xl border border-border/50 shadow-lg z-20">
           <Button
             variant="ghost"
             size="sm"
-            className="text-white hover:bg-white/20"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             {...attributes}
             {...listeners}
           >
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Popover 
-            open={isSettingsOpen} 
+          <Popover
+            open={isSettingsOpen}
             onOpenChange={(open) => {
               setIsSettingsOpen(open);
-              if (open) {
-                setIsHovered(false);
-              }
+              if (open) setIsHovered(false);
             }}
           >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white hover:bg-white/20"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent 
-              className="w-80"
+            <PopoverContent
+              className="w-80 rounded-xl border-border/50"
               onInteractOutside={(e) => {
-                // Allow closing when clicking outside the section
                 const target = e.target as HTMLElement;
-                if (!target.closest('.cta-section')) {
-                  setIsSettingsOpen(false);
-                }
-                // Prevent closing when interacting with select
-                if (target.closest('[role="listbox"]')) {
-                  e.preventDefault();
-                }
+                if (!target.closest('.cta-section')) setIsSettingsOpen(false);
+                if (target.closest('[role="listbox"]')) e.preventDefault();
               }}
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Button Type</label>
+                  <label className="text-sm font-medium text-foreground">Button Type</label>
                   <Select
                     value={section.content.buttonType || 'link'}
                     onValueChange={(value: 'link' | 'join') => {
-                      onUpdate({ 
-                        ...section.content, 
+                      onUpdate({
+                        ...section.content,
                         buttonType: value,
                         ...(value === 'link' && !section.content.ctaText && { ctaText: 'Click here' }),
                         ...(value === 'link' && !section.content.ctaLink && { ctaLink: '' })
                       });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl border-border/50">
                       <SelectValue placeholder="Select button type" />
                     </SelectTrigger>
-                    <SelectContent position="popper">
-                      <SelectItem value="link">Regular Link</SelectItem>
-                      <SelectItem value="join">Join Community</SelectItem>
+                    <SelectContent position="popper" className="rounded-xl">
+                      <SelectItem value="link" className="rounded-lg">Regular Link</SelectItem>
+                      <SelectItem value="join" className="rounded-lg">Join Community</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -293,26 +285,21 @@ export default function CTASection({
                 {section.content.buttonType === 'link' && (
                   <>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Button Text</label>
+                      <label className="text-sm font-medium text-foreground">Button Text</label>
                       <Input
                         value={section.content.ctaText || ''}
-                        onChange={(e) => onUpdate({ 
-                          ...section.content, 
-                          ctaText: e.target.value 
-                        })}
+                        onChange={(e) => onUpdate({ ...section.content, ctaText: e.target.value })}
                         placeholder="Enter button text"
+                        className="rounded-xl border-border/50"
                       />
                     </div>
-
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Button Link</label>
+                      <label className="text-sm font-medium text-foreground">Button Link</label>
                       <Input
                         value={section.content.ctaLink || ''}
-                        onChange={(e) => onUpdate({ 
-                          ...section.content, 
-                          ctaLink: e.target.value 
-                        })}
+                        onChange={(e) => onUpdate({ ...section.content, ctaLink: e.target.value })}
                         placeholder="Enter button link"
+                        className="rounded-xl border-border/50"
                       />
                     </div>
                   </>
@@ -323,7 +310,7 @@ export default function CTASection({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:bg-red-500/20 hover:text-red-300"
+            className="h-9 w-9 rounded-lg text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
           >
             <Trash className="h-4 w-4" />
@@ -331,11 +318,24 @@ export default function CTASection({
         </div>
       )}
 
-      {/* Section Content */}
-      <div className="py-24 px-4">
-        <div className="max-w-3xl mx-auto text-center">
+      {/* Section Content - Fluid Movement CTA */}
+      <div className="relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4 bg-gradient-to-br from-primary via-secondary to-accent">
+        {/* Animated gradient overlay */}
+        <div
+          className="absolute inset-0 opacity-50 animate-gradient-shift"
+          style={{
+            background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.6), hsl(275 55% 70% / 0.4), hsl(260 70% 65% / 0.5))',
+            backgroundSize: '400% 400%'
+          }}
+        />
+
+        {/* Decorative circles */}
+        <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
+
+        <div className="relative z-10 max-w-3xl mx-auto text-center text-white">
           <h2
-            className="text-4xl font-bold mb-4 outline-none"
+            className="font-display text-3xl md:text-4xl lg:text-5xl font-semibold mb-4 outline-none drop-shadow-lg"
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
             suppressContentEditableWarning
@@ -343,7 +343,7 @@ export default function CTASection({
             {section.content.title || 'Add title'}
           </h2>
           <p
-            className="text-xl text-gray-600 mb-8 outline-none"
+            className="text-lg md:text-xl mb-10 outline-none opacity-90 max-w-xl mx-auto drop-shadow-md"
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
             suppressContentEditableWarning
@@ -353,15 +353,21 @@ export default function CTASection({
           {(section.content.buttonType === 'join' || section.content.buttonType === 'link') && (
             <Button
               size="lg"
-              className="bg-black text-white hover:bg-gray-800"
+              className={cn(
+                "bg-white text-primary hover:bg-white/90 font-semibold",
+                "rounded-xl h-14 px-8 text-lg",
+                "transition-all duration-300 ease-out",
+                "hover:scale-105 hover:shadow-xl",
+                "shadow-lg"
+              )}
               onClick={section.content.buttonType === 'join' ? handleButtonClick : undefined}
               asChild={section.content.buttonType === 'link'}
               disabled={section.content.buttonType === 'join' && communityData?.isMember}
             >
               {section.content.buttonType === 'link' ? (
-                <a 
-                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink || '#'}`} 
-                  target="_blank" 
+                <a
+                  href={section.content.ctaLink?.startsWith('http') ? section.content.ctaLink : `https://${section.content.ctaLink || '#'}`}
+                  target="_blank"
                   rel="noopener noreferrer"
                 >
                   {section.content.ctaText || 'Click here'}
