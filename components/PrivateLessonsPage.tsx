@@ -7,9 +7,10 @@ import LessonBookingModal from "./LessonBookingModal";
 import CreatePrivateLessonModal from "./CreatePrivateLessonModal";
 import PrivateLessonManagementModal from "./PrivateLessonManagementModal";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, Settings } from "lucide-react";
+import { Plus, BookOpen, Settings, Users, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
+import { cn } from "@/lib/utils";
 
 interface PrivateLessonsPageProps {
   communitySlug: string;
@@ -71,34 +72,41 @@ export default function PrivateLessonsPage({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center animate-pulse">
+          <Users className="w-6 h-6 text-primary" />
+        </div>
+        <p className="mt-4 text-muted-foreground font-medium">Loading lessons...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className="font-display text-3xl md:text-4xl font-semibold text-foreground">
             Private Lessons
           </h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
+          <p className="text-muted-foreground mt-2">
             Book one-on-one sessions with the instructor
           </p>
         </div>
         {isCreator && (
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+          <div className="flex gap-2 flex-shrink-0">
+            <Button
+              variant="outline"
               onClick={() => setIsManagementModalOpen(true)}
+              className="rounded-xl border-border/50 hover:bg-muted hover:border-primary/30 transition-all duration-200"
             >
               <Settings className="w-4 h-4 mr-2" />
               Manage Lessons
             </Button>
-            <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="rounded-xl bg-primary hover:bg-primary/90 transition-all duration-200"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Private Lesson
             </Button>
@@ -108,14 +116,16 @@ export default function PrivateLessonsPage({
 
       {/* Member discount notice */}
       {!isMember && lessons.some(lesson => lesson.member_price) && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
             <div>
-              <h3 className="font-medium text-blue-900 dark:text-blue-100">
+              <h3 className="font-display font-semibold text-foreground">
                 Get Member Pricing
               </h3>
-              <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Join this community to unlock exclusive member discounts on private lessons.
               </p>
             </div>
@@ -125,19 +135,24 @@ export default function PrivateLessonsPage({
 
       {/* Lessons Grid */}
       {lessons.length === 0 ? (
-        <div className="text-center py-12">
-          <BookOpen className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+        <div className="bg-card rounded-2xl border border-border/50 p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-primary" />
+          </div>
+          <h3 className="font-display text-xl font-semibold text-foreground mb-2">
             No Private Lessons Available
           </h3>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
-            {isCreator 
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            {isCreator
               ? "Create your first private lesson to start offering one-on-one sessions."
               : "The instructor hasn't added any private lessons yet. Check back later!"
             }
           </p>
           {isCreator && (
-            <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="rounded-xl bg-primary hover:bg-primary/90"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create Your First Private Lesson
             </Button>

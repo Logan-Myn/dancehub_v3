@@ -7,6 +7,7 @@ import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import PrivateLessonsPage from "@/components/PrivateLessonsPage";
 import { toast } from "react-hot-toast";
+import { Users } from "lucide-react";
 
 interface Community {
   id: string;
@@ -90,10 +91,13 @@ export default function CommunityPrivateLessonsPage() {
 
   if (isLoading || isAuthLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center animate-pulse">
+            <Users className="w-6 h-6 text-primary" />
+          </div>
+          <p className="mt-4 text-muted-foreground font-medium">Loading private lessons...</p>
         </div>
       </div>
     );
@@ -104,14 +108,14 @@ export default function CommunityPrivateLessonsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
-      <CommunityNavbar 
-        communitySlug={communitySlug} 
-        activePage="private-lessons" 
+      <CommunityNavbar
+        communitySlug={communitySlug}
+        activePage="private-lessons"
         isMember={isMember}
       />
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PrivateLessonsPage
           communitySlug={communitySlug}

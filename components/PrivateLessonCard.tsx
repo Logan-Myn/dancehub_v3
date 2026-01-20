@@ -2,9 +2,9 @@
 
 import { PrivateLesson } from "@/types/private-lessons";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Users, Percent } from "lucide-react";
+import { Clock, MapPin, Users, Percent, Video, Building, Globe } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface PrivateLessonCardProps {
   lesson: PrivateLesson;
@@ -32,13 +32,13 @@ export default function PrivateLessonCard({
   const getLocationIcon = () => {
     switch (lesson.location_type) {
       case 'online':
-        return '💻';
+        return <Video className="w-4 h-4" />;
       case 'in_person':
-        return '🏢';
+        return <Building className="w-4 h-4" />;
       case 'both':
-        return '🌐';
+        return <Globe className="w-4 h-4" />;
       default:
-        return '📍';
+        return <MapPin className="w-4 h-4" />;
     }
   };
 
@@ -56,73 +56,88 @@ export default function PrivateLessonCard({
   };
 
   return (
-    <Card className="w-full hover:shadow-lg transition-shadow duration-200">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <CardTitle className="text-xl font-semibold">{lesson.title}</CardTitle>
+    <div
+      className={cn(
+        "group bg-card rounded-2xl overflow-hidden",
+        "border-2 border-transparent",
+        "transition-all duration-300 ease-out",
+        "hover:shadow-lg hover:border-primary/20",
+        "hover:-translate-y-0.5 hover:rotate-[-0.3deg]",
+        "flex flex-col"
+      )}
+    >
+      {/* Header */}
+      <div className="p-5 pb-0">
+        <div className="flex justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors duration-200 line-clamp-2">
+              {lesson.title}
+            </h3>
             {lesson.description && (
-              <CardDescription className="mt-2 text-gray-600 dark:text-gray-300">
+              <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
                 {lesson.description}
-              </CardDescription>
+              </p>
             )}
           </div>
           {hasDiscount && (
-            <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+            <Badge className="bg-emerald-100 text-emerald-700 border-0 rounded-full px-2.5 py-1 flex-shrink-0">
               <Percent className="w-3 h-3 mr-1" />
               {lesson.member_discount_percentage}% off
             </Badge>
           )}
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
+      {/* Content */}
+      <div className="p-5 space-y-4 flex-1">
         {/* Duration and Location */}
-        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
-          <div className="flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            <span>{lesson.duration_minutes} minutes</span>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{lesson.duration_minutes} min</span>
           </div>
-          <div className="flex items-center gap-1">
-            <span>{getLocationIcon()}</span>
+          <div className="flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full">
+            {getLocationIcon()}
             <span>{getLocationText()}</span>
           </div>
         </div>
 
         {/* Requirements */}
         {lesson.requirements && (
-          <div className="text-sm">
-            <span className="font-medium text-gray-700 dark:text-gray-200">Requirements: </span>
-            <span className="text-gray-600 dark:text-gray-300">{lesson.requirements}</span>
+          <div className="text-sm bg-muted/50 rounded-xl p-3">
+            <span className="font-medium text-foreground">Requirements: </span>
+            <span className="text-muted-foreground">{lesson.requirements}</span>
           </div>
         )}
 
         {/* Max bookings info */}
         {lesson.max_bookings_per_month && (
-          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Users className="w-4 h-4" />
             <span>Max {lesson.max_bookings_per_month} bookings per month</span>
           </div>
         )}
+      </div>
 
-        {/* Pricing */}
-        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
+      {/* Pricing & Button */}
+      <div className="p-5 pt-0 mt-auto">
+        <div className="pt-4 border-t border-border/50">
+          <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              <div className="flex items-baseline gap-2">
+                <span className="font-display text-2xl font-bold text-foreground">
                   {formatPrice(displayPrice)}
                 </span>
                 {hasDiscount && (
-                  <span className="text-lg text-gray-500 dark:text-gray-400 line-through">
+                  <span className="text-base text-muted-foreground line-through">
                     {formatPrice(lesson.regular_price)}
                   </span>
                 )}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
+              <div className="text-sm text-muted-foreground mt-1">
                 {isMember ? (
                   hasDiscount ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium">
+                    <span className="text-emerald-600 font-medium">
                       ✓ Member price
                     </span>
                   ) : (
@@ -132,7 +147,7 @@ export default function PrivateLessonCard({
                   <div>
                     <span>Non-member price</span>
                     {lesson.member_price && (
-                      <div className="text-blue-600 dark:text-blue-400">
+                      <div className="text-primary font-medium">
                         Members pay {formatPrice(lesson.member_price)}
                       </div>
                     )}
@@ -141,18 +156,16 @@ export default function PrivateLessonCard({
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
 
-      <CardFooter>
-        <Button 
-          onClick={() => onBook(lesson.id)}
-          className="w-full"
-          size="lg"
-        >
-          Book Lesson
-        </Button>
-      </CardFooter>
-    </Card>
+          <Button
+            onClick={() => onBook(lesson.id)}
+            className="w-full rounded-xl bg-primary hover:bg-primary/90 transition-all duration-200 h-12 font-semibold"
+            size="lg"
+          >
+            Book Lesson
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 } 

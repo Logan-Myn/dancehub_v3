@@ -4,17 +4,13 @@ import React, { useState, useCallback, useEffect } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import TeacherCalendarAvailability from './TeacherCalendarAvailability';
 import CreatePrivateLessonModal from './CreatePrivateLessonModal';
-import {
-  CurrencyDollarIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
-import { Loader2, Edit } from "lucide-react";
+import { Loader2, Edit, BookOpen, Users, Calendar, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 interface PrivateLessonManagementModalProps {
   isOpen: boolean;
@@ -243,92 +239,106 @@ export default function PrivateLessonManagementModal({
     <div className="space-y-6">
       {/* Header with stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Total Lessons</h3>
-            <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Total Lessons</h3>
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BookOpen className="h-4 w-4 text-primary" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">{Array.isArray(privateLessons) ? privateLessons.length : 0}</p>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Active Lessons</h3>
-            <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+          <p className="font-display text-3xl font-bold text-foreground">{Array.isArray(privateLessons) ? privateLessons.length : 0}</p>
+        </div>
+
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Active Lessons</h3>
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <BookOpen className="h-4 w-4 text-emerald-500" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="font-display text-3xl font-bold text-foreground">
             {(Array.isArray(privateLessons) ? privateLessons.filter(lesson => lesson.is_active) : []).length}
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
-            <UserGroupIcon className="h-4 w-4 text-gray-400" />
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Total Bookings</h3>
+            <div className="w-8 h-8 rounded-lg bg-secondary/30 flex items-center justify-center">
+              <Users className="h-4 w-4 text-secondary-foreground" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">{Array.isArray(lessonBookings) ? lessonBookings.length : 0}</p>
-        </Card>
+          <p className="font-display text-3xl font-bold text-foreground">{Array.isArray(lessonBookings) ? lessonBookings.length : 0}</p>
+        </div>
       </div>
 
       {/* Private Lessons List */}
       <div>
         <div className="mb-4">
-          <h3 className="text-lg font-medium">Your Private Lessons</h3>
+          <h3 className="font-display text-lg font-semibold text-foreground">Your Private Lessons</h3>
         </div>
 
         {isLoadingLessons ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="mt-3 text-sm text-muted-foreground">Loading lessons...</p>
           </div>
         ) : !Array.isArray(privateLessons) || privateLessons.length === 0 ? (
-          <div className="text-center py-8">
-            <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No private lessons</h3>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="text-center py-12 bg-muted/30 rounded-2xl border border-border/50">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+              <BookOpen className="h-6 w-6 text-primary" />
+            </div>
+            <h3 className="font-display font-semibold text-foreground">No private lessons</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Go to the Private Lessons page to create your first lesson.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             {Array.isArray(privateLessons) ? privateLessons.map((lesson) => (
-              <Card key={lesson.id} className="p-6">
+              <div key={lesson.id} className="bg-card rounded-2xl p-6 border border-border/50 hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-lg">{lesson.title}</h4>
+                      <h4 className="font-display font-semibold text-lg text-foreground">{lesson.title}</h4>
                       <Badge
-                        variant={lesson.is_active ? "default" : "secondary"}
+                        className={cn(
+                          "rounded-full",
+                          lesson.is_active
+                            ? "bg-emerald-100 text-emerald-700 border-0"
+                            : "bg-muted text-muted-foreground border-0"
+                        )}
                       >
                         {lesson.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </div>
-                    
-                    <p className="text-gray-600 mb-3">{lesson.description}</p>
-                    
+
+                    <p className="text-muted-foreground mb-4">{lesson.description}</p>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-500">Duration:</span>
-                        <p className="font-medium">{lesson.duration_minutes} min</p>
+                        <span className="text-muted-foreground">Duration:</span>
+                        <p className="font-medium text-foreground">{lesson.duration_minutes} min</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Regular Price:</span>
-                        <p className="font-medium">{formatPrice(lesson.regular_price)}</p>
+                        <span className="text-muted-foreground">Regular Price:</span>
+                        <p className="font-medium text-foreground">{formatPrice(lesson.regular_price)}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Member Price:</span>
-                        <p className="font-medium">
+                        <span className="text-muted-foreground">Member Price:</span>
+                        <p className="font-medium text-foreground">
                           {lesson.member_price ? formatPrice(lesson.member_price) : 'Same as regular'}
                         </p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Location:</span>
-                        <p className="font-medium capitalize">{lesson.location_type.replace('_', ' ')}</p>
+                        <span className="text-muted-foreground">Location:</span>
+                        <p className="font-medium text-foreground capitalize">{lesson.location_type.replace('_', ' ')}</p>
                       </div>
                     </div>
 
                     {lesson.requirements && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-800">
+                      <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
+                        <p className="text-sm text-foreground">
                           <strong>Requirements:</strong> {lesson.requirements}
                         </p>
                       </div>
@@ -340,6 +350,7 @@ export default function PrivateLessonManagementModal({
                       variant="outline"
                       size="sm"
                       onClick={() => handleEditLesson(lesson)}
+                      className="rounded-lg border-border/50 hover:bg-muted"
                     >
                       <Edit className="w-4 h-4 mr-1" />
                       Edit
@@ -348,6 +359,7 @@ export default function PrivateLessonManagementModal({
                       variant="outline"
                       size="sm"
                       onClick={() => handleToggleLessonStatus(lesson.id, lesson.is_active)}
+                      className="rounded-lg border-border/50 hover:bg-muted"
                     >
                       {lesson.is_active ? 'Deactivate' : 'Activate'}
                     </Button>
@@ -355,12 +367,13 @@ export default function PrivateLessonManagementModal({
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDeleteLesson(lesson.id)}
+                      className="rounded-lg"
                     >
                       Delete
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             )) : []}
           </div>
         )}
@@ -368,67 +381,76 @@ export default function PrivateLessonManagementModal({
 
       {/* Lesson Bookings */}
       <div>
-        <h3 className="text-lg font-medium mb-4">Lesson Bookings & Sessions</h3>
-        
+        <h3 className="font-display text-lg font-semibold text-foreground mb-4">Lesson Bookings & Sessions</h3>
+
         {isLoadingBookings ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="mt-3 text-sm text-muted-foreground">Loading bookings...</p>
           </div>
         ) : !Array.isArray(lessonBookings) || lessonBookings.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No bookings yet</h3>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="text-center py-12 bg-muted/30 rounded-2xl border border-border/50">
+            <div className="w-12 h-12 rounded-2xl bg-secondary/20 flex items-center justify-center mx-auto mb-3">
+              <Users className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h3 className="font-display font-semibold text-foreground">No bookings yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Bookings will appear here when students book your private lessons.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             {Array.isArray(lessonBookings) ? lessonBookings.map((booking) => (
-              <Card key={booking.id} className="p-6">
+              <div key={booking.id} className="bg-card rounded-2xl p-6 border border-border/50 hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-lg">{booking.lesson_title}</h4>
+                    <div className="flex items-center gap-3 mb-3">
+                      <h4 className="font-display font-semibold text-lg text-foreground">{booking.lesson_title}</h4>
                       <Badge
-                        variant={booking.payment_status === 'succeeded' ? "default" : 
-                                booking.payment_status === 'pending' ? "secondary" : "destructive"}
+                        className={cn(
+                          "rounded-full border-0",
+                          booking.payment_status === 'succeeded'
+                            ? "bg-emerald-100 text-emerald-700"
+                            : booking.payment_status === 'pending'
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-destructive/10 text-destructive"
+                        )}
                       >
                         {booking.payment_status}
                       </Badge>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                       <div>
-                        <span className="text-gray-500">Student:</span>
-                        <p className="font-medium">{booking.student_name || booking.student_email}</p>
+                        <span className="text-muted-foreground">Student:</span>
+                        <p className="font-medium text-foreground">{booking.student_name || booking.student_email}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Price Paid:</span>
-                        <p className="font-medium">{formatPrice(booking.price_paid)}</p>
+                        <span className="text-muted-foreground">Price Paid:</span>
+                        <p className="font-medium text-foreground">{formatPrice(booking.price_paid)}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Booked:</span>
-                        <p className="font-medium">{formatDate(booking.created_at)}</p>
+                        <span className="text-muted-foreground">Booked:</span>
+                        <p className="font-medium text-foreground">{formatDate(booking.created_at)}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Scheduled:</span>
-                        <p className="font-medium">{booking.scheduled_at ? formatDateTime(booking.scheduled_at) : 'TBD'}</p>
+                        <span className="text-muted-foreground">Scheduled:</span>
+                        <p className="font-medium text-foreground">{booking.scheduled_at ? formatDateTime(booking.scheduled_at) : 'TBD'}</p>
                       </div>
                     </div>
 
                     {booking.student_message && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm">
+                      <div className="mt-3 p-3 bg-muted/50 rounded-xl">
+                        <p className="text-sm text-foreground">
                           <strong>Student Message:</strong> {booking.student_message}
                         </p>
                       </div>
                     )}
 
                     {booking.contact_info && (
-                      <div className="mt-2 text-sm text-gray-600">
+                      <div className="mt-2 text-sm text-muted-foreground">
                         {booking.contact_info.phone && (
-                          <p><strong>Phone:</strong> {booking.contact_info.phone}</p>
+                          <p><strong className="text-foreground">Phone:</strong> {booking.contact_info.phone}</p>
                         )}
                       </div>
                     )}
@@ -438,7 +460,7 @@ export default function PrivateLessonManagementModal({
                     {booking.payment_status === 'succeeded' && booking.scheduled_at && (
                       <Button
                         onClick={() => handleJoinVideoSession(booking)}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="rounded-lg bg-emerald-500 hover:bg-emerald-600"
                         size="sm"
                       >
                         Join Video Session
@@ -452,12 +474,13 @@ export default function PrivateLessonManagementModal({
                           window.location.href = `mailto:${booking.student_email}`;
                         }
                       }}
+                      className="rounded-lg border-border/50 hover:bg-muted"
                     >
                       Contact Student
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </div>
             )) : []}
           </div>
         )}
@@ -468,12 +491,14 @@ export default function PrivateLessonManagementModal({
   const renderScheduleTab = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium mb-4">Teacher Availability</h3>
-        <TeacherCalendarAvailability
-          communitySlug={communitySlug}
-          availability={teacherAvailability}
-          onAvailabilityUpdate={setTeacherAvailability}
-        />
+        <h3 className="font-display text-lg font-semibold text-foreground mb-4">Teacher Availability</h3>
+        <div className="bg-card rounded-2xl border border-border/50 p-4">
+          <TeacherCalendarAvailability
+            communitySlug={communitySlug}
+            availability={teacherAvailability}
+            onAvailabilityUpdate={setTeacherAvailability}
+          />
+        </div>
       </div>
     </div>
   );
@@ -490,7 +515,7 @@ export default function PrivateLessonManagementModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -504,11 +529,11 @@ export default function PrivateLessonManagementModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-6xl transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-6xl transform overflow-hidden rounded-3xl bg-background p-6 text-left align-middle shadow-xl transition-all border border-border/50">
                 <div className="flex items-center justify-between mb-6">
                   <Dialog.Title
                     as="h3"
-                    className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100"
+                    className="font-display text-xl font-semibold text-foreground"
                   >
                     Manage Private Lessons
                   </Dialog.Title>
@@ -516,40 +541,42 @@ export default function PrivateLessonManagementModal({
                     variant="ghost"
                     size="sm"
                     onClick={onClose}
-                    className="rounded-full"
+                    className="rounded-full h-10 w-10 p-0 hover:bg-muted"
                   >
-                    <XMarkIcon className="h-6 w-6" />
+                    <X className="h-5 w-5" />
                   </Button>
                 </div>
 
                 {/* Tabs Navigation */}
-                <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-                  <nav className="-mb-px flex space-x-8">
-                    <button
-                      onClick={() => setActiveTab('details')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeTab === 'details'
-                          ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      Details
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('schedule')}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeTab === 'schedule'
-                          ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      Schedule
-                    </button>
-                  </nav>
+                <div className="flex gap-2 mb-6">
+                  <button
+                    onClick={() => setActiveTab('details')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200",
+                      activeTab === 'details'
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Details
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('schedule')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200",
+                      activeTab === 'schedule'
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule
+                  </button>
                 </div>
 
                 {/* Tab Content */}
-                <div className="max-h-[600px] overflow-y-auto">
+                <div className="max-h-[600px] overflow-y-auto pr-2">
                   {activeTab === 'details' && renderDetailsTab()}
                   {activeTab === 'schedule' && renderScheduleTab()}
                 </div>
