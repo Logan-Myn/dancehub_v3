@@ -279,12 +279,17 @@ export default function HeroSection({
       }}
     >
       {/* Section Content - Fluid Movement Hero */}
-      <div className={cn(
-        "relative h-[500px] md:h-[600px] flex items-center justify-center overflow-hidden rounded-3xl mx-4 my-4",
-        section.content.overlayStyle === 'none' && !section.content.imageUrl ? "bg-muted" : "text-white"
-      )}>
-        {/* Background Image */}
-        {section.content.imageUrl && (
+      <div
+        className={cn(
+          "relative h-[500px] md:h-[600px] flex items-center justify-center overflow-hidden rounded-3xl mx-4 my-4",
+          section.content.backgroundMode === 'none' ? "bg-muted text-foreground" : "text-white"
+        )}
+        style={section.content.backgroundMode === 'background' ? {
+          backgroundColor: section.content.overlayColor || '#7c3aed'
+        } : undefined}
+      >
+        {/* Background Image - show when overlay mode or no mode set */}
+        {section.content.imageUrl && section.content.backgroundMode !== 'background' && (
           <Image
             src={section.content.imageUrl}
             alt={section.content.title || ''}
@@ -294,10 +299,10 @@ export default function HeroSection({
           />
         )}
 
-        {/* Overlay - Conditional based on overlayStyle and overlayColor */}
-        {section.content.overlayStyle !== 'none' && (
+        {/* Overlay gradient - only for overlay mode */}
+        {(section.content.backgroundMode === 'overlay' || (!section.content.backgroundMode && section.content.backgroundMode !== 'none')) && (
           <div
-            className="absolute inset-0 bg-gradient-to-t to-transparent"
+            className="absolute inset-0"
             style={{
               background: `linear-gradient(to top, ${section.content.overlayColor || '#7c3aed'}ee, ${section.content.overlayColor || '#7c3aed'}66, transparent)`
             }}
@@ -307,12 +312,12 @@ export default function HeroSection({
         {/* Content */}
         <div className={cn(
           "relative z-10 text-center max-w-3xl mx-auto px-6",
-          section.content.overlayStyle === 'none' && "text-foreground"
+          section.content.backgroundMode === 'none' && "text-foreground"
         )}>
           <h1
             className={cn(
               "font-display text-4xl md:text-5xl lg:text-6xl font-semibold mb-6 outline-none",
-              section.content.overlayStyle !== 'none' && "drop-shadow-lg"
+              section.content.backgroundMode !== 'none' && "drop-shadow-lg"
             )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
@@ -323,7 +328,7 @@ export default function HeroSection({
           <p
             className={cn(
               "text-lg md:text-xl lg:text-2xl mb-10 outline-none max-w-2xl mx-auto",
-              section.content.overlayStyle !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
+              section.content.backgroundMode !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
             )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
@@ -338,7 +343,7 @@ export default function HeroSection({
                 "font-semibold rounded-xl h-14 px-8 text-lg",
                 "transition-all duration-300 ease-out",
                 "hover:scale-105 hover:shadow-xl shadow-lg",
-                section.content.overlayStyle === 'none'
+                section.content.backgroundMode === 'none'
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "bg-white text-primary hover:bg-white/90"
               )}
@@ -374,8 +379,8 @@ export default function HeroSection({
           )}
         </div>
 
-        {/* Curved bottom edge - only show with overlays */}
-        {section.content.overlayStyle !== 'none' && (
+        {/* Curved bottom edge - only show with colored backgrounds */}
+        {section.content.backgroundMode !== 'none' && (
           <svg
             viewBox="0 0 1200 60"
             className="absolute bottom-0 left-0 w-full h-8 md:h-12"
@@ -492,49 +497,59 @@ export default function HeroSection({
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Overlay Color</label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { color: 'none', label: 'None', bg: 'bg-muted border-2 border-dashed' },
-                        { color: '#000000', label: 'Black', bg: 'bg-black' },
-                        { color: '#7c3aed', label: 'Purple', bg: 'bg-violet-600' },
-                        { color: '#2563eb', label: 'Blue', bg: 'bg-blue-600' },
-                        { color: '#059669', label: 'Green', bg: 'bg-emerald-600' },
-                        { color: '#dc2626', label: 'Red', bg: 'bg-red-600' },
-                        { color: '#d97706', label: 'Orange', bg: 'bg-amber-600' },
-                        { color: '#0891b2', label: 'Cyan', bg: 'bg-cyan-600' },
-                      ].map((option) => (
-                        <button
-                          key={option.color}
-                          onClick={() => onUpdate({
-                            ...section.content,
-                            overlayColor: option.color === 'none' ? undefined : option.color,
-                            overlayStyle: option.color === 'none' ? 'none' : 'gradient'
-                          })}
-                          className={cn(
-                            "w-8 h-8 rounded-lg transition-all",
-                            option.bg,
-                            (section.content.overlayColor === option.color ||
-                              (option.color === 'none' && !section.content.overlayColor && section.content.overlayStyle === 'none') ||
-                              (option.color === '#7c3aed' && !section.content.overlayColor && section.content.overlayStyle !== 'none'))
-                              ? "ring-2 ring-primary ring-offset-2"
-                              : "hover:scale-110"
-                          )}
-                          title={option.label}
-                        />
-                      ))}
-                    </div>
-                    <input
-                      type="color"
-                      value={section.content.overlayColor || '#7c3aed'}
-                      onChange={(e) => onUpdate({
-                        ...section.content,
-                        overlayColor: e.target.value,
-                        overlayStyle: 'gradient'
-                      })}
-                      className="w-full h-8 rounded-lg cursor-pointer border border-border/50"
-                    />
+                    <label className="text-sm font-medium text-foreground">Color Mode</label>
+                    <Select
+                      value={section.content.backgroundMode || 'overlay'}
+                      onValueChange={(value: 'background' | 'overlay' | 'none') => {
+                        onUpdate({ ...section.content, backgroundMode: value });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl border-border/50">
+                        <SelectValue placeholder="Select mode" />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="rounded-xl">
+                        <SelectItem value="overlay" className="rounded-lg">Overlay (gradient on image)</SelectItem>
+                        <SelectItem value="background" className="rounded-lg">Background (solid color)</SelectItem>
+                        <SelectItem value="none" className="rounded-lg">None (transparent)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {section.content.backgroundMode !== 'none' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Color</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { color: '#000000', label: 'Black', bg: 'bg-black' },
+                          { color: '#7c3aed', label: 'Purple', bg: 'bg-violet-600' },
+                          { color: '#2563eb', label: 'Blue', bg: 'bg-blue-600' },
+                          { color: '#059669', label: 'Green', bg: 'bg-emerald-600' },
+                          { color: '#dc2626', label: 'Red', bg: 'bg-red-600' },
+                          { color: '#d97706', label: 'Orange', bg: 'bg-amber-600' },
+                          { color: '#0891b2', label: 'Cyan', bg: 'bg-cyan-600' },
+                        ].map((option) => (
+                          <button
+                            key={option.color}
+                            onClick={() => onUpdate({ ...section.content, overlayColor: option.color })}
+                            className={cn(
+                              "w-8 h-8 rounded-lg transition-all",
+                              option.bg,
+                              section.content.overlayColor === option.color
+                                ? "ring-2 ring-primary ring-offset-2"
+                                : "hover:scale-110"
+                            )}
+                            title={option.label}
+                          />
+                        ))}
+                      </div>
+                      <input
+                        type="color"
+                        value={section.content.overlayColor || '#7c3aed'}
+                        onChange={(e) => onUpdate({ ...section.content, overlayColor: e.target.value })}
+                        className="w-full h-8 rounded-lg cursor-pointer border border-border/50"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Button Type</label>

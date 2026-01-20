@@ -28,6 +28,7 @@ export interface Section {
     background?: 'white' | 'light' | 'dark';
     overlayStyle?: 'gradient' | 'dark' | 'none';
     overlayColor?: string;
+    backgroundMode?: 'background' | 'overlay' | 'none';
   };
 }
 

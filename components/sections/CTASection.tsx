@@ -260,49 +260,69 @@ export default function CTASection({
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Background Color</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { color: 'none', label: 'Light', bg: 'bg-muted border-2 border-dashed' },
-                      { color: '#000000', label: 'Black', bg: 'bg-black' },
-                      { color: '#7c3aed', label: 'Purple', bg: 'bg-violet-600' },
-                      { color: '#2563eb', label: 'Blue', bg: 'bg-blue-600' },
-                      { color: '#059669', label: 'Green', bg: 'bg-emerald-600' },
-                      { color: '#dc2626', label: 'Red', bg: 'bg-red-600' },
-                      { color: '#d97706', label: 'Orange', bg: 'bg-amber-600' },
-                      { color: '#0891b2', label: 'Cyan', bg: 'bg-cyan-600' },
-                    ].map((option) => (
-                      <button
-                        key={option.color}
-                        onClick={() => onUpdate({
-                          ...section.content,
-                          overlayColor: option.color === 'none' ? undefined : option.color,
-                          overlayStyle: option.color === 'none' ? 'none' : 'gradient'
-                        })}
-                        className={cn(
-                          "w-8 h-8 rounded-lg transition-all",
-                          option.bg,
-                          (section.content.overlayColor === option.color ||
-                            (option.color === 'none' && !section.content.overlayColor && section.content.overlayStyle === 'none') ||
-                            (option.color === '#7c3aed' && !section.content.overlayColor && section.content.overlayStyle !== 'none'))
-                            ? "ring-2 ring-primary ring-offset-2"
-                            : "hover:scale-110"
-                        )}
-                        title={option.label}
-                      />
-                    ))}
-                  </div>
-                  <input
-                    type="color"
-                    value={section.content.overlayColor || '#7c3aed'}
-                    onChange={(e) => onUpdate({
-                      ...section.content,
-                      overlayColor: e.target.value,
-                      overlayStyle: 'gradient'
-                    })}
-                    className="w-full h-8 rounded-lg cursor-pointer border border-border/50"
-                  />
+                  <label className="text-sm font-medium text-foreground">Color Mode</label>
+                  <Select
+                    value={section.content.backgroundMode || 'background'}
+                    onValueChange={(value: 'background' | 'overlay' | 'none') => {
+                      onUpdate({
+                        ...section.content,
+                        backgroundMode: value,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="rounded-xl border-border/50">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="rounded-xl">
+                      <SelectItem value="background" className="rounded-lg">Background (solid color)</SelectItem>
+                      <SelectItem value="overlay" className="rounded-lg">Overlay (gradient effect)</SelectItem>
+                      <SelectItem value="none" className="rounded-lg">None (transparent)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {section.content.backgroundMode !== 'none' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Color</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { color: '#000000', label: 'Black', bg: 'bg-black' },
+                        { color: '#7c3aed', label: 'Purple', bg: 'bg-violet-600' },
+                        { color: '#2563eb', label: 'Blue', bg: 'bg-blue-600' },
+                        { color: '#059669', label: 'Green', bg: 'bg-emerald-600' },
+                        { color: '#dc2626', label: 'Red', bg: 'bg-red-600' },
+                        { color: '#d97706', label: 'Orange', bg: 'bg-amber-600' },
+                        { color: '#0891b2', label: 'Cyan', bg: 'bg-cyan-600' },
+                        { color: '#ec4899', label: 'Pink', bg: 'bg-pink-500' },
+                      ].map((option) => (
+                        <button
+                          key={option.color}
+                          onClick={() => onUpdate({
+                            ...section.content,
+                            overlayColor: option.color,
+                          })}
+                          className={cn(
+                            "w-8 h-8 rounded-lg transition-all",
+                            option.bg,
+                            section.content.overlayColor === option.color
+                              ? "ring-2 ring-primary ring-offset-2"
+                              : "hover:scale-110"
+                          )}
+                          title={option.label}
+                        />
+                      ))}
+                    </div>
+                    <input
+                      type="color"
+                      value={section.content.overlayColor || '#7c3aed'}
+                      onChange={(e) => onUpdate({
+                        ...section.content,
+                        overlayColor: e.target.value,
+                      })}
+                      className="w-full h-8 rounded-lg cursor-pointer border border-border/50"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Button Type</label>
@@ -367,14 +387,16 @@ export default function CTASection({
       <div
         className={cn(
           "relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4",
-          section.content.overlayStyle === 'none' && "bg-muted"
+          section.content.backgroundMode === 'none' && "bg-muted"
         )}
-        style={section.content.overlayStyle !== 'none' ? {
-          background: section.content.overlayColor || '#7c3aed'
+        style={section.content.backgroundMode !== 'none' ? {
+          background: section.content.backgroundMode === 'overlay'
+            ? `linear-gradient(135deg, ${section.content.overlayColor || '#7c3aed'}, ${section.content.overlayColor || '#7c3aed'}dd)`
+            : section.content.overlayColor || '#7c3aed'
         } : undefined}
       >
         {/* Decorative circles - only for colored backgrounds */}
-        {section.content.overlayStyle !== 'none' && (
+        {section.content.backgroundMode !== 'none' && (
           <>
             <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
             <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
@@ -383,12 +405,12 @@ export default function CTASection({
 
         <div className={cn(
           "relative z-10 max-w-3xl mx-auto text-center",
-          section.content.overlayStyle === 'none' ? "text-foreground" : "text-white"
+          section.content.backgroundMode === 'none' ? "text-foreground" : "text-white"
         )}>
           <h2
             className={cn(
               "font-display text-3xl md:text-4xl lg:text-5xl font-semibold mb-4 outline-none",
-              section.content.overlayStyle !== 'none' && "drop-shadow-lg"
+              section.content.backgroundMode !== 'none' && "drop-shadow-lg"
             )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'title')}
@@ -399,7 +421,7 @@ export default function CTASection({
           <p
             className={cn(
               "text-lg md:text-xl mb-10 outline-none max-w-xl mx-auto",
-              section.content.overlayStyle !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
+              section.content.backgroundMode !== 'none' ? "opacity-90 drop-shadow-md" : "text-muted-foreground"
             )}
             contentEditable={isEditing}
             onBlur={(e) => handleContentEdit(e, 'subtitle')}
@@ -414,7 +436,7 @@ export default function CTASection({
                 "font-semibold rounded-xl h-14 px-8 text-lg",
                 "transition-all duration-300 ease-out",
                 "hover:scale-105 hover:shadow-xl shadow-lg",
-                section.content.overlayStyle === 'none'
+                section.content.backgroundMode === 'none'
                   ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "bg-white text-primary hover:bg-white/90"
               )}
