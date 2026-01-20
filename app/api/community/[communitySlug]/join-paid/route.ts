@@ -18,6 +18,9 @@ interface Community {
 
 interface ExistingMember {
   id: string;
+  status: string;
+  subscription_status: string | null;
+  stripe_subscription_id: string | null;
 }
 
 export async function POST(
@@ -69,17 +72,42 @@ export async function POST(
 
     // Check if user is already a member
     const existingMember = await queryOne<ExistingMember>`
-      SELECT id
+      SELECT id, status, subscription_status, stripe_subscription_id
       FROM community_members
       WHERE community_id = ${community.id}
         AND user_id = ${userId}
     `;
 
     if (existingMember) {
-      return NextResponse.json(
-        { error: "User is already a member" },
-        { status: 400 }
-      );
+      // If member exists with active status, reject
+      if (existingMember.status === 'active') {
+        return NextResponse.json(
+          { error: "User is already a member" },
+          { status: 400 }
+        );
+      }
+
+      // If member exists with incomplete subscription, clean up and allow retry
+      if (existingMember.subscription_status === 'incomplete' || existingMember.status === 'pending') {
+        // Cancel old subscription in Stripe if exists
+        if (existingMember.stripe_subscription_id) {
+          try {
+            await stripe.subscriptions.cancel(
+              existingMember.stripe_subscription_id,
+              { stripeAccount: community.stripe_account_id! }
+            );
+          } catch (cancelError) {
+            console.error("Error canceling old subscription:", cancelError);
+            // Continue anyway - subscription might already be canceled
+          }
+        }
+
+        // Delete the old incomplete member record
+        await sql`
+          DELETE FROM community_members
+          WHERE id = ${existingMember.id}
+        `;
+      }
     }
 
     // Create a customer in Stripe
