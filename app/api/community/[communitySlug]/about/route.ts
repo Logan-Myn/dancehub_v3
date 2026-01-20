@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { sql, queryOne } from "@/lib/db";
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface AboutPage {
   about_page: {
     sections?: unknown[];
@@ -79,14 +83,21 @@ export async function GET(
     }
 
     // Return the about page data if it exists
-    return NextResponse.json({
-      aboutPage: community.about_page || {
-        sections: [],
-        meta: {
-          last_updated: new Date().toISOString(),
+    return NextResponse.json(
+      {
+        aboutPage: community.about_page || {
+          sections: [],
+          meta: {
+            last_updated: new Date().toISOString(),
+          },
         },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching about page:", error);
     return NextResponse.json(
