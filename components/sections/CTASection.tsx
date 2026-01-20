@@ -260,22 +260,48 @@ export default function CTASection({
             >
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Background Style</label>
-                  <Select
-                    value={section.content.overlayStyle || 'gradient'}
-                    onValueChange={(value: 'gradient' | 'dark' | 'none') => {
-                      onUpdate({ ...section.content, overlayStyle: value });
-                    }}
-                  >
-                    <SelectTrigger className="rounded-xl border-border/50">
-                      <SelectValue placeholder="Select style" />
-                    </SelectTrigger>
-                    <SelectContent position="popper" className="rounded-xl">
-                      <SelectItem value="gradient" className="rounded-lg">Purple Gradient</SelectItem>
-                      <SelectItem value="dark" className="rounded-lg">Dark</SelectItem>
-                      <SelectItem value="none" className="rounded-lg">Light (Muted)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium text-foreground">Background Color</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { color: 'none', label: 'Light', bg: 'bg-muted border-2 border-dashed' },
+                      { color: '#000000', label: 'Black', bg: 'bg-black' },
+                      { color: '#7c3aed', label: 'Purple', bg: 'bg-violet-600' },
+                      { color: '#2563eb', label: 'Blue', bg: 'bg-blue-600' },
+                      { color: '#059669', label: 'Green', bg: 'bg-emerald-600' },
+                      { color: '#dc2626', label: 'Red', bg: 'bg-red-600' },
+                      { color: '#d97706', label: 'Orange', bg: 'bg-amber-600' },
+                      { color: '#0891b2', label: 'Cyan', bg: 'bg-cyan-600' },
+                    ].map((option) => (
+                      <button
+                        key={option.color}
+                        onClick={() => onUpdate({
+                          ...section.content,
+                          overlayColor: option.color === 'none' ? undefined : option.color,
+                          overlayStyle: option.color === 'none' ? 'none' : 'gradient'
+                        })}
+                        className={cn(
+                          "w-8 h-8 rounded-lg transition-all",
+                          option.bg,
+                          (section.content.overlayColor === option.color ||
+                            (option.color === 'none' && !section.content.overlayColor && section.content.overlayStyle === 'none') ||
+                            (option.color === '#7c3aed' && !section.content.overlayColor && section.content.overlayStyle !== 'none'))
+                            ? "ring-2 ring-primary ring-offset-2"
+                            : "hover:scale-110"
+                        )}
+                        title={option.label}
+                      />
+                    ))}
+                  </div>
+                  <input
+                    type="color"
+                    value={section.content.overlayColor || '#7c3aed'}
+                    onChange={(e) => onUpdate({
+                      ...section.content,
+                      overlayColor: e.target.value,
+                      overlayStyle: 'gradient'
+                    })}
+                    className="w-full h-8 rounded-lg cursor-pointer border border-border/50"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -338,25 +364,18 @@ export default function CTASection({
       )}
 
       {/* Section Content - Fluid Movement CTA */}
-      <div className={cn(
-        "relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4",
-        section.content.overlayStyle === 'gradient' || !section.content.overlayStyle
-          ? "bg-gradient-to-br from-primary via-secondary to-accent"
-          : section.content.overlayStyle === 'dark'
-            ? "bg-foreground"
-            : "bg-muted"
-      )}>
-        {/* Animated gradient overlay - only for gradient style */}
-        {(section.content.overlayStyle === 'gradient' || !section.content.overlayStyle) && (
+      <div
+        className={cn(
+          "relative py-20 md:py-28 px-6 overflow-hidden rounded-3xl mx-4 my-4",
+          section.content.overlayStyle === 'none' && "bg-muted"
+        )}
+        style={section.content.overlayStyle !== 'none' ? {
+          background: section.content.overlayColor || '#7c3aed'
+        } : undefined}
+      >
+        {/* Decorative circles - only for colored backgrounds */}
+        {section.content.overlayStyle !== 'none' && (
           <>
-            <div
-              className="absolute inset-0 opacity-50 animate-gradient-shift"
-              style={{
-                background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.6), hsl(275 55% 70% / 0.4), hsl(260 70% 65% / 0.5))',
-                backgroundSize: '400% 400%'
-              }}
-            />
-            {/* Decorative circles */}
             <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
             <div className="absolute bottom-10 right-10 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
           </>
