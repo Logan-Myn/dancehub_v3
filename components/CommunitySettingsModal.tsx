@@ -1026,20 +1026,23 @@ export default function CommunitySettingsModal({
 
   const renderStripeConnectionStatus = () => (
     <div className="space-y-6">
-      {/* Custom Onboarding Option */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div className="text-center space-y-4">
+      {/* Custom Onboarding Option - Fluid Movement style */}
+      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8">
+        <div className="text-center space-y-5">
+          <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <CreditCardIcon className="h-7 w-7 text-primary" />
+          </div>
           <div>
-            <h4 className="font-medium text-blue-900 text-lg">Complete Stripe Setup</h4>
-            <p className="text-sm text-blue-700 mt-2">
-              To enable paid memberships, you'll need to complete Stripe onboarding. This secure process requires business information, identity verification, and bank details to comply with financial regulations and anti-fraud requirements. Our guided wizard keeps you in your community throughout the setup.
+            <h4 className="font-display text-xl font-semibold text-foreground">Complete Stripe Setup</h4>
+            <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+              To enable paid memberships, you'll need to complete Stripe onboarding. This secure process requires business information, identity verification, and bank details.
             </p>
           </div>
           <Button
             onClick={handleStartCustomOnboarding}
-            className="w-full max-w-sm bg-blue-600 hover:bg-blue-700"
+            className="w-full max-w-sm h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm hover:shadow-md transition-all duration-200"
           >
-            <CreditCardIcon className="mr-2 h-4 w-4" />
+            <CreditCardIcon className="mr-2 h-5 w-5" />
             Start Stripe Setup
           </Button>
         </div>
@@ -1048,64 +1051,58 @@ export default function CommunitySettingsModal({
   );
 
   const renderMembershipSettings = () => (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Membership Settings</h3>
-      </div>
-
-      {/* Stripe Requirements Alert */}
+    <div className="space-y-6">
+      {/* Stripe Requirements Alert - Fluid Movement style */}
       {stripeAccountId && !stripeAccountStatus.isEnabled && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-          <div className="flex">
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-5">
+          <div className="flex gap-4">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
+              <div className="h-10 w-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                <svg className="h-5 w-5 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
+            <div className="flex-1">
+              <h3 className="font-display text-base font-semibold text-yellow-800 dark:text-yellow-200">
                 Complete Stripe Setup Required
               </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>
-                  You need to complete your Stripe account setup to enable subscriptions and receive payments. 
-                  This includes providing required business information and verification documents.
-                </p>
-                {stripeAccountStatus.details?.requirements && (
-                  <div className="mt-2">
-                    {stripeAccountStatus.details.requirements.currentlyDue.length > 0 && (
-                      <p className="font-medium">
-                        {stripeAccountStatus.details.requirements.currentlyDue.length} requirement(s) currently due
-                      </p>
-                    )}
-                    {stripeAccountStatus.details.requirements.pastDue.length > 0 && (
-                      <p className="font-medium text-red-600">
-                        {stripeAccountStatus.details.requirements.pastDue.length} requirement(s) past due
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCompleteVerification}
-                  className="bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
-                >
-                  Complete Stripe Setup
-                </Button>
-              </div>
+              <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                Complete your Stripe account setup to enable subscriptions and receive payments.
+              </p>
+              {stripeAccountStatus.details?.requirements && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {stripeAccountStatus.details.requirements.currentlyDue.length > 0 && (
+                    <span className="px-3 py-1 text-xs font-medium rounded-full bg-yellow-500/20 text-yellow-800">
+                      {stripeAccountStatus.details.requirements.currentlyDue.length} requirement(s) due
+                    </span>
+                  )}
+                  {stripeAccountStatus.details.requirements.pastDue.length > 0 && (
+                    <span className="px-3 py-1 text-xs font-medium rounded-full bg-destructive/20 text-destructive">
+                      {stripeAccountStatus.details.requirements.pastDue.length} past due
+                    </span>
+                  )}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCompleteVerification}
+                className="mt-4 rounded-lg bg-yellow-500/20 text-yellow-800 border-yellow-500/30 hover:bg-yellow-500/30 transition-all"
+              >
+                Complete Stripe Setup
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="space-y-6">
+      {/* Membership Toggle Card */}
+      <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-medium">Paid Membership</h4>
-            <p className="text-sm text-gray-500">
+            <h4 className="font-display text-lg font-semibold text-foreground">Paid Membership</h4>
+            <p className="text-sm text-muted-foreground mt-1">
               Enable paid membership for your community
             </p>
           </div>
@@ -1116,41 +1113,15 @@ export default function CommunitySettingsModal({
           />
         </div>
 
-        {/* New Promotional Period Settings */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-medium text-blue-800">First Month Free Promotion</h4>
-              <p className="text-sm text-blue-700 mt-1">
-                New communities automatically get 0% platform fees for the first 30 days after creation. 
-                This helps you get started without any platform costs while you build your community.
-              </p>
-              <div className="mt-3 text-xs text-blue-600">
-                <p><strong>How it works:</strong></p>
-                <ul className="list-disc list-inside mt-1 space-y-1">
-                  <li>Members who join within 30 days of community creation pay 0% platform fees</li>
-                  <li>After 30 days, standard tiered pricing applies (8% → 6% → 4% based on member count)</li>
-                  <li>Existing promotional members continue at 0% until their individual 30-day period ends</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {isMembershipEnabled && (
-          <div className="space-y-4 pt-4 border-t">
+          <div className="space-y-4 pt-4 border-t border-border/50">
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Monthly Membership Price
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">€</span>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <span className="text-muted-foreground font-medium">€</span>
                 </div>
                 <Input
                   type="number"
@@ -1158,114 +1129,128 @@ export default function CommunitySettingsModal({
                   step="0.01"
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
-                  className="pl-7"
+                  className="pl-8 rounded-xl border-border/50"
                   placeholder="0.00"
                 />
               </div>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 Set the monthly price for your community membership
               </p>
             </div>
 
-            <Button onClick={handlePriceUpdate} className="w-full">
+            <Button
+              onClick={handlePriceUpdate}
+              className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 transition-all"
+            >
               Update Membership Price
             </Button>
           </div>
         )}
 
         {!isMembershipEnabled && (
-          <div className="bg-gray-100 p-4 rounded-md">
-            <p className="text-sm text-gray-600">
-              Your community is currently free to join. Enable paid membership
-              to start monetizing your community.
+          <div className="bg-muted/30 p-4 rounded-xl">
+            <p className="text-sm text-muted-foreground">
+              Your community is currently free to join. Enable paid membership to start monetizing your community.
             </p>
           </div>
         )}
+      </div>
+
+      {/* Promotional Period Info - Fluid Movement style */}
+      <div className="bg-secondary/10 border border-secondary/20 rounded-2xl p-5">
+        <div className="flex gap-4">
+          <div className="flex-shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-secondary/20 flex items-center justify-center">
+              <TrendingUp className="h-5 w-5 text-secondary" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <h4 className="font-display text-base font-semibold text-foreground">First Month Free Promotion</h4>
+            <p className="text-sm text-muted-foreground mt-2">
+              New communities get 0% platform fees for the first 30 days. After that, standard tiered pricing applies (8% → 6% → 4% based on member count).
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
 
   const renderPayoutManagement = () => {
     if (!stripeAccountStatus.isEnabled) {
-      return null; // Don't show payout/bank details if Stripe isn't enabled
+      return null;
     }
 
     return (
-      <div className="pt-6 border-t">
-        {/* Payout Management Section */}
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+      <div className="space-y-6 pt-6 border-t border-border/50">
+        {/* Payout Management Section - Fluid Movement style */}
+        <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-6">
+          <h3 className="font-display text-lg font-semibold text-foreground">
             Payout Management
           </h3>
           {isLoadingPayouts ? (
-            <div className="mt-2 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : payoutData ? (
             <div className="space-y-6">
               {/* Current Balance */}
-              <div className="bg-white p-6 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
-                  Current Balance
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(payoutData.balance.available, payoutData.balance.currency)}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Available</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(payoutData.balance.pending, payoutData.balance.currency)}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Pending</p>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-primary/5 rounded-xl p-4 border border-primary/10">
+                  <p className="text-sm text-muted-foreground mb-1">Available</p>
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {formatCurrency(payoutData.balance.available, payoutData.balance.currency)}
+                  </p>
+                </div>
+                <div className="bg-secondary/10 rounded-xl p-4 border border-secondary/10">
+                  <p className="text-sm text-muted-foreground mb-1">Pending</p>
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {formatCurrency(payoutData.balance.pending, payoutData.balance.currency)}
+                  </p>
                 </div>
               </div>
 
               {/* Recent Payouts */}
               <div>
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                <h4 className="text-sm font-medium text-muted-foreground mb-3">
                   Recent Payouts
                 </h4>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {payoutData.payouts.length > 0 ? (
                     payoutData.payouts.map((payout) => (
                       <div
                         key={payout.id}
-                        className="bg-white p-4 rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+                        className="bg-muted/30 p-4 rounded-xl border border-border/50 hover:border-border transition-colors"
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">
+                            <p className="font-semibold text-foreground">
                               {formatCurrency(payout.amount, payout.currency)}
                             </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-muted-foreground">
                               {new Date(payout.arrivalDate).toLocaleDateString()}
                             </p>
                           </div>
                           <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            className={`px-3 py-1 text-xs font-semibold rounded-full ${
                               payout.status === "paid"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                ? "bg-primary/10 text-primary"
                                 : payout.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-200"
-                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                                ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"
+                                : "bg-muted text-muted-foreground"
                             }`}
                           >
                             {payout.status}
                           </span>
                         </div>
                         {payout.bankAccount && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                          <p className="text-sm text-muted-foreground mt-2">
                             To: •••• {payout.bankAccount.last4}
                           </p>
                         )}
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                    <p className="text-sm text-muted-foreground text-center py-6 bg-muted/20 rounded-xl">
                       No recent payouts
                     </p>
                   )}
@@ -1273,41 +1258,41 @@ export default function CommunitySettingsModal({
               </div>
             </div>
           ) : (
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+            <p className="text-sm text-muted-foreground text-center py-8 bg-muted/20 rounded-xl">
               No payout information available yet.
             </p>
           )}
         </div>
 
-        {/* Bank Account Details Section */}
-        <div className="mt-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+        {/* Bank Account Details Section - Fluid Movement style */}
+        <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+          <h3 className="font-display text-lg font-semibold text-foreground">
             Bank Account Details
           </h3>
           {isLoadingBank ? (
-            <div className="mt-2 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : bankAccount ? (
-            <div className="mt-2 space-y-4">
-              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  Bank Name: {bankAccount.bank_name || "N/A"}
+            <div className="space-y-4">
+              <div className="bg-muted/30 p-4 rounded-xl">
+                <p className="text-sm text-foreground">
+                  <span className="text-muted-foreground">Bank Name:</span> {bankAccount.bank_name || "N/A"}
                 </p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  Account Ending In: **** {bankAccount.last4 || "N/A"}
+                <p className="text-sm text-foreground mt-1">
+                  <span className="text-muted-foreground">Account:</span> •••• {bankAccount.last4 || "N/A"}
                 </p>
               </div>
 
               {/* IBAN Update Form */}
               {showIbanUpdateForm ? (
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg space-y-4">
-                  <h4 className="font-medium text-blue-900 dark:text-blue-100">
+                <div className="bg-primary/5 border border-primary/20 p-5 rounded-xl space-y-4">
+                  <h4 className="font-display font-semibold text-foreground">
                     Update Bank Account
                   </h4>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         IBAN
                       </label>
                       <Input
@@ -1315,11 +1300,11 @@ export default function CommunitySettingsModal({
                         placeholder="FR76 1234 5678 9012 3456 7890 123"
                         value={newIban}
                         onChange={(e) => setNewIban(e.target.value.toUpperCase())}
-                        className="mt-1"
+                        className="rounded-xl border-border/50"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block text-sm font-medium text-foreground mb-2">
                         Account Holder Name
                       </label>
                       <Input
@@ -1327,18 +1312,16 @@ export default function CommunitySettingsModal({
                         placeholder="Your full name as it appears on the account"
                         value={newAccountHolderName}
                         onChange={(e) => setNewAccountHolderName(e.target.value)}
-                        className="mt-1"
+                        className="rounded-xl border-border/50"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-2">
                       <Button
                         onClick={handleSubmitIbanUpdate}
                         disabled={isUpdatingIban || !newIban || !newAccountHolderName}
-                        className="flex-1"
+                        className="flex-1 rounded-xl bg-primary hover:bg-primary/90"
                       >
-                        {isUpdatingIban ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
+                        {isUpdatingIban && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Update Bank Account
                       </Button>
                       <Button
@@ -1348,51 +1331,39 @@ export default function CommunitySettingsModal({
                           setNewIban('');
                           setNewAccountHolderName('');
                         }}
+                        className="rounded-xl border-border/50"
                       >
                         Cancel
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <p className="text-xs text-muted-foreground">
                     Note: This will replace your current bank account with the new one.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowIbanUpdateForm(true)}
-                    className="w-full"
-                  >
-                    Update Bank Account
-                  </Button>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                    Update your IBAN or account holder details directly in the app
-                  </p>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowIbanUpdateForm(true)}
+                  className="w-full rounded-xl border-border/50 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                >
+                  Update Bank Account
+                </Button>
               )}
             </div>
           ) : (
-            <div className="mt-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No bank account information found. Please add your
-                bank account details via Stripe.
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground bg-muted/20 p-4 rounded-xl">
+                No bank account information found. Please add your bank account details via Stripe.
               </p>
               <Button
-                variant="default"
                 onClick={handleUpdateIban}
                 disabled={isUpdatingIban}
-                className="mt-2"
+                className="w-full rounded-xl bg-primary hover:bg-primary/90"
               >
-                {isUpdatingIban ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
+                {isUpdatingIban && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Manage Bank Account
               </Button>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                You&apos;ll be redirected to your Stripe Express
-                dashboard to manage your bank account.
-              </p>
             </div>
           )}
         </div>
@@ -1402,119 +1373,140 @@ export default function CommunitySettingsModal({
 
   const renderThreadCategories = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium">Thread Categories</h3>
-        <Button onClick={handleAddCategory} variant="outline" size="sm">
+      {/* Header with Add button */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Organize your community discussions with custom categories
+        </p>
+        <Button
+          onClick={handleAddCategory}
+          variant="outline"
+          size="sm"
+          className="rounded-xl border-border/50 hover:bg-primary/5 hover:border-primary/30 transition-all"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Category
         </Button>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={categories.map((cat) => cat.id)}
-          strategy={verticalListSortingStrategy}
+      {/* Categories List */}
+      <div className="bg-card rounded-2xl border border-border/50 overflow-hidden">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <div className="space-y-4">
-            {categories.map((category) => (
-              <DraggableCategory
-                key={category.id}
-                category={category}
-                onRemove={handleRemoveCategory}
-                onChange={handleCategoryChange}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+          <SortableContext
+            items={categories.map((cat) => cat.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {categories.length > 0 ? (
+              <div className="divide-y divide-border/50">
+                {categories.map((category) => (
+                  <DraggableCategory
+                    key={category.id}
+                    category={category}
+                    onRemove={handleRemoveCategory}
+                    onChange={handleCategoryChange}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-12 text-center">
+                <TagIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  No categories yet. Add some to help organize threads.
+                </p>
+              </div>
+            )}
+          </SortableContext>
+        </DndContext>
+      </div>
 
+      {/* Save Button */}
       {categories.length > 0 && (
-        <Button onClick={handleSaveCategories} className="w-full">
+        <Button
+          onClick={handleSaveCategories}
+          className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm hover:shadow-md transition-all duration-200"
+        >
           Save Categories
         </Button>
-      )}
-
-      {categories.length === 0 && (
-        <p className="text-sm text-gray-500 text-center">
-          No categories yet. Add some to help organize threads in your
-          community.
-        </p>
       )}
     </div>
   );
 
   const renderDashboard = () => (
     <div className="space-y-6">
-      {/* Stats Grid */}
+      {/* Stats Grid - Fluid Movement cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-6 space-y-2">
+        <div className="bg-card rounded-2xl p-6 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300 ease-out space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Total Members</h3>
-            <Users className="h-4 w-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-muted-foreground">Total Members</h3>
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="font-display text-3xl font-bold text-foreground">
             {localCommunityStats?.totalMembers || 0}
           </p>
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-primary font-medium">
             <TrendingUp className="h-4 w-4 inline mr-1" />+
             {localCommunityStats?.membershipGrowth || 0}% this month
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-6 space-y-2">
+        <div className="bg-card rounded-2xl p-6 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300 ease-out space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">
-              Monthly Revenue
-            </h3>
-            <DollarSign className="h-4 w-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-muted-foreground">Monthly Revenue</h3>
+            <div className="h-10 w-10 rounded-xl bg-secondary/20 flex items-center justify-center">
+              <DollarSign className="h-5 w-5 text-secondary" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="font-display text-3xl font-bold text-foreground">
             €{revenueData.monthlyRevenue.toFixed(2)}
           </p>
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-primary font-medium">
             <TrendingUp className="h-4 w-4 inline mr-1" />
             {(localCommunityStats?.revenueGrowth ?? 0) >= 0 ? "+" : ""}
             {localCommunityStats?.revenueGrowth ?? 0}% this month
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-6 space-y-2">
+        <div className="bg-card rounded-2xl p-6 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300 ease-out space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">Total Threads</h3>
-            <MessageSquare className="h-4 w-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-muted-foreground">Total Threads</h3>
+            <div className="h-10 w-10 rounded-xl bg-accent/20 flex items-center justify-center">
+              <MessageSquare className="h-5 w-5 text-accent" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="font-display text-3xl font-bold text-foreground">
             {localCommunityStats?.totalThreads || 0}
           </p>
-          <p className="text-sm text-gray-500">Across all categories</p>
-        </Card>
+          <p className="text-sm text-muted-foreground">Across all categories</p>
+        </div>
 
-        <Card className="p-6 space-y-2">
+        <div className="bg-card rounded-2xl p-6 border-2 border-transparent hover:border-primary/20 hover:shadow-lg transition-all duration-300 ease-out space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">
-              Active Members
-            </h3>
-            <BarChart3 className="h-4 w-4 text-gray-400" />
+            <h3 className="text-sm font-medium text-muted-foreground">Active Members</h3>
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-primary" />
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="font-display text-3xl font-bold text-foreground">
             {localCommunityStats?.activeMembers || 0}
           </p>
-          <p className="text-sm text-gray-500">Current active memberships</p>
-        </Card>
+          <p className="text-sm text-muted-foreground">Current active memberships</p>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card className="p-6">
-        <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
+      {/* Quick Actions - Fluid Movement style */}
+      <div className="bg-card rounded-2xl p-6 border border-border/50">
+        <h3 className="font-display text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 gap-4">
           <Button
             variant="outline"
             onClick={() => setActiveCategory("subscriptions")}
-            className="w-full"
+            className="w-full h-12 rounded-xl border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all duration-200"
           >
             <DollarSign className="h-4 w-4 mr-2" />
             Manage Subscriptions
@@ -1522,103 +1514,107 @@ export default function CommunitySettingsModal({
           <Button
             variant="outline"
             onClick={() => setActiveCategory("members")}
-            className="w-full"
+            className="w-full h-12 rounded-xl border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all duration-200"
           >
             <Users className="h-4 w-4 mr-2" />
             View Members
           </Button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 
 
   const renderMembers = () => (
-    <div>
-
+    <div className="space-y-4">
       {isLoadingMembers ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : members.length === 0 ? (
+        <div className="bg-card rounded-2xl p-12 border border-border/50 text-center">
+          <Users className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+          <p className="text-muted-foreground">No members yet</p>
         </div>
       ) : (
-        <div className="mt-6">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="bg-card rounded-2xl border border-border/50 overflow-hidden">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-border/50 bg-muted/30">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Member
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Joined
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Last Active
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-border/50">
               {members.map((member) => (
-                <tr key={member.id} className="hover:bg-gray-50">
+                <tr key={member.id} className="hover:bg-muted/30 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 flex-shrink-0">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage
-                            src={member.imageUrl}
-                            alt={member.displayName}
-                          />
-                          <AvatarFallback>
-                            {member.displayName[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
+                      <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                        <AvatarImage
+                          src={member.imageUrl}
+                          alt={member.displayName}
+                        />
+                        <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                          {member.displayName[0]?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-foreground">
                           {member.displayName}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{member.email}</div>
+                    <div className="text-sm text-muted-foreground">{member.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-muted-foreground">
                       {new Date(member.joinedAt).toLocaleDateString()}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         member.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {member.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     {member.lastActive
                       ? new Date(member.lastActive).toLocaleDateString()
                       : "N/A"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleRemoveMember(member.id)}
-                      className="text-red-600 hover:text-red-900"
+                      className="rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50 transition-all"
                     >
                       Remove
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -1632,7 +1628,7 @@ export default function CommunitySettingsModal({
   return (
     <>
       <Transition.Root show={isOpen} as={React.Fragment}>
-        <Dialog as="div" className="relative z-10" onClose={onClose}>
+        <Dialog as="div" className="relative z-50" onClose={onClose}>
           <Transition.Child
             as={React.Fragment}
             enter="ease-out duration-300"
@@ -1642,10 +1638,10 @@ export default function CommunitySettingsModal({
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity" />
           </Transition.Child>
 
-          <div className="fixed inset-0 z-10 overflow-y-auto">
+          <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
               <Transition.Child
                 as={React.Fragment}
@@ -1656,43 +1652,46 @@ export default function CommunitySettingsModal({
                 leaveFrom="opacity-100 translate-y-0 sm:scale-100"
                 leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
               >
-                <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-5xl">
-                  <div className="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
-                    <button
-                      type="button"
-                      className="rounded-md bg-white text-gray-400 hover:text-gray-500"
-                      onClick={onClose}
-                    >
-                      <span className="sr-only">Close</span>
-                      <XMarkIcon className="h-6 w-6" aria-hidden="true" />
-                    </button>
-                  </div>
+                <Dialog.Panel className="relative transform overflow-hidden rounded-2xl bg-card text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-5xl border border-border/50">
+                  {/* Close button - Fluid Movement style */}
+                  <button
+                    type="button"
+                    className="absolute right-4 top-4 z-10 h-10 w-10 rounded-full bg-muted/80 backdrop-blur-sm flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200"
+                    onClick={onClose}
+                  >
+                    <span className="sr-only">Close</span>
+                    <XMarkIcon className="h-5 w-5" aria-hidden="true" />
+                  </button>
 
                   <div className="flex h-[80vh]">
-                    {/* Sidebar */}
-                    <div className="w-1/4 bg-gray-100 border-r border-gray-200 overflow-y-auto">
-                      <div className="py-6 px-4 border-b border-gray-200">
-                        <h2 className="text-xl font-semibold text-gray-800">
+                    {/* Sidebar - Fluid Movement style */}
+                    <div className="w-1/4 bg-muted/30 border-r border-border/50 overflow-y-auto">
+                      <div className="py-6 px-5 border-b border-border/50">
+                        <h2 className="font-display text-xl font-semibold text-foreground">
                           {communityName}
                         </h2>
-                        <h3 className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Community settings
-                        </h3>
+                        </p>
                       </div>
-                      <nav className="mt-6 px-2">
+                      <nav className="mt-4 px-3 space-y-1">
                         {navigationCategories.map((category) => (
                           <button
                             key={category.id}
                             onClick={() => setActiveCategory(category.id)}
-                            className={`flex items-center w-full text-left py-2 px-4 rounded-md mb-1 ${
+                            className={`flex items-center w-full text-left py-2.5 px-4 rounded-xl transition-all duration-200 ${
                               activeCategory === category.id
-                                ? "bg-gray-200 text-gray-900 font-medium"
-                                : "text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                                ? "bg-primary text-primary-foreground font-medium shadow-sm"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
                             }`}
                             id={`settings-${category.id}`}
                           >
                             <category.icon
-                              className="h-5 w-5 mr-3"
+                              className={`h-5 w-5 mr-3 ${
+                                activeCategory === category.id
+                                  ? "text-primary-foreground"
+                                  : "text-muted-foreground"
+                              }`}
                               aria-hidden="true"
                             />
                             {category.name}
@@ -1702,8 +1701,8 @@ export default function CommunitySettingsModal({
                     </div>
 
                     {/* Main content */}
-                    <div className="w-3/4 p-6 overflow-y-auto">
-                      <h2 className="text-2xl font-semibold mb-4">
+                    <div className="w-3/4 p-8 overflow-y-auto bg-background">
+                      <h2 className="font-display text-2xl font-semibold text-foreground mb-6">
                         {
                           navigationCategories.find(
                             (c) => c.id === activeCategory
@@ -1712,130 +1711,134 @@ export default function CommunitySettingsModal({
                       </h2>
 
                       {activeCategory === "general" && (
-                        <div className="space-y-6">
+                        <div className="space-y-8">
                           {/* Community Name */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              Community name
-                            </label>
-                            <Input
-                              type="text"
-                              value={name}
-                              onChange={(e) => setName(e.target.value)}
-                              className="mt-1"
-                            />
-                          </div>
+                          <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-foreground mb-2">
+                                Community name
+                              </label>
+                              <Input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="rounded-xl border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all"
+                              />
+                            </div>
 
-                          {/* Description */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              Description
-                            </label>
-                            <Textarea
-                              value={description}
-                              onChange={(e) => setDescription(e.target.value)}
-                              rows={4}
-                              className="mt-1"
-                              placeholder="Tell people what your community is about..."
-                            />
+                            {/* Description */}
+                            <div>
+                              <label className="block text-sm font-medium text-foreground mb-2">
+                                Description
+                              </label>
+                              <Textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                rows={4}
+                                className="rounded-xl border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all resize-none"
+                                placeholder="Tell people what your community is about..."
+                              />
+                            </div>
                           </div>
 
                           {/* Community Status */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Community Status
-                            </label>
-                            <Select
-                              value={communityStatus}
-                              onValueChange={(value: 'active' | 'pre_registration' | 'inactive') => setCommunityStatus(value)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active - Members can join and access content</SelectItem>
-                                <SelectItem value="pre_registration">Pre-Registration - Accept pre-registrations only</SelectItem>
-                                <SelectItem value="inactive">Inactive - Community is closed</SelectItem>
-                              </SelectContent>
-                            </Select>
-
-                            {communityStatus === 'pre_registration' && (
-                              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                                <p className="text-sm text-blue-800">
-                                  <strong>Pre-Registration Mode:</strong> Students can save their payment method now and will be automatically charged on the opening date.
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Opening Date (conditional on pre-registration status) */}
-                          {communityStatus === 'pre_registration' && (
+                          <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+                            <h3 className="font-display text-lg font-semibold text-foreground">Status & Availability</h3>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Opening Date & Time
+                              <label className="block text-sm font-medium text-foreground mb-2">
+                                Community Status
                               </label>
-                              <Input
-                                type="datetime-local"
-                                value={openingDate ? new Date(openingDate).toISOString().slice(0, 16) : ''}
-                                onChange={(e) => setOpeningDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
-                                min={new Date().toISOString().slice(0, 16)}
-                                className="mt-1"
-                                disabled={!canChangeOpeningDate}
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Pre-registered members will be automatically charged on this date.
-                              </p>
+                              <Select
+                                value={communityStatus}
+                                onValueChange={(value: 'active' | 'pre_registration' | 'inactive') => setCommunityStatus(value)}
+                              >
+                                <SelectTrigger className="w-full rounded-xl border-border/50">
+                                  <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                  <SelectItem value="active">Active - Members can join and access content</SelectItem>
+                                  <SelectItem value="pre_registration">Pre-Registration - Accept pre-registrations only</SelectItem>
+                                  <SelectItem value="inactive">Inactive - Community is closed</SelectItem>
+                                </SelectContent>
+                              </Select>
 
-                              {!canChangeOpeningDate && (
-                                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                                  <p className="text-sm text-yellow-800">
-                                    Opening date changes are currently restricted. Contact support if you need to modify the date.
+                              {communityStatus === 'pre_registration' && (
+                                <div className="mt-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                                  <p className="text-sm text-foreground">
+                                    <strong>Pre-Registration Mode:</strong> Students can save their payment method now and will be automatically charged on the opening date.
                                   </p>
                                 </div>
                               )}
                             </div>
-                          )}
+
+                            {/* Opening Date (conditional on pre-registration status) */}
+                            {communityStatus === 'pre_registration' && (
+                              <div>
+                                <label className="block text-sm font-medium text-foreground mb-2">
+                                  Opening Date & Time
+                                </label>
+                                <Input
+                                  type="datetime-local"
+                                  value={openingDate ? new Date(openingDate).toISOString().slice(0, 16) : ''}
+                                  onChange={(e) => setOpeningDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
+                                  min={new Date().toISOString().slice(0, 16)}
+                                  className="rounded-xl border-border/50"
+                                  disabled={!canChangeOpeningDate}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1.5">
+                                  Pre-registered members will be automatically charged on this date.
+                                </p>
+
+                                {!canChangeOpeningDate && (
+                                  <div className="mt-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                                      Opening date changes are currently restricted. Contact support if you need to modify the date.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
 
                           {/* Cover Image */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              Community Cover Image
-                            </label>
-                            <div className="mt-2">
-                              <div className="w-1/2 mx-auto">
-                                <div className="relative w-full h-40 mb-4">
-                                  <img
-                                    src={imageUrl || "/placeholder.svg"}
-                                    alt="Community preview"
-                                    className="w-full h-full object-cover rounded-lg"
-                                  />
-                                  <label
-                                    htmlFor="community-image"
-                                    className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                                  >
-                                    {isUploading ? (
-                                      <Loader2 className="h-6 w-6 animate-spin" />
-                                    ) : (
-                                      <span>Change Image</span>
-                                    )}
-                                  </label>
-                                  <input
-                                    type="file"
-                                    id="community-image"
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
-                                    className="hidden"
-                                  />
-                                </div>
+                          <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+                            <h3 className="font-display text-lg font-semibold text-foreground">Cover Image</h3>
+                            <div className="w-full max-w-md mx-auto">
+                              <div className="relative aspect-video overflow-hidden rounded-2xl group">
+                                <img
+                                  src={imageUrl || "/placeholder.svg"}
+                                  alt="Community preview"
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                                <label
+                                  htmlFor="community-image"
+                                  className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm text-white opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer rounded-2xl"
+                                >
+                                  {isUploading ? (
+                                    <Loader2 className="h-8 w-8 animate-spin" />
+                                  ) : (
+                                    <span className="px-4 py-2 bg-white/20 rounded-xl backdrop-blur-sm font-medium">
+                                      Change Image
+                                    </span>
+                                  )}
+                                </label>
+                                <input
+                                  type="file"
+                                  id="community-image"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                />
                               </div>
                             </div>
                           </div>
 
                           {/* Custom Links Section */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Custom Links
-                            </label>
+                          <div className="bg-card rounded-2xl p-6 border border-border/50 space-y-4">
+                            <h3 className="font-display text-lg font-semibold text-foreground">Custom Links</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Add useful links for your community members (e.g., social media profiles, website)
+                            </p>
                             <div className="space-y-3">
                               {links.map((link, index) => (
                                 <div key={index} className="flex gap-2">
@@ -1849,7 +1852,7 @@ export default function CommunitySettingsModal({
                                         e.target.value
                                       )
                                     }
-                                    className="flex-1"
+                                    className="flex-1 rounded-xl border-border/50"
                                   />
                                   <Input
                                     placeholder="URL (e.g., instagram.com/your-profile)"
@@ -1861,14 +1864,15 @@ export default function CommunitySettingsModal({
                                         e.target.value
                                       )
                                     }
-                                    className="flex-1"
+                                    className="flex-1 rounded-xl border-border/50"
                                   />
                                   <Button
-                                    variant="destructive"
+                                    variant="outline"
                                     size="icon"
                                     onClick={() => handleRemoveLink(index)}
+                                    className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50 transition-all"
                                   >
-                                    ×
+                                    <X className="h-4 w-4" />
                                   </Button>
                                 </div>
                               ))}
@@ -1876,20 +1880,17 @@ export default function CommunitySettingsModal({
                                 type="button"
                                 variant="outline"
                                 onClick={handleAddLink}
-                                className="w-full"
+                                className="w-full rounded-xl border-border/50 border-dashed hover:bg-primary/5 hover:border-primary/30 transition-all"
                               >
+                                <Plus className="h-4 w-4 mr-2" />
                                 Add Link
                               </Button>
                             </div>
-                            <p className="mt-1 text-sm text-gray-500">
-                              Add useful links for your community members (e.g.,
-                              social media profiles, website)
-                            </p>
                           </div>
 
                           <Button
                             onClick={handleSaveChanges}
-                            className="bg-black text-white hover:bg-gray-800"
+                            className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm hover:shadow-md transition-all duration-200"
                           >
                             Save Changes
                           </Button>

@@ -24,7 +24,7 @@ export default function CommunityNavbar({ communitySlug, activePage, isMember }:
   );
 
   return (
-    <nav className="bg-card border-b border-border/50 sticky top-0 z-40 backdrop-blur-sm bg-card/95" id="navigation-tabs">
+    <nav className="bg-card border-b border-border/50 sticky top-0 z-30 backdrop-blur-sm bg-card/95" id="navigation-tabs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-14">
           <div className="flex gap-1" id="navigation-tab-buttons">

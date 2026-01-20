@@ -46,17 +46,8 @@ export default function CommunityHeader({
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${imageUrl || "/placeholder.svg"})` }}
         />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/50 to-transparent" />
-
-        {/* Animated gradient effect */}
-        <div
-          className="absolute inset-0 opacity-30 animate-gradient-shift"
-          style={{
-            background: 'linear-gradient(45deg, hsl(265 65% 60% / 0.5), hsl(275 55% 70% / 0.5), hsl(260 70% 65% / 0.5))',
-            backgroundSize: '200% 200%',
-          }}
-        />
+        {/* Subtle dark gradient at bottom for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
         {/* Content */}
         <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8">
