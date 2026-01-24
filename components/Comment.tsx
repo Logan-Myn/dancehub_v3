@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { ThumbsUp, MessageSquare } from "lucide-react";
+import { Heart, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { formatDisplayName } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "react-hot-toast";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface CommentProps {
   id: string;
@@ -45,7 +44,7 @@ export default function Comment({
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  const [showReplies, setShowReplies] = useState(false);
+  const [showReplies, setShowReplies] = useState(true);
   const [localLikes, setLocalLikes] = useState(likes);
   const [localLikesCount, setLocalLikesCount] = useState(likes_count);
   const isLiked = user?.id ? localLikes.includes(user.id) : false;
@@ -61,7 +60,7 @@ export default function Comment({
     if (isLiking) return;
 
     setIsLiking(true);
-    const newLikes = isLiked 
+    const newLikes = isLiked
       ? localLikes.filter(id => id !== user.id)
       : [...localLikes, user.id];
     const newLikesCount = isLiked ? localLikesCount - 1 : localLikesCount + 1;
@@ -125,59 +124,113 @@ export default function Comment({
     setLocalLikesCount(likes_count);
   }, [likes, likes_count]);
 
+  const displayName = formatDisplayName(author.name);
+  const initial = displayName[0]?.toUpperCase() || "U";
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-4">
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={author.image} alt={formatDisplayName(author.name)} />
-          <AvatarFallback>{formatDisplayName(author.name)[0]}</AvatarFallback>
+    <div className="space-y-3">
+      <div className="flex items-start gap-3">
+        <Avatar className="h-9 w-9 ring-2 ring-primary/20 flex-shrink-0">
+          <AvatarImage src={author.image} alt={displayName} />
+          <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
+            {initial}
+          </AvatarFallback>
         </Avatar>
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">{formatDisplayName(author.name)}</span>
-            <span className="text-sm text-gray-500">
-              {formatDistanceToNow(new Date(created_at), { addSuffix: true })}
-            </span>
+
+        <div className="flex-1 min-w-0">
+          {/* Comment bubble */}
+          <div className="bg-muted/50 rounded-2xl rounded-tl-sm px-4 py-2.5 inline-block max-w-full">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold text-sm text-foreground">{displayName}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatDistanceToNow(new Date(created_at), { addSuffix: true })}
+              </span>
+            </div>
+            <p className="text-sm text-foreground whitespace-pre-wrap break-words">{content}</p>
           </div>
-          <p className="text-sm text-gray-700">{content}</p>
-          <div className="flex items-center gap-4">
+
+          {/* Actions row */}
+          <div className="flex items-center gap-3 mt-1.5 ml-1">
             <button
               onClick={handleLike}
-              className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
-                isLiked ? 'text-blue-500' : ''
-              }`}
               disabled={isLiking || !user}
+              className={cn(
+                "flex items-center gap-1 text-xs font-medium",
+                "transition-all duration-200 rounded-full px-2 py-1 -ml-2",
+                "hover:bg-primary/10",
+                isLiked
+                  ? "text-pink-500"
+                  : "text-muted-foreground hover:text-pink-500"
+              )}
             >
-              <ThumbsUp className={`h-4 w-4 ${isLiking ? 'animate-pulse' : ''}`} />
-              <span>{localLikesCount}</span>
+              <Heart
+                className={cn(
+                  "h-3.5 w-3.5 transition-transform duration-200",
+                  isLiked && "fill-current",
+                  isLiking && "animate-pulse scale-125"
+                )}
+              />
+              {localLikesCount > 0 && <span>{localLikesCount}</span>}
             </button>
+
             <button
               onClick={() => setIsReplying(!isReplying)}
-              className="text-sm text-gray-500 hover:text-blue-500"
+              className={cn(
+                "flex items-center gap-1 text-xs font-medium text-muted-foreground",
+                "transition-all duration-200 rounded-full px-2 py-1",
+                "hover:bg-primary/10 hover:text-primary",
+                isReplying && "text-primary"
+              )}
             >
-              Reply
+              <MessageCircle className="h-3.5 w-3.5" />
+              <span>Reply</span>
             </button>
           </div>
+
+          {/* Reply input */}
           {isReplying && (
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-2">
               <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}
                 placeholder="Write a reply..."
-                className="w-full rounded-md border border-gray-300 p-2 text-sm"
-                rows={3}
+                className={cn(
+                  "w-full rounded-2xl border border-border/50 bg-card px-4 py-2.5 text-sm",
+                  "placeholder:text-muted-foreground/60",
+                  "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50",
+                  "transition-all duration-200 resize-none"
+                )}
+                rows={2}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && replyContent.trim()) {
+                    e.preventDefault();
+                    handleSubmitReply();
+                  }
+                }}
               />
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => setIsReplying(false)}
-                  className="rounded-md px-3 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                  onClick={() => {
+                    setIsReplying(false);
+                    setReplyContent('');
+                  }}
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 text-sm font-medium",
+                    "text-muted-foreground hover:bg-muted",
+                    "transition-all duration-200"
+                  )}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmitReply}
                   disabled={isSubmittingReply || !replyContent.trim()}
-                  className="rounded-md bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:opacity-50"
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 text-sm font-medium",
+                    "bg-primary text-primary-foreground",
+                    "hover:bg-primary/90 disabled:opacity-50",
+                    "transition-all duration-200"
+                  )}
                 >
                   {isSubmittingReply ? 'Posting...' : 'Reply'}
                 </button>
@@ -186,16 +239,30 @@ export default function Comment({
           )}
         </div>
       </div>
+
+      {/* Replies section */}
       {replies.length > 0 && (
-        <div className="ml-12">
+        <div className="ml-6 pl-6 border-l-2 border-border/30">
           <button
             onClick={() => setShowReplies(!showReplies)}
-            className="mb-2 text-sm text-gray-500 hover:text-blue-500"
+            className={cn(
+              "flex items-center gap-1.5 mb-3 text-sm font-medium",
+              "text-primary hover:text-primary/80",
+              "transition-colors duration-200"
+            )}
           >
-            {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+            {showReplies ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            <span>
+              {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+            </span>
           </button>
+
           {showReplies && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {replies.map((reply) => (
                 <Comment
                   key={reply.id}
@@ -211,4 +278,4 @@ export default function Comment({
       )}
     </div>
   );
-} 
+}

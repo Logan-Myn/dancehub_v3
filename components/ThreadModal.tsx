@@ -3,13 +3,14 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
-  ThumbsUp,
+  Heart,
   MessageSquare,
-  MoreVertical,
+  MoreHorizontal,
   Edit2,
-  Trash,
+  Trash2,
   MessageCircle,
   Pin,
+  Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { formatDisplayName } from "@/lib/utils";
@@ -38,6 +39,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Editor from "./Editor";
+import { cn } from "@/lib/utils";
 
 interface ThreadModalProps {
   isOpen: boolean;
@@ -554,84 +556,96 @@ export default function ThreadModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[700px] p-0 max-h-[90vh] flex flex-col bg-white">
-          <div className="p-6 border-b bg-white"> {/* Added bg-white here */}
+        <DialogContent className="sm:max-w-[750px] p-0 max-h-[90vh] flex flex-col bg-card border-border/50 rounded-2xl overflow-hidden">
+          {/* Header Section */}
+          <div className="p-6 pb-0">
             {/* Author info and metadata */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Avatar className="h-10 w-10">
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-11 w-11 ring-2 ring-primary/20 flex-shrink-0">
                   <AvatarImage
                     src={thread.author.image}
                     alt={thread.author.name}
                   />
-                  <AvatarFallback>{thread.author.name[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                    {thread.author.name?.[0]?.toUpperCase() || "U"}
+                  </AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{thread.author.name}</span>
-                    <span className="text-gray-500">posted in</span>
-                    <div className="flex items-center space-x-1">
-                      {iconConfig && (
-                        <IconComponent
-                          className="h-4 w-4"
-                          style={{ color: iconConfig.color }}
-                        />
-                      )}
-                      <span style={{ color: iconConfig?.color }}>
-                        {thread.category || "General"}
-                      </span>
-                    </div>
-                    <span className="text-gray-500">·</span>
-                    <span className="text-gray-500">
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold text-foreground">
+                    {thread.author.name}
+                  </span>
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-sm">
+                    <span className="text-muted-foreground">
                       {formatDistanceToNow(new Date(thread.created_at))} ago
                     </span>
+                    <span className="text-muted-foreground">·</span>
+                    {iconConfig ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-muted/50">
+                        <IconComponent
+                          className="h-3.5 w-3.5"
+                          style={{ color: iconConfig.color }}
+                        />
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: iconConfig.color }}
+                        >
+                          {thread.category || "General"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-medium text-muted-foreground px-2.5 py-0.5 rounded-full bg-muted/50">
+                        {thread.category || "General"}
+                      </span>
+                    )}
+                    {thread.pinned && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <div className="flex items-center gap-1 text-primary">
+                          <Pin className="h-3 w-3" />
+                          <span className="text-xs font-medium">Pinned</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                {isCreator && (
+
+              {/* Actions dropdown */}
+              <div className="flex items-center gap-2">
+                {(isCreator || isOwner) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 p-0 rounded-full hover:bg-muted transition-colors duration-200"
+                      >
+                        <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleTogglePin}>
-                        <Pin className="h-4 w-4 mr-2" />
-                        {thread.pinned ? "Unpin" : "Pin"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                    <DropdownMenuContent align="end" className="rounded-xl border-border/50">
+                      {isCreator && (
+                        <DropdownMenuItem
+                          onClick={handleTogglePin}
+                          className="rounded-lg cursor-pointer"
+                        >
+                          <Pin className="h-4 w-4 mr-2" />
+                          {thread.pinned ? "Unpin" : "Pin"}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => setIsEditing(true)}
+                        className="rounded-lg cursor-pointer"
+                      >
                         <Edit2 className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setShowDeleteDialog(true)}
-                        className="text-red-600 focus:text-red-600"
+                        className="text-destructive focus:text-destructive rounded-lg cursor-pointer"
                       >
-                        <Trash className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                {isOwner && !isCreator && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                        <Edit2 className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setShowDeleteDialog(true)}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <Trash className="h-4 w-4 mr-2" />
+                        <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -642,11 +656,11 @@ export default function ThreadModal({
 
             {/* Thread content */}
             {isEditing ? (
-              <div className="space-y-4">
+              <div className="space-y-4 mb-4">
                 <Input
                   value={editedTitle}
                   onChange={(e) => setEditedTitle(e.target.value)}
-                  className="text-xl font-semibold"
+                  className="font-display text-xl md:text-2xl font-semibold border-border/50 rounded-xl focus:ring-primary/50"
                   placeholder="Thread title"
                 />
                 <Editor
@@ -659,13 +673,18 @@ export default function ThreadModal({
                   placeholder="Write your post..."
                   minHeight="120px"
                 />
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={handleCancelEdit}>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    className="rounded-xl border-border/50 hover:bg-muted"
+                  >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSaveEdit}
                     disabled={!editedTitle.trim() || !editedContent.trim()}
+                    className="rounded-xl bg-primary hover:bg-primary/90"
                   >
                     Save Changes
                   </Button>
@@ -673,96 +692,121 @@ export default function ThreadModal({
               </div>
             ) : (
               <>
-                <h2 className="text-2xl font-semibold mb-4">{editedTitle}</h2>
-                <Editor
-                  content={editedContent}
-                  onChange={() => {}}
-                  editable={false}
-                />
+                <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground mb-4">
+                  {editedTitle}
+                </h2>
+                <div className="prose prose-sm max-w-none text-foreground">
+                  <Editor
+                    content={editedContent}
+                    onChange={() => {}}
+                    editable={false}
+                  />
+                </div>
               </>
             )}
 
             {/* Interaction buttons */}
-            <div className="flex items-center space-x-4 text-gray-500 border-t pt-4">
+            <div className="flex items-center gap-2 border-t border-border/30 pt-4 mt-4">
               <button
                 onClick={handleLike}
-                className={`flex items-center space-x-1 hover:text-blue-500 transition-colors ${
-                  isLiked ? "text-blue-500" : ""
-                }`}
                 disabled={isLiking || !user}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm",
+                  "transition-all duration-200 ease-out border-2",
+                  isLiked
+                    ? "bg-pink-50 text-pink-500 border-pink-200"
+                    : "bg-card text-muted-foreground border-border/50 hover:border-pink-200 hover:text-pink-500"
+                )}
               >
-                <ThumbsUp
-                  className={`h-5 w-5 ${isLiking ? "animate-pulse" : ""}`}
+                <Heart
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isLiked && "fill-current",
+                    isLiking && "animate-pulse scale-125"
+                  )}
                 />
                 <span>{localLikesCount}</span>
               </button>
-              <button className="flex items-center space-x-1 hover:text-gray-700">
-                <MessageSquare className="h-5 w-5" />
-                <span>{thread.comments_count}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Comment input - between thread and comments */}
-          <div className="px-6 py-3 border-b bg-white">
-            <div className="flex items-center w-full gap-3">
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarImage src={userAvatarUrl} alt={userDisplayName} />
-                <AvatarFallback>{userInitial}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 flex items-center w-full gap-2">
-                <div className="flex-1 w-full">
-                  <Textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="w-full min-h-[40px] resize-none py-2"
-                    rows={1}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && comment.trim()) {
-                        e.preventDefault();
-                        handleSubmitComment(e);
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  onClick={handleSubmitComment}
-                  disabled={isSubmitting || !comment.trim()}
-                  size="sm"
-                  className="flex-shrink-0"
-                >
-                  {isSubmitting ? "Posting..." : "Post"}
-                </Button>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm text-muted-foreground border-2 border-border/50 bg-card">
+                <MessageSquare className="h-4 w-4" />
+                <span>{thread.comments_count} comments</span>
               </div>
             </div>
           </div>
 
-          {/* Comments section - scrollable */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="space-y-6">
-              {organizedComments.map((comment) => (
-                <Comment key={comment.id} {...mapCommentToProps(comment)} />
-              ))}
+          {/* Comment input - between thread and comments */}
+          <div className="px-6 py-4 bg-muted/30 border-y border-border/30">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-9 w-9 ring-2 ring-primary/20 flex-shrink-0">
+                <AvatarImage src={userAvatarUrl} alt={userDisplayName} />
+                <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
+                  {userInitial}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Write a comment..."
+                  className="w-full min-h-[44px] max-h-32 resize-none py-2.5 px-4 rounded-2xl border border-border/50 bg-card focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 text-sm"
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && comment.trim()) {
+                      e.preventDefault();
+                      handleSubmitComment(e);
+                    }
+                  }}
+                />
+              </div>
+              <Button
+                onClick={handleSubmitComment}
+                disabled={isSubmitting || !comment.trim()}
+                size="icon"
+                className="h-11 w-11 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0 transition-all duration-200"
+              >
+                <Send className={cn(
+                  "h-4 w-4",
+                  isSubmitting && "animate-pulse"
+                )} />
+              </Button>
             </div>
+          </div>
+
+          {/* Comments section - scrollable */}
+          <div className="flex-1 overflow-y-auto p-6 bg-background/50">
+            {organizedComments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <p className="text-muted-foreground font-medium">No comments yet</p>
+                <p className="text-sm text-muted-foreground/70">Be the first to share your thoughts</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {organizedComments.map((comment) => (
+                  <Comment key={comment.id} {...mapCommentToProps(comment)} />
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl border-border/50">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete your
               thread and all its comments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl border-border/50">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="rounded-xl bg-destructive hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>
