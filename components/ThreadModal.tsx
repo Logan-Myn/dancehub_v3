@@ -167,15 +167,21 @@ export default function ThreadModal({
     }
   }, [isOpen, user]);
 
-  // Fetch comments from API when modal opens
+  // Use comments from props if available, otherwise fetch
   useEffect(() => {
+    // If thread already has comments, use them directly
+    if (thread.comments && thread.comments.length > 0) {
+      setLocalComments(thread.comments);
+      return;
+    }
+
+    // Only fetch if modal is open and no comments in props
     async function fetchComments() {
       try {
         const response = await fetch(`/api/threads/${thread.id}/comments`);
         if (response.ok) {
           const comments = await response.json();
           setLocalComments(comments);
-          // Also update parent state
           onThreadUpdate?.(thread.id, { comments });
         }
       } catch (error) {
@@ -186,13 +192,10 @@ export default function ThreadModal({
     if (isOpen && thread.id) {
       fetchComments();
     }
-  }, [isOpen, thread.id]);
+  }, [isOpen, thread.id, thread.comments]);
 
-  // Update local state when thread changes
-  useEffect(() => {
-    setLocalLikesCount(thread.likes_count);
-    setLocalLikes(thread.likes || []);
-  }, [thread.likes_count, thread.likes]);
+  // No sync from props for likes - we use optimistic updates only
+  // The initial state is set from props when the component mounts
 
   const iconConfig = CATEGORY_ICONS.find(
     (i) => i.label === thread.category_type
@@ -738,9 +741,9 @@ export default function ThreadModal({
               >
                 <Heart
                   className={cn(
-                    "h-4 w-4 transition-transform duration-200",
+                    "h-4 w-4",
                     isLiked && "fill-current",
-                    isLiking && "animate-pulse scale-125"
+                    isLiking && "animate-pulse scale-110"
                   )}
                 />
                 <span>{localLikesCount}</span>

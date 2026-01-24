@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Heart, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
@@ -45,8 +45,8 @@ export default function Comment({
   const [replyContent, setReplyContent] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
-  const [localLikes, setLocalLikes] = useState(likes);
-  const [localLikesCount, setLocalLikesCount] = useState(likes_count);
+  const [localLikes, setLocalLikes] = useState<string[]>(likes || []);
+  const [localLikesCount, setLocalLikesCount] = useState(likes_count || 0);
   const isLiked = user?.id ? localLikes.includes(user.id) : false;
 
   const handleLike = async (e: React.MouseEvent) => {
@@ -60,10 +60,14 @@ export default function Comment({
     if (isLiking) return;
 
     setIsLiking(true);
-    const newLikes = isLiked
-      ? localLikes.filter(id => id !== user.id)
+
+    const wasLiked = localLikes.includes(user.id);
+    const newLikes = wasLiked
+      ? localLikes.filter(likeId => likeId !== user.id)
       : [...localLikes, user.id];
-    const newLikesCount = isLiked ? localLikesCount - 1 : localLikesCount + 1;
+    const newLikesCount = wasLiked ? localLikesCount - 1 : localLikesCount + 1;
+
+    // Optimistic update
     setLocalLikes(newLikes);
     setLocalLikesCount(newLikesCount);
 
@@ -81,13 +85,16 @@ export default function Comment({
       });
 
       if (!response.ok) {
-        setLocalLikes(likes);
-        setLocalLikesCount(likes_count);
+        // Revert on error
+        setLocalLikes(wasLiked ? [...localLikes] : localLikes.filter(likeId => likeId !== user.id));
+        setLocalLikesCount(wasLiked ? localLikesCount : localLikesCount - 1);
         const error = await response.text();
         throw new Error(error || 'Failed to like comment');
       }
 
       const data = await response.json();
+      // Update with server response
+      setLocalLikesCount(data.likes_count);
       onLike?.(id, data.likes_count, data.liked);
     } catch (error) {
       console.error('Error liking comment:', error);
@@ -119,10 +126,8 @@ export default function Comment({
     }
   };
 
-  useEffect(() => {
-    setLocalLikes(likes);
-    setLocalLikesCount(likes_count);
-  }, [likes, likes_count]);
+  // No sync from props - we use optimistic updates only
+  // The initial state is set from props when the component mounts
 
   const displayName = formatDisplayName(author.name);
   const initial = displayName[0]?.toUpperCase() || "U";
@@ -155,8 +160,7 @@ export default function Comment({
               onClick={handleLike}
               disabled={isLiking || !user}
               className={cn(
-                "flex items-center gap-1 text-xs font-medium",
-                "transition-all duration-200 rounded-full px-2 py-1 -ml-2",
+                "flex items-center gap-1 text-xs font-medium rounded-full px-2 py-1 -ml-2",
                 "hover:bg-primary/10",
                 isLiked
                   ? "text-pink-500"
@@ -165,9 +169,9 @@ export default function Comment({
             >
               <Heart
                 className={cn(
-                  "h-3.5 w-3.5 transition-transform duration-200",
+                  "h-3.5 w-3.5",
                   isLiked && "fill-current",
-                  isLiking && "animate-pulse scale-125"
+                  isLiking && "animate-pulse scale-110"
                 )}
               />
               {localLikesCount > 0 && <span>{localLikesCount}</span>}

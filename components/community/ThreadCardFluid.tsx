@@ -50,7 +50,9 @@ export default function ThreadCardFluid({
   const { user, session } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const isLiked = user ? likes.includes(user.id) : false;
+  const [localLikes, setLocalLikes] = useState<string[]>(likes || []);
+  const [localLikesCount, setLocalLikesCount] = useState(likes_count || 0);
+  const isLiked = user ? localLikes.includes(user.id) : false;
 
   const iconConfig = CATEGORY_ICONS.find((i) => i.label === category_type);
   const IconComponent = iconConfig?.icon || null;
@@ -66,6 +68,17 @@ export default function ThreadCardFluid({
     if (isLiking) return;
 
     setIsLiking(true);
+
+    // Optimistic update
+    const wasLiked = localLikes.includes(user.id);
+    const newLikes = wasLiked
+      ? localLikes.filter(likeId => likeId !== user.id)
+      : [...localLikes, user.id];
+    const newLikesCount = wasLiked ? localLikesCount - 1 : localLikesCount + 1;
+
+    setLocalLikes(newLikes);
+    setLocalLikesCount(newLikesCount);
+
     try {
       if (!session) {
         throw new Error("No active session");
@@ -80,11 +93,15 @@ export default function ThreadCardFluid({
       });
 
       if (!response.ok) {
+        // Revert on error
+        setLocalLikes(wasLiked ? [...localLikes, user.id] : localLikes.filter(likeId => likeId !== user.id));
+        setLocalLikesCount(wasLiked ? localLikesCount + 1 : localLikesCount - 1);
         const error = await response.text();
         throw new Error(error || "Failed to like thread");
       }
 
       const data = await response.json();
+      setLocalLikesCount(data.likesCount);
       onLikeUpdate?.(id, data.likesCount, data.liked);
     } catch (error) {
       console.error("Error liking thread:", error);
@@ -190,12 +207,12 @@ export default function ThreadCardFluid({
         >
           <Heart
             className={cn(
-              "h-4 w-4 transition-transform duration-200",
+              "h-4 w-4",
               isLiked && "fill-current",
-              isLiking && "animate-pulse scale-125"
+              isLiking && "animate-pulse scale-110"
             )}
           />
-          <span>{likes_count}</span>
+          <span>{localLikesCount}</span>
         </button>
 
         <button

@@ -15,7 +15,6 @@ import PaymentModal from "@/components/PaymentModal";
 import { PreRegistrationComingSoon } from "@/components/PreRegistrationComingSoon";
 import Thread from "@/components/Thread";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import ThreadCard from "@/components/ThreadCard";
 import ThreadModal from "@/components/ThreadModal";
 import ThreadCategories from "@/components/ThreadCategories";
 import CommunityHeader from "@/components/community/CommunityHeader";

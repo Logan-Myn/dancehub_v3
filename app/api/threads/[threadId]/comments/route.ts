@@ -44,14 +44,21 @@ export async function GET(
         c.created_at,
         c.parent_id,
         c.author,
-        c.likes,
-        c.likes_count
+        COALESCE(c.likes, ARRAY[]::TEXT[]) as likes,
+        COALESCE(c.likes_count, 0) as likes_count
       FROM comments c
       WHERE c.thread_id = ${threadId}
       ORDER BY c.created_at ASC
     `;
 
-    return NextResponse.json(comments);
+    // Ensure likes is always an array
+    const formattedComments = comments.map(comment => ({
+      ...comment,
+      likes: comment.likes || [],
+      likes_count: comment.likes_count || 0,
+    }));
+
+    return NextResponse.json(formattedComments);
   } catch (error) {
     console.error('Error fetching comments:', error);
     return NextResponse.json(
