@@ -167,10 +167,26 @@ export default function ThreadModal({
     }
   }, [isOpen, user]);
 
-  // Update local state when thread comments change
+  // Fetch comments from API when modal opens
   useEffect(() => {
-    setLocalComments(thread.comments || []);
-  }, [thread.comments]);
+    async function fetchComments() {
+      try {
+        const response = await fetch(`/api/threads/${thread.id}/comments`);
+        if (response.ok) {
+          const comments = await response.json();
+          setLocalComments(comments);
+          // Also update parent state
+          onThreadUpdate?.(thread.id, { comments });
+        }
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+      }
+    }
+
+    if (isOpen && thread.id) {
+      fetchComments();
+    }
+  }, [isOpen, thread.id]);
 
   // Update local state when thread changes
   useEffect(() => {
@@ -264,6 +280,8 @@ export default function ThreadModal({
       }
 
       const newComment = await response.json();
+      // Update local state immediately so user sees the comment
+      setLocalComments(prev => [...prev, newComment]);
       onCommentUpdate?.(thread.id, newComment);
       setComment("");
       toast.success("Comment posted successfully");

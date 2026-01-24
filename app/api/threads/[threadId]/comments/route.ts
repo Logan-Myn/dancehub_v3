@@ -1,15 +1,64 @@
 import { NextResponse } from 'next/server';
-import { queryOne, sql } from '@/lib/db';
+import { query, queryOne, sql } from '@/lib/db';
 
 interface Profile {
   id: string;
   full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
 }
 
 interface Thread {
   id: string;
-  comments: any[] | null;
+}
+
+interface CommentRow {
+  id: string;
+  thread_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  parent_id: string | null;
+  author: {
+    name: string;
+    image: string;
+  } | null;
+  likes: string[];
+  likes_count: number;
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { threadId: string } }
+) {
+  try {
+    const { threadId } = params;
+
+    // Get all comments for this thread
+    const comments = await query<CommentRow>`
+      SELECT
+        c.id,
+        c.thread_id,
+        c.user_id,
+        c.content,
+        c.created_at,
+        c.parent_id,
+        c.author,
+        c.likes,
+        c.likes_count
+      FROM comments c
+      WHERE c.thread_id = ${threadId}
+      ORDER BY c.created_at ASC
+    `;
+
+    return NextResponse.json(comments);
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch comments' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(
@@ -20,29 +69,9 @@ export async function POST(
     const { content, userId, author } = await request.json();
     const { threadId } = params;
 
-    // Get user data (userId is Better Auth user ID)
-    const userData = await queryOne<Profile>`
-      SELECT *
-      FROM profiles
-      WHERE auth_user_id = ${userId}
-    `;
-
-    const comment = {
-      id: crypto.randomUUID(),
-      content,
-      user_id: userId,
-      author: {
-        name: author?.name || userData?.full_name || 'Anonymous',
-        image: author?.avatar_url || userData?.avatar_url || '',
-      },
-      created_at: new Date().toISOString(),
-      likes: [],
-      likes_count: 0,
-    };
-
-    // Get current thread comments
+    // Verify thread exists
     const thread = await queryOne<Thread>`
-      SELECT id, comments
+      SELECT id
       FROM threads
       WHERE id = ${threadId}
     `;
@@ -51,17 +80,45 @@ export async function POST(
       return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
     }
 
-    const comments = thread.comments || [];
-    const updatedComments = [...comments, comment];
-
-    // Update thread with new comment - comments is jsonb[] type
-    await sql`
-      UPDATE threads
-      SET
-        comments = ${updatedComments.map(c => JSON.stringify(c))}::jsonb[],
-        comments_count = ${updatedComments.length}
-      WHERE id = ${threadId}
+    // Get user profile data
+    const userData = await queryOne<Profile>`
+      SELECT id, full_name, display_name, avatar_url
+      FROM profiles
+      WHERE auth_user_id = ${userId}
     `;
+
+    const authorData = {
+      name: author?.name || userData?.display_name || userData?.full_name || 'Anonymous',
+      image: author?.avatar_url || userData?.avatar_url || '',
+    };
+
+    const commentId = crypto.randomUUID();
+
+    // Insert into comments table
+    await sql`
+      INSERT INTO comments (id, thread_id, user_id, content, author, likes, likes_count)
+      VALUES (
+        ${commentId},
+        ${threadId},
+        ${userId},
+        ${content},
+        ${JSON.stringify(authorData)}::jsonb,
+        ARRAY[]::TEXT[],
+        0
+      )
+    `;
+
+    // Return the created comment
+    const comment = {
+      id: commentId,
+      thread_id: threadId,
+      user_id: userId,
+      content,
+      author: authorData,
+      created_at: new Date().toISOString(),
+      likes: [],
+      likes_count: 0,
+    };
 
     return NextResponse.json(comment);
   } catch (error) {

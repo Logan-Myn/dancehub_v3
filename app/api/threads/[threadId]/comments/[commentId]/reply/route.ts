@@ -4,12 +4,12 @@ import { queryOne, sql } from '@/lib/db';
 interface Profile {
   id: string;
   full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
 }
 
-interface Thread {
+interface Comment {
   id: string;
-  comments: any[] | null;
 }
 
 export async function POST(
@@ -17,52 +17,61 @@ export async function POST(
   { params }: { params: { threadId: string; commentId: string } }
 ) {
   try {
-    const { content, userId } = await request.json();
+    const { content, userId, author } = await request.json();
     const { threadId, commentId } = params;
 
-    // Get user data (userId is Better Auth user ID)
+    // Verify parent comment exists
+    const parentComment = await queryOne<Comment>`
+      SELECT id
+      FROM comments
+      WHERE id = ${commentId}
+    `;
+
+    if (!parentComment) {
+      return NextResponse.json({ error: 'Parent comment not found' }, { status: 404 });
+    }
+
+    // Get user profile data
     const userData = await queryOne<Profile>`
-      SELECT *
+      SELECT id, full_name, display_name, avatar_url
       FROM profiles
       WHERE auth_user_id = ${userId}
     `;
 
+    const authorData = {
+      name: author?.name || userData?.display_name || userData?.full_name || 'Anonymous',
+      image: author?.avatar_url || userData?.avatar_url || '',
+    };
+
+    const replyId = crypto.randomUUID();
+
+    // Insert reply into comments table with parent_id
+    await sql`
+      INSERT INTO comments (id, thread_id, user_id, content, parent_id, author, likes, likes_count)
+      VALUES (
+        ${replyId},
+        ${threadId},
+        ${userId},
+        ${content},
+        ${commentId},
+        ${JSON.stringify(authorData)}::jsonb,
+        ARRAY[]::TEXT[],
+        0
+      )
+    `;
+
+    // Return the created reply
     const reply = {
-      id: crypto.randomUUID(),
-      content,
+      id: replyId,
+      thread_id: threadId,
       user_id: userId,
-      author: {
-        name: userData?.full_name || 'Anonymous',
-        image: userData?.avatar_url || '',
-      },
-      created_at: new Date().toISOString(),
+      content,
       parent_id: commentId,
+      author: authorData,
+      created_at: new Date().toISOString(),
       likes: [],
       likes_count: 0,
     };
-
-    // Get current thread comments
-    const thread = await queryOne<Thread>`
-      SELECT comments
-      FROM threads
-      WHERE id = ${threadId}
-    `;
-
-    if (!thread) {
-      return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
-    }
-
-    const comments = thread.comments || [];
-    const updatedComments = [...comments, reply];
-
-    // Update thread with new reply
-    await sql`
-      UPDATE threads
-      SET
-        comments = ${JSON.stringify(updatedComments)}::jsonb,
-        comments_count = ${updatedComments.length}
-      WHERE id = ${threadId}
-    `;
 
     return NextResponse.json(reply);
   } catch (error) {

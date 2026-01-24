@@ -1,22 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sql, queryOne } from '@/lib/db';
 
-interface Comment {
+interface CommentRow {
   id: string;
-  content: string;
-  author: {
-    name: string;
-    image: string;
-  };
-  created_at: string;
-  replies?: Comment[];
-  parent_id?: string;
-  likes?: string[];
-  likes_count?: number;
-}
-
-interface ThreadComments {
-  comments: Comment[] | null;
+  likes: string[] | null;
+  likes_count: number;
 }
 
 export async function POST(
@@ -25,57 +13,45 @@ export async function POST(
 ) {
   try {
     const { userId } = await request.json();
-    const { threadId, commentId } = params;
+    const { commentId } = params;
 
-    // Get the thread document
-    const thread = await queryOne<ThreadComments>`
-      SELECT comments
-      FROM threads
-      WHERE id = ${threadId}
+    // Get the comment from the comments table
+    const comment = await queryOne<CommentRow>`
+      SELECT id, likes, likes_count
+      FROM comments
+      WHERE id = ${commentId}
     `;
 
-    if (!thread) {
-      return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+    if (!comment) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
-    const comments = thread.comments || [];
+    const likes = comment.likes || [];
+    const userLikeIndex = likes.indexOf(userId);
+    let liked: boolean;
+    let newLikes: string[];
 
-    // Find the comment and update its likes
-    const updatedComments = comments.map((comment: Comment) => {
-      if (comment.id === commentId) {
-        const likes = comment.likes || [];
-        const userLikeIndex = likes.indexOf(userId);
+    if (userLikeIndex === -1) {
+      // Add like
+      newLikes = [...likes, userId];
+      liked = true;
+    } else {
+      // Remove like
+      newLikes = likes.filter(id => id !== userId);
+      liked = false;
+    }
 
-        if (userLikeIndex === -1) {
-          // Add like
-          likes.push(userId);
-        } else {
-          // Remove like
-          likes.splice(userLikeIndex, 1);
-        }
-
-        return {
-          ...comment,
-          likes,
-          likes_count: likes.length
-        };
-      }
-      return comment;
-    });
-
-    // Update the thread with modified comments
+    // Update the comment likes in the comments table
     await sql`
-      UPDATE threads
-      SET comments = ${JSON.stringify(updatedComments)}::jsonb
-      WHERE id = ${threadId}
+      UPDATE comments
+      SET
+        likes = ${newLikes}::TEXT[],
+        likes_count = ${newLikes.length}
+      WHERE id = ${commentId}
     `;
 
-    // Find the updated comment to return its new state
-    const updatedComment = updatedComments.find((c: Comment) => c.id === commentId);
-    const liked = updatedComment?.likes?.includes(userId) || false;
-
     return NextResponse.json({
-      likes_count: updatedComment?.likes?.length || 0,
+      likes_count: newLikes.length,
       liked
     });
   } catch (error) {
