@@ -54,11 +54,11 @@ export async function POST(
     const comments = thread.comments || [];
     const updatedComments = [...comments, comment];
 
-    // Update thread with new comment
+    // Update thread with new comment - comments is jsonb[] type
     await sql`
       UPDATE threads
       SET
-        comments = ${JSON.stringify(updatedComments)}::jsonb,
+        comments = ${updatedComments.map(c => JSON.stringify(c))}::jsonb[],
         comments_count = ${updatedComments.length}
       WHERE id = ${threadId}
     `;
