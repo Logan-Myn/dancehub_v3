@@ -52,8 +52,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { MuxPlayer } from "@/components/MuxPlayer";
+import Editor from "@/components/Editor";
 import EditCourseModal from "@/components/EditCourseModal";
 import NotifyMembersModal from "@/components/NotifyMembersModal";
 import DeleteLessonModal from "@/components/DeleteLessonModal";
@@ -177,17 +177,16 @@ function AddLessonDialog({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="content" className="text-sm font-medium text-foreground">
+            <label className="text-sm font-medium text-foreground">
               Lesson Content
             </label>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Enter lesson content"
-              rows={5}
-              required
-              className="rounded-xl border-border/50 focus:border-primary focus:ring-primary/20"
+            <Editor
+              content={content}
+              onChange={setContent}
+              placeholder="Enter lesson content..."
+              showHeadings={false}
+              showAlignment={false}
+              minHeight="120px"
             />
           </div>
 
@@ -215,93 +214,217 @@ function AddLessonDialog({
   );
 }
 
-// Add this new component for lesson editing
-interface LessonEditorProps {
+// Inline lesson content editor component
+interface InlineLessonEditorProps {
   lesson: Lesson;
   onSave: (lessonData: {
     content: string;
     videoAssetId?: string;
     playbackId?: string;
   }) => Promise<void>;
-  isCreator: boolean;
+  isEditMode: boolean;
+  onVideoUploadStart?: () => void;
+  onVideoUploadEnd?: () => void;
 }
 
-function LessonEditor({ lesson, onSave, isCreator }: LessonEditorProps) {
-  const [content, setContent] = useState(lesson.content || "");
-  const [videoAssetId, setVideoAssetId] = useState<string | undefined>(
-    lesson.videoAssetId || undefined
-  );
-  const [playbackId, setPlaybackId] = useState<string | undefined>(
-    lesson.playbackId || undefined
-  );
+function InlineLessonContent({
+  lesson,
+  onSave,
+  isEditMode,
+}: InlineLessonEditorProps) {
+  const [isEditingText, setIsEditingText] = useState(false);
+  const [isChangingVideo, setIsChangingVideo] = useState(false);
+  const [editedContent, setEditedContent] = useState(lesson.content || "");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Add new function to handle immediate video update
-  const handleVideoUpload = async (assetId: string, playbackId: string) => {
-    try {
-      await onSave({
-        content,
-        videoAssetId: assetId,
-        playbackId: playbackId,
-      });
-      toast.success("Video uploaded successfully");
-    } catch (error) {
-      toast.error("Failed to save video");
-    }
-  };
+  // Reset state when lesson changes
+  useEffect(() => {
+    setEditedContent(lesson.content || "");
+    setIsEditingText(false);
+    setIsChangingVideo(false);
+  }, [lesson.id, lesson.content]);
 
-  const handleSave = async () => {
+  const handleSaveContent = async () => {
     setIsSaving(true);
     try {
-      await onSave({ content, videoAssetId, playbackId });
-      toast.success("Lesson content updated successfully");
+      await onSave({
+        content: editedContent,
+        videoAssetId: lesson.videoAssetId || undefined,
+        playbackId: lesson.playbackId || undefined
+      });
+      setIsEditingText(false);
+      toast.success("Content updated");
     } catch (error) {
-      toast.error("Failed to update lesson");
+      toast.error("Failed to save");
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleCancelEdit = () => {
+    setEditedContent(lesson.content || "");
+    setIsEditingText(false);
+  };
+
+  const handleVideoUpload = async (assetId: string, playbackId: string) => {
+    try {
+      await onSave({
+        content: lesson.content || "",
+        videoAssetId: assetId,
+        playbackId: playbackId,
+      });
+      setIsChangingVideo(false);
+      toast.success("Video updated");
+    } catch (error) {
+      toast.error("Failed to update video");
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {isCreator && (
-        <>
-          <div className="space-y-4">
-            <h3 className="font-display text-lg font-semibold text-foreground">Video Content</h3>
-            <div className="bg-muted/30 rounded-2xl p-4 border border-border/50">
+      {/* Video Section */}
+      {(lesson.playbackId || (isEditMode && isChangingVideo)) && (
+        <div className="relative">
+          {lesson.playbackId && !isChangingVideo ? (
+            <>
+              <div className="rounded-2xl overflow-hidden border border-border/50 shadow-sm bg-black">
+                <MuxPlayer playbackId={lesson.playbackId} />
+              </div>
+              {/* Small edit button in corner - doesn't block video playback */}
+              {isEditMode && (
+                <Button
+                  onClick={() => setIsChangingVideo(true)}
+                  size="sm"
+                  className="absolute top-3 right-3 rounded-xl bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-sm shadow-lg"
+                >
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+                  Change
+                </Button>
+              )}
+            </>
+          ) : isChangingVideo ? (
+            <div className="rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-foreground">Upload New Video</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsChangingVideo(false)}
+                  className="rounded-lg hover:bg-muted"
+                >
+                  Cancel
+                </Button>
+              </div>
               <VideoUpload
-                onUploadComplete={(assetId, playbackId) => {
-                  setVideoAssetId(assetId);
-                  setPlaybackId(playbackId);
-                  handleVideoUpload(assetId, playbackId);
-                }}
+                onUploadComplete={(assetId, playbackId) => handleVideoUpload(assetId, playbackId)}
                 onUploadError={(error) => toast.error(error)}
               />
             </div>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="font-display text-lg font-semibold text-foreground">Lesson Content</h3>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={10}
-              className="w-full rounded-xl border-border/50 focus:border-primary focus:ring-primary/20"
-              placeholder="Enter lesson content..."
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="rounded-xl bg-primary hover:bg-primary/90 transition-all duration-200"
-            >
-              {isSaving ? "Saving..." : "Save Content"}
-            </Button>
-          </div>
-        </>
+          ) : null}
+        </div>
       )}
+
+      {/* Add video button when no video exists */}
+      {!lesson.playbackId && isEditMode && !isChangingVideo && (
+        <button
+          onClick={() => setIsChangingVideo(true)}
+          className={cn(
+            "w-full rounded-2xl border-2 border-dashed border-border/50 p-8",
+            "flex flex-col items-center justify-center gap-3",
+            "text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-muted/30",
+            "transition-all duration-200"
+          )}
+        >
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Play className="h-6 w-6 text-primary" />
+          </div>
+          <span className="font-medium">Add Video</span>
+        </button>
+      )}
+
+      {/* Text Content Section */}
+      <div className="relative">
+        {isEditingText ? (
+          <div className="space-y-4">
+            <Editor
+              key={`editor-${lesson.id}`}
+              content={editedContent}
+              onChange={setEditedContent}
+              placeholder="Enter lesson content..."
+              minHeight="150px"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+                className="rounded-xl border-border/50 hover:bg-muted"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveContent}
+                disabled={isSaving}
+                className="rounded-xl bg-primary hover:bg-primary/90"
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="group relative">
+            {lesson.content ? (
+              <div
+                className={cn(
+                  "bg-muted/30 rounded-2xl p-6 md:p-8 border border-border/50",
+                  isEditMode && "cursor-pointer hover:border-primary/30 transition-all duration-200"
+                )}
+                onClick={() => isEditMode && setIsEditingText(true)}
+              >
+                <div
+                  className={cn(
+                    "prose prose-slate max-w-none",
+                    "prose-headings:font-display prose-headings:text-foreground",
+                    "prose-p:text-muted-foreground prose-p:my-2 prose-a:text-primary",
+                    "prose-ul:list-disc prose-ul:pl-6 prose-ul:my-2",
+                    "prose-ol:list-decimal prose-ol:pl-6 prose-ol:my-2",
+                    "prose-li:my-0.5 prose-li:text-muted-foreground",
+                    "[&_li>p]:my-0 [&_li>p]:inline",
+                    "prose-blockquote:border-l-4 prose-blockquote:border-primary/30 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-muted-foreground"
+                  )}
+                  dangerouslySetInnerHTML={{
+                    __html: lesson.content,
+                  }}
+                />
+                {/* Edit hint overlay */}
+                {isEditMode && (
+                  <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-all duration-200 rounded-2xl flex items-center justify-center">
+                    <div className="bg-card/90 backdrop-blur-sm px-4 py-2 rounded-xl border border-border/50 shadow-sm flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Edit2 className="w-4 h-4" />
+                      Click to edit
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : isEditMode ? (
+              <button
+                onClick={() => setIsEditingText(true)}
+                className={cn(
+                  "w-full rounded-2xl border-2 border-dashed border-border/50 p-8",
+                  "flex flex-col items-center justify-center gap-3",
+                  "text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-muted/30",
+                  "transition-all duration-200"
+                )}
+              >
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-primary" />
+                </div>
+                <span className="font-medium">Add Content</span>
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1075,24 +1198,13 @@ export default function CoursePage() {
           </Button>
         </div>
 
-        {/* Video Content */}
-        {selectedLesson.playbackId && (
-          <div className="rounded-2xl overflow-hidden border border-border/50 shadow-sm bg-black">
-            <MuxPlayer playbackId={selectedLesson.playbackId} />
-          </div>
-        )}
-
-        {/* Text Content */}
-        {selectedLesson.content && (
-          <div className="bg-muted/30 rounded-2xl p-6 md:p-8 border border-border/50">
-            <div
-              className="prose prose-slate max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
-              dangerouslySetInnerHTML={{
-                __html: selectedLesson.content || "",
-              }}
-            />
-          </div>
-        )}
+        {/* Lesson Content - Video & Text with inline editing */}
+        <InlineLessonContent
+          key={selectedLesson.id}
+          lesson={selectedLesson}
+          onSave={handleUpdateLesson}
+          isEditMode={isCreator && isEditMode}
+        />
 
         {/* Navigation Buttons */}
         <div className="flex justify-between pt-4 border-t border-border/50">
@@ -1171,16 +1283,6 @@ export default function CoursePage() {
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
-
-        {isCreator && isEditMode ? (
-          <LessonEditor
-            lesson={selectedLesson}
-            onSave={handleUpdateLesson}
-            isCreator={isCreator}
-          />
-        ) : (
-          <div>{/* ... existing video and content display ... */}</div>
-        )}
       </div>
     );
   };
