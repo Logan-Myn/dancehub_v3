@@ -65,7 +65,7 @@ export async function GET() {
         lb.scheduled_at,
         lb.lesson_status,
         lb.payment_status,
-        lb.payment_intent_id,
+        lb.stripe_payment_intent_id as payment_intent_id,
         lb.price_paid,
         lb.is_community_member,
         lb.daily_room_name,
