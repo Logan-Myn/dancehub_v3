@@ -227,13 +227,13 @@ export async function POST(request: Request) {
               WHERE id = ${metadata.lesson_id}
             `;
 
-            // Get teacher profile
+            // Get teacher profile (teacher_id is Better Auth ID, stored as auth_user_id in profiles)
             let teacherProfile: TeacherProfile | null = null;
             if (lessonDetails?.teacher_id) {
               teacherProfile = await queryOne<TeacherProfile>`
                 SELECT display_name, full_name, email
                 FROM profiles
-                WHERE id = ${lessonDetails.teacher_id}
+                WHERE auth_user_id = ${lessonDetails.teacher_id}
               `;
             }
 
