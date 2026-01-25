@@ -82,12 +82,12 @@ export async function POST(
       });
     }
 
-    // Get member profiles
+    // Get member profiles (user_id in community_members is Better Auth ID, stored as auth_user_id in profiles)
     const memberIds = members.map(m => m.user_id);
     const profiles = await query<Profile>`
       SELECT id, email, full_name
       FROM profiles
-      WHERE id = ANY(${memberIds}::uuid[])
+      WHERE auth_user_id = ANY(${memberIds})
     `;
 
     console.log('Sending notifications to members:', profiles.map(p => ({ id: p.id, email: p.email })));

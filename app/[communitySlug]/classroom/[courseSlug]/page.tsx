@@ -401,7 +401,7 @@ export default function CoursePage() {
 
         // Check if user is a member of the community
         const membershipResponse = await fetch(
-          `/api/community/${communitySlug}/membership?userId=${user.id}`
+          `/api/community/${communitySlug}/membership/${user.id}`
         );
 
         if (!membershipResponse.ok) {
@@ -412,8 +412,8 @@ export default function CoursePage() {
 
         const membership = await membershipResponse.json();
 
-        // If not a member or not active, redirect to about page
-        if (!membership || membership.status !== "active") {
+        // If not a member, redirect to about page
+        if (!membership || !membership.isMember) {
           router.push(`/${communitySlug}/about`);
           return;
         }
