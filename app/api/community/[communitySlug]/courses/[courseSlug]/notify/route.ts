@@ -92,7 +92,7 @@ export async function POST(
 
     console.log('Sending notifications to members:', profiles.map(p => ({ id: p.id, email: p.email })));
 
-    const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/community/${params.communitySlug}/classroom/${params.courseSlug}`;
+    const courseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${params.communitySlug}/classroom/${params.courseSlug}`;
 
     // Send email to each member
     const emailResults = await Promise.allSettled(profiles.map(async (profile) => {

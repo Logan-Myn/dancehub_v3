@@ -110,7 +110,7 @@ export const fetcher = async (key: string) => {
   // Fetch courses for a community
   if (key.startsWith('courses:')) {
     const [_, communityId, visibility] = key.split(':');
-    const visibilityParam = visibility === 'public' ? '?visibility=public' : '';
+    const visibilityParam = visibility === 'public' ? '&visibility=public' : '';
     const response = await fetch(`/api/courses?communityId=${communityId}${visibilityParam}`, {
       credentials: 'include',
     });
