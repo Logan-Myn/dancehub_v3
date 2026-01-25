@@ -136,17 +136,17 @@ export async function GET(
       const { booking_id, payment_status, ...cleanSlot } = slot;
 
       // Format availability_date to YYYY-MM-DD
-      // Handle both Date objects and ISO strings from database
-      let formattedDate = cleanSlot.availability_date;
-      if (cleanSlot.availability_date) {
-        if (cleanSlot.availability_date instanceof Date) {
-          // If it's a Date object, format it manually to avoid timezone issues
-          const d = cleanSlot.availability_date;
-          formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        } else if (typeof cleanSlot.availability_date === 'string') {
-          // If it's a string, extract just the date part (first 10 chars of ISO format)
-          formattedDate = cleanSlot.availability_date.substring(0, 10);
-        }
+      // Neon returns Date objects at runtime even though TypeScript types say string
+      let formattedDate: string;
+      const dateValue = cleanSlot.availability_date as unknown;
+      if (dateValue instanceof Date) {
+        // Format Date object manually to avoid timezone issues
+        formattedDate = `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`;
+      } else if (typeof dateValue === 'string') {
+        // Extract just the date part (first 10 chars of ISO format)
+        formattedDate = dateValue.substring(0, 10);
+      } else {
+        formattedDate = String(dateValue);
       }
 
       return {
