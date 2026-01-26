@@ -29,6 +29,8 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
+    const dbHost = process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] || 'unknown';
+    console.log('[API Debug] DB Host:', dbHost);
     console.log('[API Debug] Fetching communities for userId:', userId);
 
     // Get communities that the user is a member of, with member count
