@@ -46,6 +46,15 @@ export default function DashboardPage() {
     fetcher
   );
 
+  // Debug logging
+  useEffect(() => {
+    if (user) {
+      console.log('[Dashboard Debug] User:', { id: user.id, email: user.email });
+      console.log('[Dashboard Debug] Communities:', communities);
+      console.log('[Dashboard Debug] Error:', error);
+    }
+  }, [user, communities, error]);
+
   // Update time every minute
   useEffect(() => {
     const timer = setInterval(() => {
