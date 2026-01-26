@@ -489,7 +489,7 @@ export async function POST(request: Request) {
 
         // Determine the effective subscription status
         // If subscription is active but set to cancel at period end, use 'canceling'
-        let effectiveStatus = subscription.status;
+        let effectiveStatus: string = subscription.status;
         if (subscription.status === 'active' && subscription.cancel_at_period_end) {
           effectiveStatus = 'canceling';
         }
