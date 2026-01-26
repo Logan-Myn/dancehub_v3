@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+
 interface CommunityWithMemberCount {
   id: string;
   created_at: string;
