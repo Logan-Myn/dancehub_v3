@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface CommunityWithMemberCount {
   id: string;
@@ -53,12 +54,14 @@ export async function GET(
       ` as CommunityWithMemberCount[];
     }
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       communities.map((community) => ({
         ...community,
         members_count: community.members_count,
       }))
     );
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
   } catch (error) {
     console.error("Error fetching user communities:", error);
     return NextResponse.json(
