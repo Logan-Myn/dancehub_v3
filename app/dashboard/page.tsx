@@ -1,23 +1,18 @@
 "use client";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Users, 
-  Calendar, 
-  TrendingUp, 
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Calendar,
   Clock,
   Video,
-  Star,
   ChevronRight,
-  Plus,
+  Settings,
   Sparkles,
-  BookOpen,
-  Trophy,
-  Target
+  Users,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,8 +20,9 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import MyBookedLessons from "@/components/MyBookedLessons";
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow, formatDistanceToNow } from 'date-fns';
+import { LessonBookingWithDetails } from "@/types/private-lessons";
+import { cn } from "@/lib/utils";
 
 interface Community {
   id: string;
@@ -42,6 +38,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: isAuthLoading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [bookings, setBookings] = useState<LessonBookingWithDetails[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+
   const { data: communities, error, isLoading: isDataLoading } = useSWR<Community[]>(
     user ? `user-communities:${user.id}` : null,
     fetcher
@@ -55,6 +54,26 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch bookings
+  useEffect(() => {
+    if (user) {
+      fetchBookings();
+    }
+  }, [user]);
+
+  const fetchBookings = async () => {
+    try {
+      const response = await fetch('/api/bookings');
+      if (!response.ok) return;
+      const data = await response.json();
+      setBookings(data);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  };
+
   // Redirect to home if not authenticated
   useEffect(() => {
     if (!isAuthLoading && !user) {
@@ -62,30 +81,25 @@ export default function DashboardPage() {
     }
   }, [user, isAuthLoading, router]);
 
-  // Show nothing while checking auth
   if (isAuthLoading) {
     return null;
   }
 
-  // If not authenticated, don't show anything (will redirect)
   if (!user) {
     return null;
   }
 
-  // Show loading spinner only when fetching data
-  if (isDataLoading) {
+  const isLoading = isDataLoading || isLoadingBookings;
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        </div>
       </div>
     );
   }
-
-  // Calculate stats
-  const totalCommunities = communities?.length || 0;
-  const upcomingLessons = 0; // This would come from lesson bookings
-  const weeklyGoal = 3; // Example weekly goal
-  const weeklyProgress = 1; // Example progress
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
@@ -98,203 +112,320 @@ export default function DashboardPage() {
     return email ? email.substring(0, 2).toUpperCase() : 'U';
   };
 
+  const getUserName = (email: string) => {
+    return email?.split('@')[0] || 'Dancer';
+  };
+
+  // Get upcoming lessons (not completed or canceled)
+  const upcomingLessons = bookings
+    .filter(b => b.payment_status === 'succeeded' && !['completed', 'canceled'].includes(b.lesson_status))
+    .sort((a, b) => {
+      if (!a.scheduled_at) return 1;
+      if (!b.scheduled_at) return -1;
+      return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+    });
+
+  const nextLesson = upcomingLessons[0];
+
+  const canJoinVideo = (booking: LessonBookingWithDetails) => {
+    if (booking.payment_status !== 'succeeded') return false;
+    if (!booking.daily_room_name) return false;
+
+    const now = new Date();
+    const expiresAt = booking.daily_room_expires_at ? new Date(booking.daily_room_expires_at) : null;
+    const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at) : null;
+
+    if (expiresAt && now.getTime() > expiresAt.getTime()) return false;
+
+    if (scheduledAt) {
+      const fifteenMinutesBefore = new Date(scheduledAt.getTime() - 15 * 60 * 1000);
+      return now.getTime() >= fifteenMinutesBefore.getTime();
+    }
+
+    return !expiresAt || now.getTime() < expiresAt.getTime();
+  };
+
+  const formatLessonDate = (dateString: string | undefined) => {
+    if (!dateString) return 'Flexible timing';
+    const date = new Date(dateString);
+    if (isToday(date)) return `Today at ${format(date, 'h:mm a')}`;
+    if (isTomorrow(date)) return `Tomorrow at ${format(date, 'h:mm a')}`;
+    return format(date, 'EEE, MMM d · h:mm a');
+  };
+
+  const getTimeUntil = (dateString: string | undefined) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const now = new Date();
+    if (date <= now) return 'Starting now';
+    return formatDistanceToNow(date, { addSuffix: true });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Enhanced Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border-2 border-blue-500">
-                <AvatarImage src={user?.image || undefined} />
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xl font-semibold">
-                  {getUserInitials(user?.email || '')}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                  {getGreeting()}, {user?.email?.split('@')[0]}
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2 mt-1">
-                  <Calendar className="h-4 w-4" />
-                  {format(currentTime, 'EEEE, MMMM d, yyyy')}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-        {/* Enhanced Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950 dark:to-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">Communities</CardTitle>
-              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">{totalCommunities}</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                Active member
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950 dark:to-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">Upcoming Lessons</CardTitle>
-              <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                <Video className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">{upcomingLessons}</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">This week</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-gradient-to-br from-green-50 to-white dark:from-green-950 dark:to-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">Weekly Goal</CardTitle>
-              <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                <Target className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">{weeklyProgress}/{weeklyGoal}</div>
-              <Progress value={(weeklyProgress / weeklyGoal) * 100} className="mt-2 h-2" />
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-200 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950 dark:to-gray-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">Practice Streak</CardTitle>
-              <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
-                <Trophy className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">7</div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                <Star className="h-3 w-3 text-yellow-500" />
-                Days in a row
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Quick Actions
-          </h3>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Button 
-              variant="secondary" 
-              className="bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm"
-              asChild
-            >
-              <Link href="/profile" className="flex items-center justify-center gap-2">
-                <Clock className="h-4 w-4" />
-                View Schedule
-              </Link>
-            </Button>
-            <Button 
-              variant="secondary" 
-              className="bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm"
-              asChild
-            >
-              <Link href="/settings" className="flex items-center justify-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                Account Settings
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* My Booked Lessons Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <MyBookedLessons />
-        </div>
-
-        {/* Your Communities Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-6">
+        {/* Header with Greeting */}
+        <header className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-14 w-14 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
+              <AvatarImage src={user?.image || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary text-lg font-display font-semibold">
+                {getUserInitials(user?.email || '')}
+              </AvatarFallback>
+            </Avatar>
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your Communities</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Stay connected with your dance family</p>
+              <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground">
+                {getGreeting()}, {getUserName(user?.email || '')}
+              </h1>
+              <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
+                <Calendar className="h-3.5 w-3.5" />
+                {format(currentTime, 'EEEE, MMMM d')}
+              </p>
             </div>
           </div>
-          
-          {error ? (
-            <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
-              <CardContent className="text-center py-6">
-                <p className="text-red-600 dark:text-red-400">Error loading communities. Please try again later.</p>
-              </CardContent>
-            </Card>
-          ) : !communities || communities.length === 0 ? (
-            <Card className="border-dashed border-2">
-              <CardContent className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-                </div>
-                <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">No communities yet</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">You haven't joined any dance communities yet</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {communities.slice(0, 6).map((community) => (
-                <Link key={community.id} href={`/${community.slug}`} className="group">
-                  <Card className="h-full border-0 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-1 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-                    <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
-                      <img
-                        src={community.image_url || '/placeholder.svg'}
-                        alt={community.name}
-                        className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <Badge className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
-                        <Users className="h-3 w-3 mr-1" />
-                        {community.members_count || 0}
-                      </Badge>
-                    </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold text-lg mb-2 text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                        {community.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-3">
-                        {community.description || "Explore this vibrant dance community"}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-2">
-                            {[1, 2, 3].map((i) => (
-                              <Avatar key={i} className="h-6 w-6 border-2 border-white dark:border-gray-800">
-                                <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
-                                  {String.fromCharCode(65 + i)}
-                                </AvatarFallback>
-                              </Avatar>
-                            ))}
-                          </div>
-                          {community.members_count > 3 && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              +{community.members_count - 3}
-                            </span>
-                          )}
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-                      </div>
-                    </CardContent>
-                  </Card>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full hover:bg-muted"
+            asChild
+          >
+            <Link href="/dashboard/settings">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+            </Link>
+          </Button>
+        </header>
+
+        {/* Next Lesson Hero Card */}
+        {nextLesson ? (
+          <section
+            className={cn(
+              "relative overflow-hidden rounded-2xl p-6",
+              "bg-gradient-to-br from-primary/90 via-primary to-accent",
+              "text-primary-foreground shadow-lg",
+              "transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+            )}
+          >
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4" />
+                <span className="text-sm font-medium text-white/90">Next Lesson</span>
+                {nextLesson.scheduled_at && (
+                  <Badge className="bg-white/20 text-white border-0 text-xs ml-auto">
+                    {getTimeUntil(nextLesson.scheduled_at)}
+                  </Badge>
+                )}
+              </div>
+
+              <h2 className="font-display text-xl md:text-2xl font-semibold mb-1">
+                {nextLesson.lesson_title}
+              </h2>
+
+              <p className="text-white/80 text-sm mb-4">
+                {nextLesson.community_name}
+              </p>
+
+              <div className="flex items-center gap-4 text-sm text-white/80 mb-5">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4" />
+                  {formatLessonDate(nextLesson.scheduled_at)}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  {nextLesson.duration_minutes} min
+                </span>
+              </div>
+
+              <div className="flex gap-3">
+                {nextLesson.daily_room_name && canJoinVideo(nextLesson) ? (
+                  <Button
+                    asChild
+                    className="bg-white text-primary hover:bg-white/90 font-medium"
+                  >
+                    <Link href={`/video-session/${nextLesson.id}`} className="flex items-center gap-2">
+                      <Video className="h-4 w-4" />
+                      Join Video
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    disabled
+                    className="bg-white/20 text-white border-0 font-medium"
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    Opens soon
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  asChild
+                  className="text-white/90 hover:text-white hover:bg-white/10"
+                >
+                  <Link href={`/${nextLesson.community_slug}/private-lessons`}>
+                    View Details
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-2xl border-2 border-dashed border-border/60 p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <Calendar className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h2 className="font-display text-lg font-semibold text-foreground mb-1">
+              No upcoming lessons
+            </h2>
+            <p className="text-muted-foreground text-sm mb-4">
+              Browse your communities to book a private lesson
+            </p>
+          </section>
+        )}
+
+        {/* Communities Pills */}
+        {communities && communities.length > 0 && (
+          <section>
+            <h3 className="font-display text-lg font-semibold text-foreground mb-3">
+              Your Communities
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {communities.map((community) => (
+                <Link
+                  key={community.id}
+                  href={`/${community.slug}`}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2.5 rounded-full",
+                    "bg-card border border-border/50 shadow-sm",
+                    "text-sm font-medium text-foreground",
+                    "transition-all duration-200 ease-out",
+                    "hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  )}
+                >
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Users className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  {community.name}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
               ))}
             </div>
-          )}
-        </div>
+          </section>
+        )}
+
+        {/* Upcoming Lessons List */}
+        {upcomingLessons.length > 1 && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-display text-lg font-semibold text-foreground">
+                Upcoming Lessons
+              </h3>
+              <Badge variant="secondary" className="font-normal">
+                {upcomingLessons.length} scheduled
+              </Badge>
+            </div>
+
+            <div className="bg-card rounded-2xl border border-border/50 shadow-sm divide-y divide-border/50 overflow-hidden">
+              {upcomingLessons.slice(1).map((booking, index) => (
+                <div
+                  key={booking.id}
+                  className={cn(
+                    "flex items-center justify-between p-4",
+                    "transition-colors duration-200",
+                    "hover:bg-muted/30"
+                  )}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="hidden sm:flex h-10 w-10 rounded-xl bg-primary/10 items-center justify-center flex-shrink-0">
+                      <Video className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
+                        {booking.lesson_title}
+                      </p>
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>{formatLessonDate(booking.scheduled_at)}</span>
+                        <span className="text-border">·</span>
+                        <span>{booking.community_name}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                    {booking.daily_room_name && canJoinVideo(booking) ? (
+                      <Button size="sm" asChild className="rounded-xl">
+                        <Link href={`/video-session/${booking.id}`}>
+                          Join
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="font-normal">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Soon
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Past/Completed Lessons Summary */}
+        {bookings.some(b => b.lesson_status === 'completed') && (
+          <section>
+            <h3 className="font-display text-lg font-semibold text-foreground mb-3">
+              Recent Activity
+            </h3>
+            <div className="bg-card rounded-2xl border border-border/50 shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">
+                    {bookings.filter(b => b.lesson_status === 'completed').length} lessons completed
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Keep up the great work!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Empty state when no communities */}
+        {(!communities || communities.length === 0) && !error && (
+          <section className="rounded-2xl border-2 border-dashed border-border/60 p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <Users className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <h2 className="font-display text-lg font-semibold text-foreground mb-1">
+              Join a community
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              Discover dance communities and start your journey
+            </p>
+          </section>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <section className="rounded-2xl bg-destructive/10 border border-destructive/20 p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-sm text-destructive">
+                Unable to load your communities. Please try again.
+              </p>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
