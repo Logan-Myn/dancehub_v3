@@ -31,6 +31,7 @@ interface CommunitySidebarProps {
   isMember: boolean;
   isCreator: boolean;
   memberStatus?: string | null;
+  subscriptionStatus?: string | null;
   accessEndDate?: string | null;
   membershipPrice?: number;
   membershipEnabled?: boolean;
@@ -48,6 +49,7 @@ export default function CommunitySidebar({
   isMember,
   isCreator,
   memberStatus,
+  subscriptionStatus,
   accessEndDate,
   membershipPrice,
   membershipEnabled,
@@ -195,7 +197,24 @@ export default function CommunitySidebar({
         {/* Action buttons */}
         {!isCreator && (
           <div className="space-y-2">
-            {memberStatus === "inactive" ? (
+            {subscriptionStatus === "canceling" && accessEndDate ? (
+              // Member has canceled but still has access until period end
+              <>
+                <p className="text-xs text-center text-muted-foreground mb-2">
+                  Your membership ends on{" "}
+                  <span className="font-medium text-amber-600">
+                    {new Date(accessEndDate).toLocaleDateString()}
+                  </span>
+                </p>
+                <Button
+                  onClick={onReactivateClick}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  Rejoin Community
+                </Button>
+              </>
+            ) : memberStatus === "inactive" ? (
+              // Member is fully inactive (past period end)
               <>
                 <Button
                   onClick={onReactivateClick}
@@ -210,6 +229,7 @@ export default function CommunitySidebar({
                 )}
               </>
             ) : isMember ? (
+              // Active member
               <Button
                 onClick={onLeaveClick}
                 variant="outline"
@@ -218,6 +238,7 @@ export default function CommunitySidebar({
                 Leave Community
               </Button>
             ) : (
+              // Not a member
               <Button
                 onClick={onJoinClick}
                 className="w-full bg-primary hover:bg-primary/90"

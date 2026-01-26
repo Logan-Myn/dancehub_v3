@@ -13,6 +13,8 @@ interface MemberWithProfile {
   avatar_url: string | null;
   joined_at: string;
   status: string | null;
+  subscription_status: string | null;
+  current_period_end: string | null;
   last_active: string | null;
   user_id: string;
 }
@@ -51,6 +53,8 @@ export async function GET(
       imageUrl: member.avatar_url || '',
       joinedAt: member.joined_at,
       status: member.status || 'active',
+      subscription_status: member.subscription_status,
+      current_period_end: member.current_period_end,
       lastActive: member.last_active,
       user_id: member.user_id
     }));

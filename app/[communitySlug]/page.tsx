@@ -254,6 +254,7 @@ export default function CommunityPage() {
   );
   const [accessEndDate, setAccessEndDate] = useState<string | null>(null);
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [membershipChecked, setMembershipChecked] = useState(false);
 
   const { startNextStep, currentTour, isNextStepVisible } = useNextStep();
@@ -522,6 +523,7 @@ export default function CommunityPage() {
           );
           if (currentMember) {
             setMemberStatus(currentMember.status);
+            setSubscriptionStatus(currentMember.subscription_status);
             if (currentMember.current_period_end) {
               setAccessEndDate(currentMember.current_period_end);
             }
@@ -724,6 +726,7 @@ export default function CommunityPage() {
 
       // Update local state
       setMemberStatus("active");
+      setSubscriptionStatus("active");
       setAccessEndDate(null);
       toast.success("Your membership has been reactivated!");
     } catch (error) {
@@ -1081,6 +1084,7 @@ export default function CommunityPage() {
                 isMember={isMember}
                 isCreator={isCreator}
                 memberStatus={memberStatus}
+                subscriptionStatus={subscriptionStatus}
                 accessEndDate={accessEndDate}
                 membershipPrice={community.membershipPrice}
                 membershipEnabled={community.membershipEnabled}
