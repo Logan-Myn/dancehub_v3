@@ -39,16 +39,22 @@ export async function GET(
     `;
     console.log('[API Debug] Member check:', JSON.stringify(memberCheck));
 
-    // Get communities that the user is a member of, with member count
-    const communities = await sql`
-      SELECT
-        c.*,
-        COALESCE((SELECT COUNT(*) FROM community_members WHERE community_id = c.id), 0)::int as members_count
-      FROM communities c
-      INNER JOIN community_members cm ON cm.community_id = c.id
-      WHERE cm.user_id = ${userId}
-      ORDER BY c.created_at DESC
-    ` as CommunityWithMemberCount[];
+    // Get community_id from member check to use in second query
+    const communityIds = (memberCheck as any[]).map((m: any) => m.community_id);
+    console.log('[API Debug] Community IDs from member check:', communityIds);
+
+    // Try a simpler approach - get communities by ID instead of JOIN
+    let communities: CommunityWithMemberCount[] = [];
+    if (communityIds.length > 0) {
+      communities = await sql`
+        SELECT
+          c.*,
+          COALESCE((SELECT COUNT(*) FROM community_members WHERE community_id = c.id), 0)::int as members_count
+        FROM communities c
+        WHERE c.id = ANY(${communityIds})
+        ORDER BY c.created_at DESC
+      ` as CommunityWithMemberCount[];
+    }
 
     console.log('[API Debug] Found communities:', communities?.length || 0);
     console.log('[API Debug] Raw result:', JSON.stringify(communities?.slice(0, 1)));
