@@ -34,16 +34,25 @@ interface Community {
   created_at: string;
 }
 
+interface UserProfile {
+  id: string;
+  full_name: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: isAuthLoading } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [bookings, setBookings] = useState<LessonBookingWithDetails[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const { data: communities, error, isLoading: isDataLoading } = useSWR<Community[]>(
     user ? `user-communities:${user.id}` : null,
-    fetcher
+    fetcher,
+    { revalidateOnFocus: true, revalidateOnMount: true }
   );
 
   // Update time every minute
@@ -54,12 +63,25 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch bookings
+  // Fetch bookings and profile
   useEffect(() => {
     if (user) {
       fetchBookings();
+      fetchProfile();
     }
   }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await fetch(`/api/profile?userId=${user?.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const fetchBookings = async () => {
     try {
@@ -108,12 +130,24 @@ export default function DashboardPage() {
     return 'Good evening';
   };
 
-  const getUserInitials = (email: string) => {
-    return email ? email.substring(0, 2).toUpperCase() : 'U';
+  const getUserInitials = () => {
+    const name = profile?.display_name || profile?.full_name || user?.name;
+    if (name) {
+      const parts = name.split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return name.substring(0, 2).toUpperCase();
+    }
+    return user?.email ? user.email.substring(0, 2).toUpperCase() : 'U';
   };
 
-  const getUserName = (email: string) => {
-    return email?.split('@')[0] || 'Dancer';
+  const getUserDisplayName = () => {
+    // Priority: display_name > full_name > user.name > email prefix
+    if (profile?.display_name) return profile.display_name;
+    if (profile?.full_name) return profile.full_name;
+    if (user?.name) return user.name;
+    return user?.email?.split('@')[0] || 'Dancer';
   };
 
   // Get upcoming lessons (not completed or canceled)
@@ -169,14 +203,14 @@ export default function DashboardPage() {
         <header className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar className="h-14 w-14 ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
-              <AvatarImage src={user?.image || undefined} />
+              <AvatarImage src={profile?.avatar_url || user?.image || undefined} />
               <AvatarFallback className="bg-primary/10 text-primary text-lg font-display font-semibold">
-                {getUserInitials(user?.email || '')}
+                {getUserInitials()}
               </AvatarFallback>
             </Avatar>
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-semibold text-foreground">
-                {getGreeting()}, {getUserName(user?.email || '')}
+                {getGreeting()}, {getUserDisplayName()}
               </h1>
               <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
                 <Calendar className="h-3.5 w-3.5" />
