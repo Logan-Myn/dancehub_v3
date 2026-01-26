@@ -73,9 +73,11 @@ export async function POST(
         accessEndDate = new Date(subscription.current_period_end * 1000);
 
         // Update member status to indicate pending cancellation
+        // Keep status as 'active' so user maintains access until period end
+        // Set subscription_status to 'canceling' to indicate pending cancellation
         await sql`
           UPDATE community_members
-          SET status = 'inactive', subscription_status = 'canceled'
+          SET subscription_status = 'canceling', current_period_end = ${accessEndDate.toISOString()}
           WHERE community_id = ${community.id}
             AND user_id = ${userId}
         `;
@@ -85,8 +87,12 @@ export async function POST(
           accessEndDate: accessEndDate.toISOString(),
           gracePeriod: true
         });
-      } catch (stripeError) {
-        console.error('Error updating subscription:', stripeError);
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+        return NextResponse.json(
+          { error: 'Failed to cancel subscription. Please try again.' },
+          { status: 500 }
+        );
       }
     }
 

@@ -487,12 +487,19 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
+        // Determine the effective subscription status
+        // If subscription is active but set to cancel at period end, use 'canceling'
+        let effectiveStatus = subscription.status;
+        if (subscription.status === 'active' && subscription.cancel_at_period_end) {
+          effectiveStatus = 'canceling';
+        }
+
         // Update member subscription status
         try {
           await sql`
             UPDATE community_members
             SET
-              subscription_status = ${subscription.status},
+              subscription_status = ${effectiveStatus},
               current_period_end = ${new Date(subscription.current_period_end * 1000).toISOString()}
             WHERE community_id = ${subscription.metadata.community_id}
               AND user_id = ${subscription.metadata.user_id}
