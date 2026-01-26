@@ -29,6 +29,7 @@ interface WeekCalendarProps {
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM
+const HALF_HOURS = [0, 30]; // Support 30-minute increments
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function WeekCalendar({ communityId, communitySlug, isTeacher }: WeekCalendarProps) {
@@ -72,12 +73,12 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
     setCurrentWeek(prev => addDays(prev, direction === 'next' ? 7 : -7));
   };
 
-  const handleTimeSlotClick = (day: Date, hour: number) => {
+  const handleTimeSlotClick = (day: Date, hour: number, minutes: number = 0) => {
     if (!isTeacher) return;
-    
+
     const selectedDate = new Date(day);
-    selectedDate.setHours(hour, 0, 0, 0);
-    
+    selectedDate.setHours(hour, minutes, 0, 0);
+
     setSelectedDateTime(selectedDate);
     setShowCreateModal(true);
   };
@@ -182,38 +183,62 @@ export default function WeekCalendar({ communityId, communitySlug, isTeacher }: 
                   {/* Day slots */}
                   {weekDays.map((day) => {
                     const classes = getClassesForTimeSlot(day, hour);
-                    const isPast = new Date(day.setHours(hour)) < new Date();
+                    const dayDate = new Date(day);
+                    const isPastHour = new Date(dayDate.setHours(hour, 59)) < new Date();
                     const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
                     return (
                       <div
                         key={`${day.toISOString()}-${hour}`}
-                        className={`border-r border-gray-100 last:border-r-0 px-1.5 py-1 relative group ${
-                          isTeacher && !isPast
-                            ? 'hover:bg-blue-50/50 cursor-pointer'
-                            : isPast
-                            ? 'bg-gray-50/30'
-                            : isToday
-                            ? 'bg-blue-50/20'
-                            : 'bg-white'
+                        className={`border-r border-gray-100 last:border-r-0 relative ${
+                          isPastHour ? 'bg-gray-50/30' : isToday ? 'bg-blue-50/20' : 'bg-white'
                         }`}
-                        onClick={() => handleTimeSlotClick(day, hour)}
                       >
-                        {classes.map((liveClass) => (
-                          <LiveClassCard
-                            key={liveClass.id}
-                            liveClass={liveClass}
-                            communitySlug={communitySlug}
-                            onClick={() => setSelectedClass(liveClass)}
-                          />
-                        ))}
+                        {/* Two half-hour slots */}
+                        <div className="flex flex-col h-full">
+                          {HALF_HOURS.map((minutes) => {
+                            const slotTime = new Date(day);
+                            slotTime.setHours(hour, minutes, 0, 0);
+                            const isPastSlot = slotTime < new Date();
 
-                        {/* Add class hint for teachers */}
-                        {isTeacher && !isPast && classes.length === 0 && (
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <PlusIcon className="h-5 w-5 text-blue-400" />
-                          </div>
-                        )}
+                            return (
+                              <div
+                                key={`${day.toISOString()}-${hour}-${minutes}`}
+                                className={`flex-1 px-1.5 py-0.5 group relative ${
+                                  minutes === 30 ? 'border-t border-dashed border-gray-200' : ''
+                                } ${
+                                  isTeacher && !isPastSlot
+                                    ? 'hover:bg-blue-50/50 cursor-pointer'
+                                    : ''
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isPastSlot) handleTimeSlotClick(day, hour, minutes);
+                                }}
+                              >
+                                {/* Add class hint for teachers */}
+                                {isTeacher && !isPastSlot && classes.length === 0 && (
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <PlusIcon className="h-4 w-4 text-blue-400" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Classes are positioned absolutely to span across half-hours */}
+                        <div className="absolute inset-0 px-1.5 py-1 pointer-events-none">
+                          {classes.map((liveClass) => (
+                            <div key={liveClass.id} className="pointer-events-auto">
+                              <LiveClassCard
+                                liveClass={liveClass}
+                                communitySlug={communitySlug}
+                                onClick={() => setSelectedClass(liveClass)}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
