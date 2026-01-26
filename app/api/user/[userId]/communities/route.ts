@@ -29,21 +29,15 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
-    const dbHost = process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] || 'unknown';
-    console.log('[API Debug] DB Host:', dbHost);
-    console.log('[API Debug] Fetching communities for userId:', userId);
 
-    // First, check if the user exists in community_members
-    const memberCheck = await sql`
-      SELECT user_id, community_id FROM community_members WHERE user_id = ${userId}
+    // Get community IDs the user is a member of
+    const memberRows = await sql`
+      SELECT community_id FROM community_members WHERE user_id = ${userId}
     `;
-    console.log('[API Debug] Member check:', JSON.stringify(memberCheck));
 
-    // Get community_id from member check to use in second query
-    const communityIds = (memberCheck as any[]).map((m: any) => m.community_id);
-    console.log('[API Debug] Community IDs from member check:', communityIds);
+    const communityIds = (memberRows as any[]).map((m: any) => m.community_id);
 
-    // Try a simpler approach - get communities by ID instead of JOIN
+    // Fetch communities by IDs (avoids JOIN issues with Neon pooler)
     let communities: CommunityWithMemberCount[] = [];
     if (communityIds.length > 0) {
       communities = await sql`
@@ -55,9 +49,6 @@ export async function GET(
         ORDER BY c.created_at DESC
       ` as CommunityWithMemberCount[];
     }
-
-    console.log('[API Debug] Found communities:', communities?.length || 0);
-    console.log('[API Debug] Raw result:', JSON.stringify(communities?.slice(0, 1)));
 
     return NextResponse.json(
       communities.map((community) => ({
