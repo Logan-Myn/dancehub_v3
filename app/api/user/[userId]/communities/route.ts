@@ -25,10 +25,11 @@ interface CommunityWithMemberCount {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+    const { userId } = await params;
+    console.log('[API Debug] Fetching communities for userId:', userId);
 
     // Get communities that the user is a member of, with member count
     const communities = await query<CommunityWithMemberCount>`
@@ -40,6 +41,8 @@ export async function GET(
       WHERE cm.user_id = ${userId}
       ORDER BY c.created_at DESC
     `;
+
+    console.log('[API Debug] Found communities:', communities?.length || 0);
 
     return NextResponse.json(
       communities.map((community) => ({
