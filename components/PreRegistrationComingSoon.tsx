@@ -119,7 +119,7 @@ export function PreRegistrationComingSoon({
               <div>
                 <p className="font-medium text-gray-900">Automatic Charge on Opening</p>
                 <p className="text-sm text-gray-600">
-                  On {new Date(openingDate).toLocaleDateString()}, you'll be automatically charged €{membershipPrice.toFixed(2)}/month
+                  On {new Date(openingDate).toLocaleDateString()}, you'll be automatically charged €{(Number(membershipPrice) || 0).toFixed(2)}/month
                 </p>
               </div>
             </div>
@@ -144,7 +144,7 @@ export function PreRegistrationComingSoon({
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-900">Payment Details</p>
             <p className="text-sm text-gray-600">
-              Monthly subscription: €{membershipPrice.toFixed(2)}
+              Monthly subscription: €{(Number(membershipPrice) || 0).toFixed(2)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Recurring monthly charge after opening

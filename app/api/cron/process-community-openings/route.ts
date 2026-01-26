@@ -16,7 +16,7 @@ interface Community {
 interface Member {
   id: string;
   user_id: string;
-  stripe_invoice_id: string | null;
+  stripe_subscription_id: string | null;
 }
 
 // Prevent caching
@@ -66,37 +66,42 @@ export async function GET(request: NextRequest) {
         // Process each pre-registered member
         for (const member of members || []) {
           try {
-            // The invoice should auto-finalize and charge, but we check its status
-            if (member.stripe_invoice_id && community.stripe_account_id) {
-              const invoice = await stripe.invoices.retrieve(
-                member.stripe_invoice_id,
+            // With billing_cycle_anchor set to opening date, Stripe automatically:
+            // 1. Creates the first invoice on the opening date
+            // 2. Charges the saved payment method
+            // 3. Sends invoice.payment_succeeded webhook which updates member status
+
+            // Verify the subscription exists and is ready
+            if (member.stripe_subscription_id && community.stripe_account_id) {
+              const subscription = await stripe.subscriptions.retrieve(
+                member.stripe_subscription_id,
                 {
                   stripeAccount: community.stripe_account_id,
                 }
               );
 
-              // If invoice is still draft, finalize it manually
-              if (invoice.status === 'draft') {
-                await stripe.invoices.finalizeInvoice(
-                  member.stripe_invoice_id,
-                  {
-                    stripeAccount: community.stripe_account_id,
-                  }
-                );
+              // Check subscription status
+              // 'active' means billing has started, 'trialing' means billing hasn't started yet
+              // 'incomplete' means payment is pending
+              if (['active', 'trialing', 'incomplete'].includes(subscription.status)) {
+                memberResults.push({
+                  userId: member.user_id,
+                  success: true,
+                  message: `Subscription status: ${subscription.status}`
+                });
+                successCount++;
+              } else {
+                console.error(`Subscription ${subscription.id} has unexpected status: ${subscription.status}`);
+                memberResults.push({
+                  userId: member.user_id,
+                  success: false,
+                  error: `Subscription status: ${subscription.status}`
+                });
+                failCount++;
               }
-
-              // Invoice will be charged automatically by Stripe
-              // We'll update member status via webhook when payment_intent.succeeded fires
-
-              memberResults.push({
-                userId: member.user_id,
-                success: true,
-                message: 'Invoice processed'
-              });
-              successCount++;
             } else {
-              // No invoice found - this shouldn't happen
-              console.error(`No invoice found for member ${member.user_id}`);
+              // No subscription found - this shouldn't happen
+              console.error(`No subscription found for member ${member.user_id}`);
 
               // Update member to inactive
               await sql`
@@ -108,7 +113,7 @@ export async function GET(request: NextRequest) {
               memberResults.push({
                 userId: member.user_id,
                 success: false,
-                error: 'No invoice found'
+                error: 'No subscription found'
               });
               failCount++;
             }

@@ -23,6 +23,9 @@ interface CommunityWithMembersCount {
   thread_categories: unknown;
   custom_links: unknown;
   members_count: number;
+  status: string;
+  opening_date: string | null;
+  can_change_opening_date: boolean;
 }
 
 export async function GET(
@@ -51,6 +54,9 @@ export async function GET(
         c.stripe_onboarding_type,
         c.thread_categories,
         c.custom_links,
+        c.status,
+        c.opening_date,
+        c.can_change_opening_date,
         (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id)::int as members_count
       FROM communities c
       WHERE c.slug = ${communitySlug}

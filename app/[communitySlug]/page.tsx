@@ -12,6 +12,7 @@ import Navbar from "@/app/components/Navbar";
 import CommunityNavbar from "@/components/CommunityNavbar";
 import CommunitySettingsModal from "@/components/CommunitySettingsModal";
 import PaymentModal from "@/components/PaymentModal";
+import { PreRegistrationPaymentModal } from "@/components/PreRegistrationPaymentModal";
 import { PreRegistrationComingSoon } from "@/components/PreRegistrationComingSoon";
 import Thread from "@/components/Thread";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -241,6 +242,9 @@ export default function CommunityPage() {
     null
   );
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPreRegistrationModal, setShowPreRegistrationModal] = useState(false);
+  const [preRegistrationClientSecret, setPreRegistrationClientSecret] = useState<string | null>(null);
+  const [preRegistrationOpeningDate, setPreRegistrationOpeningDate] = useState<string | null>(null);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   const [isWriting, setIsWriting] = useState(false);
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
@@ -606,7 +610,34 @@ export default function CommunityPage() {
     }
 
     try {
-      if (
+      // Check if community is in pre-registration mode
+      if (community?.status === 'pre_registration') {
+        // Handle pre-registration
+        const response = await fetch(
+          `/api/community/${communitySlug}/join-pre-registration`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              email: currentUser.email,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create pre-registration");
+        }
+
+        const { clientSecret, stripeAccountId, openingDate } = await response.json();
+        setPreRegistrationClientSecret(clientSecret);
+        setStripeAccountId(stripeAccountId);
+        setPreRegistrationOpeningDate(openingDate);
+        setShowPreRegistrationModal(true);
+      } else if (
         community?.membershipEnabled &&
         community?.membershipPrice &&
         community.membershipPrice > 0
@@ -1185,6 +1216,22 @@ export default function CommunityPage() {
           toast.success("Successfully joined the community!");
         }}
         communitySlug={communitySlug}
+      />
+
+      <PreRegistrationPaymentModal
+        isOpen={showPreRegistrationModal}
+        onClose={() => setShowPreRegistrationModal(false)}
+        clientSecret={preRegistrationClientSecret || ''}
+        stripeAccountId={stripeAccountId || ''}
+        communitySlug={communitySlug}
+        communityName={community.name}
+        price={community.membershipPrice || 0}
+        openingDate={preRegistrationOpeningDate || ''}
+        onSuccess={() => {
+          setIsPreRegistered(true);
+          setShowPreRegistrationModal(false);
+          toast.success("Pre-registration successful! You'll be charged on the opening date.");
+        }}
       />
 
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
