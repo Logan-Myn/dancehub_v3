@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { sql } from "@/lib/db";
 
 interface CommunityWithMemberCount {
   id: string;
@@ -33,8 +33,14 @@ export async function GET(
     console.log('[API Debug] DB Host:', dbHost);
     console.log('[API Debug] Fetching communities for userId:', userId);
 
+    // First, check if the user exists in community_members
+    const memberCheck = await sql`
+      SELECT user_id, community_id FROM community_members WHERE user_id = ${userId}
+    `;
+    console.log('[API Debug] Member check:', JSON.stringify(memberCheck));
+
     // Get communities that the user is a member of, with member count
-    const communities = await query<CommunityWithMemberCount>`
+    const communities = await sql`
       SELECT
         c.*,
         COALESCE((SELECT COUNT(*) FROM community_members WHERE community_id = c.id), 0)::int as members_count
@@ -42,9 +48,10 @@ export async function GET(
       INNER JOIN community_members cm ON cm.community_id = c.id
       WHERE cm.user_id = ${userId}
       ORDER BY c.created_at DESC
-    `;
+    ` as CommunityWithMemberCount[];
 
     console.log('[API Debug] Found communities:', communities?.length || 0);
+    console.log('[API Debug] Raw result:', JSON.stringify(communities?.slice(0, 1)));
 
     return NextResponse.json(
       communities.map((community) => ({
