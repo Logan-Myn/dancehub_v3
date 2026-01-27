@@ -70,7 +70,11 @@ export async function POST(
           }
         );
 
-        accessEndDate = new Date(subscription.current_period_end * 1000);
+        // In Clover API, current_period_end is now on subscription items, not the subscription itself
+        // Use type assertion since SDK types may not reflect latest API version
+        const subscriptionItem = subscription.items.data[0] as any;
+        const currentPeriodEnd = subscriptionItem?.current_period_end;
+        accessEndDate = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : new Date();
 
         // Update member status to indicate pending cancellation
         // Keep status as 'active' so user maintains access until period end

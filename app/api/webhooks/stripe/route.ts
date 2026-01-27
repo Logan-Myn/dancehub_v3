@@ -494,13 +494,18 @@ export async function POST(request: Request) {
           effectiveStatus = 'canceling';
         }
 
+        // In Clover API, current_period_end is now on subscription items, not the subscription itself
+        // Use type assertion since SDK types may not reflect latest API version
+        const subscriptionItem = subscription.items.data[0] as any;
+        const subCurrentPeriodEnd = subscriptionItem?.current_period_end;
+
         // Update member subscription status
         try {
           await sql`
             UPDATE community_members
             SET
               subscription_status = ${effectiveStatus},
-              current_period_end = ${new Date(subscription.current_period_end * 1000).toISOString()}
+              current_period_end = ${subCurrentPeriodEnd ? new Date(subCurrentPeriodEnd * 1000).toISOString() : null}
             WHERE community_id = ${subscription.metadata.community_id}
               AND user_id = ${subscription.metadata.user_id}
           `;

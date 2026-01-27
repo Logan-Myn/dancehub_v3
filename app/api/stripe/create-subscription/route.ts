@@ -38,6 +38,11 @@ export async function POST(request: Request) {
       },
     });
 
+    // In Clover API, current_period_end is now on subscription items, not the subscription itself
+    // Use type assertion since SDK types may not reflect latest API version
+    const subscriptionItem = subscription.items.data[0] as any;
+    const currentPeriodEnd = subscriptionItem?.current_period_end;
+
     // Store subscription info in database
     const result = await sql`
       INSERT INTO subscriptions (
@@ -56,7 +61,7 @@ export async function POST(request: Request) {
         ${subscription.id},
         ${subscription.status},
         ${new Date(subscription.trial_end! * 1000).toISOString()},
-        ${new Date(subscription.current_period_end * 1000).toISOString()},
+        ${currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null},
         NOW()
       )
     `;
