@@ -97,13 +97,12 @@ export const WelcomeEmail: React.FC<WelcomeEmailProps> = ({
         Need help getting started? Check out our{' '}
         <a href="https://dance-hub.io/help" style={EMAIL_STYLES.link}>
           help center
-        </a>{' '}
-        or reply to this email - we're here to help!
+        </a>.
       </Text>
-      
+
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Happy dancing!<br />
-        The DanceHub Team
+        DanceHub
       </Text>
     </BaseLayout>
   );

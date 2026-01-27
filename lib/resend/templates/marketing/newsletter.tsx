@@ -227,7 +227,7 @@ export const NewsletterEmail: React.FC<NewsletterEmailProps> = ({
         textAlign: 'center',
       }}>
         Keep dancing!<br />
-        The DanceHub Team
+        DanceHub
       </Text>
     </BaseLayout>
   );

@@ -133,13 +133,12 @@ export const PreRegistrationPaymentFailedEmail: React.FC<PreRegistrationPaymentF
       </div>
 
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', color: EMAIL_COLORS.textLight }}>
-        Need help? We're here for you. Just reply to this email and we'll assist you in resolving
-        this issue as quickly as possible.
+        Need help? Visit your pre-registration page to update your payment method.
       </Text>
 
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Best regards,<br />
-        The {communityName} Team
+        {communityName}
       </Text>
     </BaseLayout>
   );

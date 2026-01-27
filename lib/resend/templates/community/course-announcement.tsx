@@ -176,7 +176,7 @@ export const CourseAnnouncementEmail: React.FC<CourseAnnouncementEmailProps> = (
       
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Happy learning!<br />
-        The {communityName} Team
+        {communityName}
       </Text>
     </BaseLayout>
   );

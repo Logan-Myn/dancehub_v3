@@ -135,7 +135,7 @@ export const BookingConfirmationEmail: React.FC<BookingConfirmationEmailProps> =
       
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Looking forward to your lesson!<br />
-        The DanceHub Team
+        DanceHub
       </Text>
     </BaseLayout>
   );

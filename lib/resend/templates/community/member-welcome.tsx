@@ -181,13 +181,12 @@ export const MemberWelcomeEmail: React.FC<MemberWelcomeEmailProps> = ({
       </Section>
       
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', color: EMAIL_COLORS.textLight }}>
-        Have questions? Our community managers are here to help. Just reply to this email 
-        or visit our help center.
+        Have questions? Visit the community page for more information.
       </Text>
-      
+
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Welcome aboard!<br />
-        The {communityName} Team
+        {communityName}
       </Text>
     </BaseLayout>
   );

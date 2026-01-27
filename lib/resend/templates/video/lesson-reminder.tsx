@@ -130,7 +130,7 @@ export const LessonReminderEmail: React.FC<LessonReminderEmailProps> = ({
       
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         Have a great lesson!<br />
-        The DanceHub Team
+        DanceHub
       </Text>
     </BaseLayout>
   );

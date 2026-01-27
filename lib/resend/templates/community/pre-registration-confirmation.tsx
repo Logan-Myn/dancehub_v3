@@ -120,7 +120,7 @@ export const PreRegistrationConfirmationEmail: React.FC<PreRegistrationConfirmat
         </Text>
         <Text style={{ fontSize: '14px', margin: '4px 0' }}>
           No problem! You can cancel your pre-registration at any time before the opening date
-          without being charged. Simply visit your account settings or reply to this email.
+          without being charged. Simply visit your pre-registration page.
         </Text>
       </Section>
 
@@ -143,7 +143,7 @@ export const PreRegistrationConfirmationEmail: React.FC<PreRegistrationConfirmat
 
       <Text style={{ ...EMAIL_STYLES.paragraph, fontSize: '14px', fontWeight: '600', marginTop: '24px' }}>
         See you soon!<br />
-        The {communityName} Team
+        {communityName}
       </Text>
     </BaseLayout>
   );
