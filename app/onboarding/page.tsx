@@ -7,17 +7,18 @@ import OnboardingForm from '@/app/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function OnboardingPage() {
-  const { user, session } = useAuth();
+  const { user, session, loading } = useAuth();
   const router = useRouter();
 
   React.useEffect(() => {
-    if (!session || !user) {
+    // Only redirect if we've finished loading and there's no session
+    if (!loading && (!session || !user)) {
       router.push('/');
     }
-  }, [user, session, router]);
+  }, [user, session, loading, router]);
 
   // Show loading state while checking authentication
-  if (!user) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>

@@ -4,7 +4,7 @@ import { createContext, useContext, useState, ReactNode } from "react";
 import AuthModal from "@/components/auth/AuthModal";
 
 interface AuthModalContextType {
-  showAuthModal: (tab: "signin" | "signup") => void;
+  showAuthModal: (tab: "signin" | "signup", redirectUrl?: string) => void;
 }
 
 const AuthModalContext = createContext<AuthModalContextType | undefined>(undefined);
@@ -12,9 +12,11 @@ const AuthModalContext = createContext<AuthModalContextType | undefined>(undefin
 export function AuthModalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [initialTab, setInitialTab] = useState<"signin" | "signup">("signin");
+  const [redirectUrl, setRedirectUrl] = useState<string | undefined>(undefined);
 
-  const showAuthModal = (tab: "signin" | "signup") => {
+  const showAuthModal = (tab: "signin" | "signup", redirectUrl?: string) => {
     setInitialTab(tab);
+    setRedirectUrl(redirectUrl);
     setIsOpen(true);
   };
 
@@ -25,6 +27,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         initialTab={initialTab}
+        redirectUrl={redirectUrl}
       />
     </AuthModalContext.Provider>
   );

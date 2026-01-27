@@ -38,9 +38,15 @@ function VerifySignupContent() {
         if (response.ok) {
           setStatus('success');
           setMessage('Email verified successfully!');
-          const redirectTo = data.redirectTo || '/';
+          // Check localStorage for stored redirect URL (from auth modal)
+          const storedRedirectUrl = localStorage.getItem('auth_redirect_url');
+          const redirectTo = storedRedirectUrl || data.redirectTo || '/dashboard';
           console.log('Will redirect to:', redirectTo); // Debug log
           setRedirectPath(redirectTo);
+          // Clear the stored redirect URL
+          if (storedRedirectUrl) {
+            localStorage.removeItem('auth_redirect_url');
+          }
           // Redirect to the original page after 3 seconds
           setTimeout(() => {
             console.log('Redirecting to:', redirectTo); // Debug log

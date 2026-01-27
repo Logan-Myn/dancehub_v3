@@ -6,7 +6,7 @@ import { getEmailService } from "@/lib/resend/email-service";
 import { PreRegistrationConfirmationEmail } from "@/lib/resend/templates/community/pre-registration-confirmation";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-02-24.acacia",
+  apiVersion: "2025-12-15.clover" as Stripe.LatestApiVersion,
 });
 
 const emailService = getEmailService();

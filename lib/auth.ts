@@ -21,10 +21,10 @@ export async function signIn(email: string, password: string) {
 /**
  * Sign in with Google OAuth
  */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(redirectUrl?: string) {
   const { data, error } = await authClient.signIn.social({
     provider: "google",
-    callbackURL: window.location.origin + "/dashboard",
+    callbackURL: redirectUrl || window.location.origin + "/dashboard",
   });
 
   if (error) {
@@ -40,11 +40,12 @@ export async function signInWithGoogle() {
 export async function signUp(
   email: string,
   password: string,
-  full_name: string
+  full_name: string,
+  redirectUrl?: string
 ) {
-  // Get the current URL path (excluding the /auth/signup part)
+  // Use provided redirectUrl, or fall back to current path
   const currentPath = window.location.pathname;
-  const redirectPath = currentPath.startsWith("/auth/") ? "/" : currentPath;
+  const redirectPath = redirectUrl || (currentPath.startsWith("/auth/") ? "/dashboard" : currentPath);
 
   const { data, error } = await authClient.signUp.email({
     email,

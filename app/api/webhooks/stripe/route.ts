@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     // For Connect account events, create a new Stripe instance with the account
     const connectedStripe = event.account ?
       new Stripe(process.env.STRIPE_SECRET_KEY!, {
-        apiVersion: '2025-02-24.acacia',
+        apiVersion: '2025-12-15.clover' as Stripe.LatestApiVersion,
         stripeAccount: event.account
       }) :
       stripe;

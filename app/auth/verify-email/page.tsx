@@ -43,9 +43,18 @@ function VerifyEmailContent() {
         setStatus("success");
         setMessage("Your email has been verified successfully!");
 
-        // Redirect to dashboard after 3 seconds
+        // Check localStorage for stored redirect URL (from auth modal)
+        const storedRedirectUrl = localStorage.getItem('auth_redirect_url');
+        const redirectTo = storedRedirectUrl || '/dashboard';
+
+        // Clear the stored redirect URL
+        if (storedRedirectUrl) {
+          localStorage.removeItem('auth_redirect_url');
+        }
+
+        // Redirect after 3 seconds
         setTimeout(() => {
-          router.push("/dashboard");
+          router.push(redirectTo);
         }, 3000);
       } catch (error) {
         console.error("Email verification error:", error);

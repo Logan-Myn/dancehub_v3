@@ -13,17 +13,20 @@ import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/auth";
 import toast from "react-hot-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab: "signin" | "signup";
+  redirectUrl?: string;
 }
 
 type TabType = "signin" | "signup";
 
-export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, initialTab, redirectUrl }: AuthModalProps) {
   const { refreshUser } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -37,6 +40,13 @@ export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProp
     setActiveTab(initialTab);
   }, [initialTab]);
 
+  // Store redirect URL in localStorage when modal opens with a redirect
+  useEffect(() => {
+    if (isOpen && redirectUrl) {
+      localStorage.setItem("auth_redirect_url", redirectUrl);
+    }
+  }, [isOpen, redirectUrl]);
+
   const handleTabChange = (value: string) => {
     setActiveTab(value as TabType);
   };
@@ -44,7 +54,11 @@ export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProp
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      await signInWithGoogle();
+      // Pass redirectUrl to Google sign-in (will redirect after OAuth)
+      const fullRedirectUrl = redirectUrl
+        ? `${window.location.origin}${redirectUrl}`
+        : `${window.location.origin}/dashboard`;
+      await signInWithGoogle(fullRedirectUrl);
       await refreshUser();
       // Note: No need to show success message or close modal here
       // as the user will be redirected to Google's sign-in page
@@ -73,15 +87,21 @@ export default function AuthModal({ isOpen, onClose, initialTab }: AuthModalProp
           toast.error("Please enter your first and last name");
           return;
         }
-        await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`);
+        // Pass redirectUrl to signUp - will be used after email verification
+        await signUp(email, password, `${firstName.trim()} ${lastName.trim()}`, redirectUrl);
         await refreshUser();
         toast.success("Check your email to confirm your account!");
+        onClose();
       } else {
         await signIn(email, password);
         await refreshUser();
         toast.success("Successfully signed in!");
+        onClose();
+        // Redirect to intended page after sign-in
+        if (redirectUrl) {
+          router.push(redirectUrl);
+        }
       }
-      onClose();
     } catch (error) {
       console.error("Auth error:", error);
       if (error instanceof Error) {

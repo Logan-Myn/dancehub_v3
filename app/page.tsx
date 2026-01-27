@@ -77,7 +77,7 @@ export default function LandingPage() {
   const handleTeachingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!user) {
       e.preventDefault();
-      showAuthModal("signup");
+      showAuthModal("signup", "/onboarding");
     }
   };
 
