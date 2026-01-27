@@ -357,8 +357,17 @@ export async function POST(request: Request) {
         // For Connect events, metadata is on the subscription
         if (event.account && paymentIntent.invoice) {
           console.log('🔍 Getting subscription details for invoice:', paymentIntent.invoice);
-          const invoice = await connectedStripe.invoices.retrieve(paymentIntent.invoice as string);
-          const subscription = await connectedStripe.subscriptions.retrieve(invoice.subscription as string);
+          const piInvoice = await connectedStripe.invoices.retrieve(paymentIntent.invoice as string);
+          // In Clover API, subscription is now in parent.subscription_details.subscription
+          const piInvoiceParent = (piInvoice as any).parent;
+          const piSubscriptionId = piInvoiceParent?.subscription_details?.subscription || piInvoice.subscription;
+
+          if (!piSubscriptionId) {
+            console.log('⚠️ No subscription associated with payment intent invoice');
+            return NextResponse.json({ received: true });
+          }
+
+          const subscription = await connectedStripe.subscriptions.retrieve(piSubscriptionId as string);
 
           if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
             console.error('Missing metadata in subscription:', subscription.id);
@@ -401,15 +410,22 @@ export async function POST(request: Request) {
         const invoice = event.data.object as Stripe.Invoice;
         console.log('📄 Full invoice:', JSON.stringify(invoice, null, 2));
 
-        if (!invoice.subscription) {
+        // In Clover API, subscription is now in parent.subscription_details.subscription
+        // instead of invoice.subscription
+        const invoiceParent = (invoice as any).parent;
+        const subscriptionId = invoiceParent?.subscription_details?.subscription || invoice.subscription;
+
+        if (!subscriptionId) {
           console.log('⚠️ No subscription associated with invoice');
           return NextResponse.json({ received: true });
         }
 
+        console.log('📄 Found subscription ID:', subscriptionId);
+
         try {
           // Get subscription from the connected account
           const subscription = await connectedStripe.subscriptions.retrieve(
-            invoice.subscription as string
+            subscriptionId as string
           );
 
           if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
@@ -550,16 +566,20 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_failed':
         const failedInvoice = event.data.object as Stripe.Invoice;
-        if (failedInvoice.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(
-            failedInvoice.subscription as string,
+        // In Clover API, subscription is now in parent.subscription_details.subscription
+        const failedInvoiceParent = (failedInvoice as any).parent;
+        const failedSubscriptionId = failedInvoiceParent?.subscription_details?.subscription || failedInvoice.subscription;
+
+        if (failedSubscriptionId) {
+          const failedSubscription = await stripe.subscriptions.retrieve(
+            failedSubscriptionId as string,
             {
               stripeAccount: stripe_account_id,
             }
           );
 
-          if (!subscription.metadata?.user_id || !subscription.metadata?.community_id) {
-            console.error('Missing metadata in subscription:', subscription.id);
+          if (!failedSubscription.metadata?.user_id || !failedSubscription.metadata?.community_id) {
+            console.error('Missing metadata in subscription:', failedSubscription.id);
             return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
           }
 
@@ -570,8 +590,8 @@ export async function POST(request: Request) {
               SET
                 subscription_status = 'past_due',
                 updated_at = NOW()
-              WHERE community_id = ${subscription.metadata.community_id}
-                AND user_id = ${subscription.metadata.user_id}
+              WHERE community_id = ${failedSubscription.metadata.community_id}
+                AND user_id = ${failedSubscription.metadata.user_id}
             `;
           } catch (failureUpdateError) {
             console.error('Error updating subscription status:', failureUpdateError);
