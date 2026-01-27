@@ -569,11 +569,9 @@ export async function POST(request: Request) {
         const failedSubscriptionId = failedInvoiceParent?.subscription_details?.subscription || failedInvoice.subscription;
 
         if (failedSubscriptionId) {
-          const failedSubscription = await stripe.subscriptions.retrieve(
-            failedSubscriptionId as string,
-            {
-              stripeAccount: stripe_account_id,
-            }
+          // Use connectedStripe for Connect events (uses event.account), otherwise platform stripe
+          const failedSubscription = await connectedStripe.subscriptions.retrieve(
+            failedSubscriptionId as string
           );
 
           if (!failedSubscription.metadata?.user_id || !failedSubscription.metadata?.community_id) {
