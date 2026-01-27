@@ -77,7 +77,7 @@ export default function ClassroomPage() {
   const params = useParams();
   const router = useRouter();
   const communitySlug = params?.communitySlug as string;
-  const { user: currentUser, loading: isAuthLoading } = useAuth();
+  const { user: currentUser, session, loading: isAuthLoading } = useAuth();
 
   const [error, setError] = useState<Error | null>(null);
   const [isMember, setIsMember] = useState(false);
@@ -103,11 +103,12 @@ export default function ClassroomPage() {
   // Check membership first
   useEffect(() => {
     async function checkMembership() {
-      // Wait for auth to be initialized
+      // Wait for auth to be fully initialized (loading done AND we have definitive state)
       if (isAuthLoading) return;
+      if (!currentUser && session === undefined) return; // Still hydrating
 
       // Only redirect if user is definitely not logged in
-      if (!isAuthLoading && !currentUser) {
+      if (!currentUser || !session) {
         router.replace(`/${communitySlug}/about`);
         return;
       }

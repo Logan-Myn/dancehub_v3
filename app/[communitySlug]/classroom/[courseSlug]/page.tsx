@@ -470,11 +470,11 @@ export default function CoursePage() {
 
   // Wait for auth to be initialized
   useEffect(() => {
-    // Only mark auth as checked once loading is complete
-    if (!authLoading) {
+    // Only mark auth as checked once loading is complete AND we have definitive auth state
+    if (!authLoading && (user || session === null)) {
       setIsAuthChecked(true);
     }
-  }, [authLoading]);
+  }, [authLoading, user, session]);
 
   // Check authentication and membership
   useEffect(() => {
@@ -483,7 +483,7 @@ export default function CoursePage() {
 
     async function checkAccess() {
       // If no user after auth is checked, redirect to about page
-      if (!user) {
+      if (!user || !session) {
         router.push(`/${communitySlug}/about`);
         return;
       }
