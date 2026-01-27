@@ -148,7 +148,26 @@ export async function POST(
     );
 
     // Get the client secret from the subscription's invoice
-    const clientSecret = (subscription.latest_invoice as any).payment_intent.client_secret;
+    const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null;
+    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent | null;
+
+    if (!paymentIntent?.client_secret) {
+      console.error("No payment intent or client secret found:", {
+        subscriptionId: subscription.id,
+        latestInvoice: latestInvoice?.id,
+        paymentIntent: paymentIntent?.id,
+      });
+      // Clean up - cancel the subscription since we can't complete payment
+      await stripe.subscriptions.cancel(subscription.id, {
+        stripeAccount: community.stripe_account_id!,
+      });
+      return NextResponse.json(
+        { error: "Failed to initialize payment. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    const clientSecret = paymentIntent.client_secret;
 
     // Add member to community_members table with the platform fee percentage
     try {
