@@ -1775,13 +1775,31 @@ export default function CommunitySettingsModal({
                             {communityStatus === 'pre_registration' && (
                               <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
-                                  Opening Date & Time
+                                  Opening Date & Time (your local time)
                                 </label>
                                 <Input
                                   type="datetime-local"
-                                  value={openingDate ? new Date(openingDate).toISOString().slice(0, 16) : ''}
+                                  value={openingDate ? (() => {
+                                    // Convert UTC to local datetime-local format
+                                    const date = new Date(openingDate);
+                                    const year = date.getFullYear();
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const hours = String(date.getHours()).padStart(2, '0');
+                                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                  })() : ''}
                                   onChange={(e) => setOpeningDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
-                                  min={new Date().toISOString().slice(0, 16)}
+                                  min={(() => {
+                                    // Get current local time for min value
+                                    const now = new Date();
+                                    const year = now.getFullYear();
+                                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                                    const day = String(now.getDate()).padStart(2, '0');
+                                    const hours = String(now.getHours()).padStart(2, '0');
+                                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                  })()}
                                   className="rounded-xl border-border/50"
                                   disabled={!canChangeOpeningDate}
                                 />
