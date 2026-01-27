@@ -125,6 +125,7 @@ export async function POST(
     );
 
     // Create a subscription with the calculated platform fee
+    // Note: In Clover API version, use 'latest_invoice.confirmation_secret' instead of 'latest_invoice.payment_intent'
     const subscription = await stripe.subscriptions.create(
       {
         customer: customer.id,
@@ -140,22 +141,22 @@ export async function POST(
           platform_fee_percentage: feePercentage
         },
         application_fee_percent: feePercentage,
-        expand: ['latest_invoice.payment_intent'],
+        expand: ['latest_invoice.confirmation_secret'],
       },
       {
         stripeAccount: community.stripe_account_id!,
       }
     );
 
-    // Get the client secret from the subscription's invoice
+    // Get the client secret from the subscription's invoice confirmation_secret (Clover API)
     const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null;
-    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent | null;
+    const confirmationSecret = (latestInvoice as any)?.confirmation_secret;
 
-    if (!paymentIntent?.client_secret) {
-      console.error("No payment intent or client secret found:", {
+    if (!confirmationSecret?.client_secret) {
+      console.error("No confirmation secret found:", {
         subscriptionId: subscription.id,
-        latestInvoice: latestInvoice?.id,
-        paymentIntent: paymentIntent?.id,
+        latestInvoiceId: latestInvoice?.id,
+        confirmationSecret,
       });
       // Clean up - cancel the subscription since we can't complete payment
       await stripe.subscriptions.cancel(subscription.id, {
@@ -167,7 +168,7 @@ export async function POST(
       );
     }
 
-    const clientSecret = paymentIntent.client_secret;
+    const clientSecret = confirmationSecret.client_secret;
 
     // Add member to community_members table with the platform fee percentage
     try {
