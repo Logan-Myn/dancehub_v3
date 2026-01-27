@@ -522,9 +522,14 @@ export default function CoursePage() {
           return; // Exit early, no need to check membership
         }
 
-        // Check if user is a member of the community
+        // Check if user is a member of the community (use same endpoint as classroom page)
         const membershipResponse = await fetch(
-          `/api/community/${communitySlug}/membership/${user.id}`
+          `/api/community/${communitySlug}/check-subscription`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id }),
+          }
         );
 
         if (!membershipResponse.ok) {
@@ -536,7 +541,7 @@ export default function CoursePage() {
         const membership = await membershipResponse.json();
 
         // If not a member, redirect to about page
-        if (!membership || !membership.isMember) {
+        if (!membership.hasSubscription) {
           router.push(`/${communitySlug}/about`);
           return;
         }
