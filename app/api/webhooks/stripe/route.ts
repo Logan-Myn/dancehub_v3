@@ -6,6 +6,8 @@ import { videoRoomService } from '@/lib/video-room-service';
 import { getEmailService } from '@/lib/resend/email-service';
 import { BookingConfirmationEmail } from '@/lib/resend/templates/booking/booking-confirmation';
 import { PaymentReceiptEmail } from '@/lib/resend/templates/booking/payment-receipt';
+import { MemberWelcomeEmail } from '@/lib/resend/templates/community/member-welcome';
+import { CommunityOpeningEmail } from '@/lib/resend/templates/community/community-opening';
 import React from 'react';
 import Stripe from 'stripe';
 
@@ -41,10 +43,21 @@ interface TeacherProfile {
 }
 
 interface Community {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image_url: string | null;
+  membership_price: number | null;
   created_at: string;
   active_member_count: number;
   status: string;
   opening_date: string | null;
+}
+
+interface UserProfile {
+  full_name: string | null;
+  email: string | null;
 }
 
 export async function POST(request: Request) {
@@ -440,9 +453,16 @@ export async function POST(request: Request) {
 
           // Check if this member should transition from promotional to standard pricing
           const community = await queryOne<Community>`
-            SELECT created_at, active_member_count, status, opening_date
+            SELECT id, name, slug, description, image_url, membership_price, created_at, active_member_count, status, opening_date
             FROM communities
             WHERE id = ${community_id}
+          `;
+
+          // Get user profile for email
+          const userProfile = await queryOne<UserProfile>`
+            SELECT full_name, email
+            FROM profiles
+            WHERE auth_user_id = ${user_id}
           `;
 
           if (community) {
@@ -489,6 +509,8 @@ export async function POST(request: Request) {
 
             // Check if this is a pre-registration payment and community should be activated
             const isPreRegistration = subscription.metadata?.is_pre_registration === 'true';
+            let communityJustOpened = false;
+
             if (isPreRegistration && community.status === 'pre_registration') {
               const now = new Date();
               const openingDate = community.opening_date ? new Date(community.opening_date) : null;
@@ -502,6 +524,80 @@ export async function POST(request: Request) {
                   WHERE id = ${community_id}
                 `;
                 console.log('✅ Community status updated to active');
+                communityJustOpened = true;
+              }
+            }
+
+            // Send appropriate welcome email
+            if (userProfile?.email && community) {
+              try {
+                const emailService = getEmailService();
+                const communityUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://dance-hub.io'}/${community.slug}`;
+                const memberName = userProfile.full_name || 'there';
+
+                const defaultBenefits = [
+                  'Access to all community courses and content',
+                  'Join live dance classes',
+                  'Connect with fellow dancers',
+                  'Exclusive member resources',
+                ];
+
+                const nextSteps = [
+                  {
+                    title: 'Explore the Classroom',
+                    description: 'Check out available courses and start learning',
+                    url: `${communityUrl}/classroom`,
+                  },
+                  {
+                    title: 'Join Live Classes',
+                    description: 'See the calendar for upcoming live sessions',
+                    url: `${communityUrl}/calendar`,
+                  },
+                  {
+                    title: 'Meet the Community',
+                    description: 'Introduce yourself in the community feed',
+                    url: communityUrl,
+                  },
+                ];
+
+                if (communityJustOpened || isPreRegistration) {
+                  // Send Community Opening email for pre-registration members
+                  await emailService.sendNotificationEmail(
+                    userProfile.email,
+                    `${community.name} is Now Open!`,
+                    React.createElement(CommunityOpeningEmail, {
+                      memberName,
+                      communityName: community.name,
+                      communityDescription: community.description || undefined,
+                      communityUrl,
+                      membershipPrice: (community.membership_price || 0) * 100,
+                      currency: 'EUR',
+                      benefits: defaultBenefits,
+                      nextSteps,
+                    })
+                  );
+                  console.log('✅ Community opening email sent to:', userProfile.email);
+                } else {
+                  // Send Member Welcome email for regular new members
+                  await emailService.sendNotificationEmail(
+                    userProfile.email,
+                    `Welcome to ${community.name}!`,
+                    React.createElement(MemberWelcomeEmail, {
+                      memberName,
+                      communityName: community.name,
+                      communityDescription: community.description || undefined,
+                      communityLogo: community.image_url || undefined,
+                      communityUrl,
+                      membershipTier: 'basic',
+                      benefits: defaultBenefits,
+                      nextSteps,
+                    })
+                  );
+                  console.log('✅ Member welcome email sent to:', userProfile.email);
+                }
+              } catch (emailError) {
+                console.error('❌ Error sending welcome email (non-critical):', emailError);
+                // Don't fail the webhook for email errors
               }
             }
 
