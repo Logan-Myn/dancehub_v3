@@ -480,8 +480,7 @@ export async function POST(request: Request) {
               SET
                 status = 'active',
                 subscription_status = ${subscription.status},
-                platform_fee_percentage = ${isStillPromotional ? 0 : newFeePercentage},
-                updated_at = NOW()
+                platform_fee_percentage = ${isStillPromotional ? 0 : newFeePercentage}
               WHERE community_id = ${community_id}
                 AND user_id = ${user_id}
             `;
@@ -539,8 +538,7 @@ export async function POST(request: Request) {
             await sql`
               UPDATE community_members
               SET
-                status = 'inactive',
-                updated_at = NOW()
+                status = 'inactive'
               WHERE community_id = ${subscription.metadata.community_id}
                 AND user_id = ${subscription.metadata.user_id}
             `;
@@ -588,8 +586,7 @@ export async function POST(request: Request) {
             await sql`
               UPDATE community_members
               SET
-                subscription_status = 'past_due',
-                updated_at = NOW()
+                subscription_status = 'past_due'
               WHERE community_id = ${failedSubscription.metadata.community_id}
                 AND user_id = ${failedSubscription.metadata.user_id}
             `;
