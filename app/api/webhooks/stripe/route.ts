@@ -43,6 +43,8 @@ interface TeacherProfile {
 interface Community {
   created_at: string;
   active_member_count: number;
+  status: string;
+  opening_date: string | null;
 }
 
 export async function POST(request: Request) {
@@ -438,7 +440,7 @@ export async function POST(request: Request) {
 
           // Check if this member should transition from promotional to standard pricing
           const community = await queryOne<Community>`
-            SELECT created_at, active_member_count
+            SELECT created_at, active_member_count, status, opening_date
             FROM communities
             WHERE id = ${community_id}
           `;
@@ -484,6 +486,32 @@ export async function POST(request: Request) {
               WHERE community_id = ${community_id}
                 AND user_id = ${user_id}
             `;
+
+            // Check if this is a pre-registration payment and community should be activated
+            const isPreRegistration = subscription.metadata?.is_pre_registration === 'true';
+            if (isPreRegistration && community.status === 'pre_registration') {
+              const now = new Date();
+              const openingDate = community.opening_date ? new Date(community.opening_date) : null;
+
+              // If opening date has passed, activate the community
+              if (openingDate && openingDate <= now) {
+                console.log('🚀 Activating community after pre-registration payment');
+                await sql`
+                  UPDATE communities
+                  SET status = 'active'
+                  WHERE id = ${community_id}
+                `;
+                console.log('✅ Community status updated to active');
+              }
+            }
+
+            // Increment member count if member just became active
+            try {
+              await sql`SELECT increment_members_count(${community_id})`;
+              console.log('✅ Incremented member count');
+            } catch (countError) {
+              console.error('Error incrementing member count:', countError);
+            }
           }
 
           console.log('✅ Successfully updated member status');
