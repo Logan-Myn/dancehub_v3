@@ -125,7 +125,7 @@ export default function CommunityCalendarPage() {
         <WeekCalendar
           communityId={community.id}
           communitySlug={communitySlug}
-          isTeacher={isCreator || isMember} // Allow both creators and members to be teachers for now
+          isTeacher={isCreator}
         />
       </main>
     </div>
