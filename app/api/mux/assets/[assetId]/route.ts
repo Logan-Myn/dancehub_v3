@@ -14,12 +14,21 @@ export async function GET(req: Request, props: { params: Promise<{ assetId: stri
 
     const asset = await getMuxAsset(params.assetId);
 
-    if (!asset) {
-      return NextResponse.json({ error: 'Asset not found or not ready' }, { status: 404 });
+    // 202: the upload landed but Mux has not linked an asset yet. Distinct from
+    // 404 so the uploader knows to keep waiting instead of failing the upload.
+    if (asset.state === 'pending') {
+      return NextResponse.json({ state: 'pending' }, { status: 202 });
     }
 
-    return NextResponse.json(asset);
+    return NextResponse.json({
+      id: asset.id,
+      playbackId: asset.playbackId,
+      status: asset.status,
+    });
   } catch (error) {
+    if ((error as { status?: number })?.status === 404) {
+      return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+    }
     console.error('Error getting asset:', error);
     return NextResponse.json(
       { error: 'Failed to get asset' },

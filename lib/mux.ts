@@ -38,32 +38,35 @@ export async function createMuxUploadUrl() {
   };
 }
 
-export async function getMuxAsset(uploadId: string) {
-  try {
-    // First get the upload to find the asset ID
-    const upload = await Video.uploads.retrieve(uploadId);
-    if (!upload.asset_id) {
-      throw new Error('Asset not yet created');
-    }
+export type MuxAssetLookup =
+  | { state: 'pending' }
+  | { state: 'found'; id: string; playbackId: string; status: string };
 
-    // Then get the asset details
-    const asset = await Video.assets.retrieve(upload.asset_id);
-
-    // Get the first playback ID
-    const playbackId = asset.playback_ids?.[0]?.id;
-    if (!playbackId) {
-      throw new Error('No playback ID found');
-    }
-
-    return {
-      id: upload.asset_id,
-      playbackId,
-      status: asset.status,
-    };
-  } catch (error) {
-    console.error('Error getting Mux asset:', error);
-    return null;
+/**
+ * Look up the asset behind a direct upload.
+ *
+ * 'pending' means Mux has accepted the file but has not linked an asset to the
+ * upload yet. That window is normal and lasts seconds; it is not a failure, and
+ * callers must keep waiting rather than give up. Genuine failures throw.
+ */
+export async function getMuxAsset(uploadId: string): Promise<MuxAssetLookup> {
+  const upload = await Video.uploads.retrieve(uploadId);
+  if (!upload.asset_id) {
+    return { state: 'pending' };
   }
+
+  const asset = await Video.assets.retrieve(upload.asset_id);
+  const playbackId = asset.playback_ids?.[0]?.id;
+  if (!playbackId) {
+    return { state: 'pending' };
+  }
+
+  return {
+    state: 'found',
+    id: upload.asset_id,
+    playbackId,
+    status: asset.status,
+  };
 }
 
 /**
