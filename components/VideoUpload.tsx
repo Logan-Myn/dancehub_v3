@@ -176,11 +176,6 @@ export default function VideoUpload({
 
     const file = e.dataTransfer.files[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) {
-        // 500MB limit
-        toast.error("File size must be less than 500MB");
-        return;
-      }
       setSelectedFile(file);
       handleUpload(file);
     }
@@ -189,11 +184,6 @@ export default function VideoUpload({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) {
-        // 500MB limit
-        toast.error("File size must be less than 500MB");
-        return;
-      }
       setSelectedFile(file);
       handleUpload(file);
     }
@@ -238,7 +228,6 @@ export default function VideoUpload({
               browse
             </button>
           </p>
-          <p className="text-sm text-gray-500 mt-1">Maximum file size: 500MB</p>
         </div>
       </div>
 
