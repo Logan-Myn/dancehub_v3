@@ -143,50 +143,59 @@ export default function VideoSection({
       await uploadPromise;
       setUploadProgress(100);
 
-      // Start polling for asset readiness
-      let attempts = 0;
-      const maxAttempts = 60; // 60 seconds timeout
-      const pollInterval = 1000; // 1 second
+      // Wait for the asset to exist, not for it to finish encoding. Encoding
+      // scales with clip length and resolution and can run for minutes, longer
+      // than any client-side wait can safely cover. The asset and its playback
+      // id exist within seconds of the upload landing, which is all we need to
+      // attach it, so this deadline covers asset creation only.
+      const deadline = Date.now() + 120_000;
+      let backoff = 250;
 
-      const pollAsset = async (): Promise<any> => {
-        if (cancelledRef.current) {
-          throw new Error('Upload cancelled');
-        }
-        if (attempts >= maxAttempts) {
-          throw new Error('Timeout waiting for asset to be ready');
-        }
+      const waitForAsset = async (): Promise<{
+        id: string;
+        playbackId: string;
+      }> => {
+        while (true) {
+          if (cancelledRef.current) {
+            throw new Error('Upload cancelled');
+          }
+          if (Date.now() > deadline) {
+            throw new Error('Timed out waiting for the video to register');
+          }
 
-        try {
           const assetResponse = await fetch(`/api/mux/assets/${uploadId}`);
 
-          if (!assetResponse.ok) {
-            throw new Error('Failed to check asset status');
+          // 202 means the upload landed but the asset is not linked yet. That
+          // is a normal wait, not a failure.
+          if (assetResponse.status !== 202) {
+            if (!assetResponse.ok) {
+              throw new Error(
+                `Failed to check asset status (${assetResponse.status})`
+              );
+            }
+            const asset = await assetResponse.json();
+            if (asset?.status === 'errored') {
+              throw new Error('This video could not be processed. Please try again.');
+            }
+            if (asset?.id && asset?.playbackId) {
+              return asset;
+            }
           }
 
-          const asset = await assetResponse.json();
-
-          if (asset.status === 'ready') {
-            return asset;
-          }
-
-          attempts++;
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          return pollAsset();
-        } catch (error) {
-          console.error('Error polling asset:', error);
-          throw error;
+          await new Promise((resolve) => setTimeout(resolve, backoff));
+          backoff = Math.min(backoff * 2, 2000);
         }
       };
 
-      const readyAsset = await pollAsset();
+      const asset = await waitForAsset();
       if (cancelledRef.current) return;
       onUpdate({
         ...section.content,
-        videoId: readyAsset.playbackId,
-        videoAssetId: readyAsset.id,
+        videoId: asset.playbackId,
+        videoAssetId: asset.id,
       });
       setIsUploading(false);
-      toast.success('Video uploaded successfully!');
+      toast.success('Video uploaded. It may take a minute before it plays.');
     } catch (error) {
       console.error('Upload error:', error);
       setIsUploading(false);
@@ -218,10 +227,6 @@ export default function VideoSection({
 
     const file = e.dataTransfer.files[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) { // 500MB limit
-        toast.error('File size must be less than 500MB');
-        return;
-      }
       handleUpload(file);
     }
   };
@@ -229,10 +234,6 @@ export default function VideoSection({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 500 * 1024 * 1024) { // 500MB limit
-        toast.error('File size must be less than 500MB');
-        return;
-      }
       handleUpload(file);
     }
   };
@@ -400,9 +401,6 @@ export default function VideoSection({
                     >
                       browse
                     </button>
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Maximum file size: 500MB
                   </p>
                 </div>
               </div>
