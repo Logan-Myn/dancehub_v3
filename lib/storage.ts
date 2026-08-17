@@ -106,6 +106,31 @@ export async function getSignedDownloadUrl(
 }
 
 /**
+ * Recover the storage key from a public URL produced by `getPublicUrl`.
+ *
+ * Returns null for anything we did not upload (the bundled placeholder SVG,
+ * an external URL, a malformed value) so callers never issue a delete against
+ * a key they cannot account for.
+ */
+export function extractKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+
+  const prefixes = [
+    CDN_URL ? `${CDN_URL}/` : null,
+    `${process.env.B2_ENDPOINT}/${BUCKET_NAME}/`,
+  ].filter((p): p is string => Boolean(p));
+
+  for (const prefix of prefixes) {
+    if (url.startsWith(prefix)) {
+      const key = url.slice(prefix.length);
+      return key.length > 0 ? key : null;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Helper to generate a unique file key with folder structure
  */
 export function generateFileKey(

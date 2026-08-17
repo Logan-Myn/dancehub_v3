@@ -29,6 +29,7 @@ interface EditCourseModalProps {
     image?: File | null;
     is_public: boolean;
   }) => Promise<void>;
+  onDeleteCourse?: () => Promise<void>;
 }
 
 export default function EditCourseModal({
@@ -36,6 +37,7 @@ export default function EditCourseModal({
   onClose,
   course,
   onUpdateCourse,
+  onDeleteCourse,
 }: EditCourseModalProps) {
   const [title, setTitle] = useState(course.title);
   const [description, setDescription] = useState(course.description || "");
@@ -43,6 +45,8 @@ export default function EditCourseModal({
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(course.image_url || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const onDrop = (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -71,7 +75,8 @@ export default function EditCourseModal({
         image,
         is_public: isPublic,
       });
-      toast.success("Course updated successfully");
+      // Success feedback belongs to the caller, which knows whether the save
+      // also published the course.
       onClose();
     } catch (error) {
       console.error("Error updating course:", error);
@@ -80,6 +85,58 @@ export default function EditCourseModal({
       setIsSubmitting(false);
     }
   };
+
+  const handleDelete = async () => {
+    if (!onDeleteCourse) return;
+    setIsDeleting(true);
+
+    try {
+      await onDeleteCourse();
+      // The caller navigates away on success, so there is no state to reset.
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete course");
+      setIsDeleting(false);
+      setIsConfirmingDelete(false);
+    }
+  };
+
+  // Confirmation replaces the form rather than stacking a second dialog on top
+  // of it, which the drawer variant on mobile cannot render reliably.
+  if (isConfirmingDelete) {
+    return (
+      <ResponsiveDialog open={isOpen} onOpenChange={onClose}>
+        <ResponsiveDialogContent className="sm:max-w-[425px]">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Delete course</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              This permanently deletes &quot;{course.title}&quot;, along with all of its
+              chapters, lessons and videos. Members lose access and their progress. This
+              cannot be undone.
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <ResponsiveDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsConfirmingDelete(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete course"}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    );
+  }
 
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={onClose}>
@@ -150,6 +207,26 @@ export default function EditCourseModal({
                 onCheckedChange={setIsPublic}
               />
             </div>
+
+            {onDeleteCourse && (
+              <div className="border-t pt-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Delete this course</p>
+                  <p className="text-sm text-muted-foreground">
+                    Removes the course and everything in it.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive shrink-0"
+                  onClick={() => setIsConfirmingDelete(true)}
+                  disabled={isSubmitting}
+                >
+                  Delete
+                </Button>
+              </div>
+            )}
           </div>
           <ResponsiveDialogFooter>
             <Button

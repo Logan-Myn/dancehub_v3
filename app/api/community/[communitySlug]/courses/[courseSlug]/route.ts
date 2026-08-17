@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { query, queryOne, sql } from "@/lib/db";
 import { getSession } from "@/lib/auth-session";
 import { slugify } from "@/lib/utils";
-import { uploadFile, generateFileKey, deleteFile } from "@/lib/storage";
+import {
+  uploadFile,
+  generateFileKey,
+  deleteFile,
+  extractKeyFromUrl,
+} from "@/lib/storage";
+import { deleteMuxAsset } from "@/lib/mux";
 
 interface Community {
   id: string;
@@ -283,6 +289,12 @@ export async function PUT(
 ) {
   const params = await props.params;
   try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Get community
     const community = await queryOne<Community>`
       SELECT id, name, created_by
@@ -296,6 +308,10 @@ export async function PUT(
         { error: "Community not found" },
         { status: 404 }
       );
+    }
+
+    if (community.created_by !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Get current course
@@ -315,6 +331,25 @@ export async function PUT(
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
     const isPublic = formData.get("is_public") === "true";
+    const imageFile = formData.get("image");
+
+    // A new cover image is optional — keep the current one when none is sent.
+    let imageUrl = currentCourse.image_url;
+    let uploadedKey: string | null = null;
+
+    if (imageFile instanceof File && imageFile.size > 0) {
+      try {
+        const buffer = Buffer.from(await imageFile.arrayBuffer());
+        uploadedKey = generateFileKey("course-images", imageFile.name);
+        imageUrl = await uploadFile(buffer, uploadedKey, imageFile.type);
+      } catch (uploadError) {
+        console.error("Error uploading course image:", uploadError);
+        return NextResponse.json(
+          { error: "Failed to upload image" },
+          { status: 500 }
+        );
+      }
+    }
 
     // Regenerate the slug when the title changes so the URL tracks the new
     // title. Suffix with `-2`, `-3`, ... if the candidate collides with
@@ -346,9 +381,23 @@ export async function PUT(
         description = ${description},
         is_public = ${isPublic},
         slug = ${newSlug},
+        image_url = ${imageUrl},
         updated_at = NOW()
       WHERE id = ${currentCourse.id}
     `;
+
+    // The row now points at the new cover, so the old one is unreachable.
+    // Non-fatal: a leftover object is cheaper than failing a saved update.
+    if (uploadedKey) {
+      const previousKey = extractKeyFromUrl(currentCourse.image_url);
+      if (previousKey && previousKey !== uploadedKey) {
+        try {
+          await deleteFile(previousKey);
+        } catch (deleteError) {
+          console.error("Error deleting previous course image:", deleteError);
+        }
+      }
+    }
 
     // If the course was made public, fan out in-app notifications in a single
     // bulk insert (was previously one INSERT per member, taking minutes for
@@ -411,6 +460,112 @@ export async function PUT(
     console.error("Error in PUT course route:", error);
     return NextResponse.json(
       { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  props: { params: Promise<{ communitySlug: string; courseSlug: string }> }
+) {
+  const params = await props.params;
+  try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const community = await queryOne<Community>`
+      SELECT id, name, created_by
+      FROM communities
+      WHERE slug = ${params.communitySlug}
+    `;
+
+    if (!community) {
+      return NextResponse.json(
+        { error: "Community not found" },
+        { status: 404 }
+      );
+    }
+
+    if (community.created_by !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const course = await queryOne<Course>`
+      SELECT id, image_url
+      FROM courses
+      WHERE community_id = ${community.id}
+        AND slug = ${params.courseSlug}
+    `;
+
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    // Videos live in Mux, not in our database, so cascading the row delete is
+    // not enough — collect the assets while the rows still exist.
+    const lessons = await query<{ video_asset_id: string | null }>`
+      SELECT l.video_asset_id
+      FROM lessons l
+      JOIN chapters c ON c.id = l.chapter_id
+      WHERE c.course_id = ${course.id}
+        AND l.video_asset_id IS NOT NULL
+    `;
+
+    for (const lesson of lessons) {
+      const assetId = lesson.video_asset_id!;
+      try {
+        await deleteMuxAsset(assetId);
+      } catch (muxError) {
+        console.error("Error deleting course video (non-fatal):", muxError);
+      }
+
+      // Same cleanup the single-lesson delete does for alternate audio.
+      try {
+        const audioTracks = await sql<{ id: string; b2_key: string | null }[]>`
+          SELECT id, b2_key FROM audio_tracks WHERE mux_asset_id = ${assetId}
+        `;
+        for (const track of audioTracks) {
+          if (track.b2_key) {
+            try {
+              await deleteFile(track.b2_key);
+            } catch (b2Error) {
+              console.error(
+                "Failed to delete audio source from storage (non-fatal):",
+                b2Error
+              );
+            }
+          }
+        }
+        await sql`DELETE FROM audio_tracks WHERE mux_asset_id = ${assetId}`;
+      } catch (audioError) {
+        console.error("Error cleaning up audio tracks (non-fatal):", audioError);
+      }
+    }
+
+    // chapters.course_id and lessons.chapter_id both cascade, so this one
+    // statement clears the chapters, lessons and lesson completions too.
+    await sql`DELETE FROM courses WHERE id = ${course.id}`;
+
+    // Only after the row is gone — an orphaned object is harmless, a missing
+    // cover on a course that failed to delete is not.
+    const imageKey = extractKeyFromUrl(course.image_url);
+    if (imageKey) {
+      try {
+        await deleteFile(imageKey);
+      } catch (deleteError) {
+        console.error("Error deleting course image (non-fatal):", deleteError);
+      }
+    }
+
+    return NextResponse.json({ message: "Course deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    return NextResponse.json(
+      { error: "Failed to delete course" },
       { status: 500 }
     );
   }

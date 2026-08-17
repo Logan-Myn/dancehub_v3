@@ -13,7 +13,7 @@ interface Chapter {
 
 interface Lesson {
   id: string;
-  mux_playback_id: string | null;
+  video_asset_id: string | null;
 }
 
 interface Course {
@@ -61,19 +61,20 @@ export async function DELETE(request: Request, props: { params: Promise<{ course
 
       // Get all lessons for these chapters
       const lessons = await query<Lesson>`
-        SELECT id, mux_playback_id
+        SELECT id, video_asset_id
         FROM lessons
         WHERE chapter_id = ANY(${chapterIds})
       `;
 
-      // Delete Mux videos
+      // Delete Mux videos. `video_asset_id` is the asset id — a playback id
+      // would not resolve here.
       if (lessons) {
         await Promise.all(
           lessons
-            .filter(lesson => lesson.mux_playback_id)
+            .filter(lesson => lesson.video_asset_id)
             .map(async (lesson) => {
               try {
-                await Video.assets.delete(lesson.mux_playback_id!);
+                await Video.assets.delete(lesson.video_asset_id!);
               } catch (error) {
                 console.error('Error deleting Mux video:', error);
               }

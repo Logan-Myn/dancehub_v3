@@ -755,6 +755,26 @@ export default function CourseDetailClient({
     }
   };
 
+  const handleDeleteCourse = async () => {
+    const response = await fetch(
+      `/api/community/${communitySlug}/courses/${courseSlug}`,
+      { method: "DELETE" }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || "Failed to delete course");
+    }
+
+    toast.success("Course deleted");
+    setIsEditingCourse(false);
+
+    // The course no longer exists, so this page cannot re-render — send the
+    // owner back to the classroom listing and refresh it.
+    router.replace(`/${communitySlug}/classroom`);
+    router.refresh();
+  };
+
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const isProcessingRef = useRef(false);
 
@@ -1494,6 +1514,7 @@ export default function CourseDetailClient({
           onClose={() => setIsEditingCourse(false)}
           course={course}
           onUpdateCourse={handleUpdateCourse}
+          onDeleteCourse={isCreator ? handleDeleteCourse : undefined}
         />
       )}
 
