@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { preload } from "react-dom";
 import Navbar from "@/app/components/Navbar";
 import { getSession } from "@/lib/auth-session";
 import { getProfileForUser } from "@/lib/community-data";
 import HomePageClient from "./HomePageClient";
+import { StartCommunityLink } from "@/components/StartCommunityLink";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +46,11 @@ export default async function LandingPage() {
         <span style={{ opacity: 0.95 }}>
           Run your community with <b>0% platform fees</b> for your first 30 days.
         </span>{" "}
-        <Link
-          href="/onboarding"
+        <StartCommunityLink
           style={{ color: "white", fontWeight: 600, textDecoration: "underline", marginLeft: 8 }}
         >
           Start now →
-        </Link>
+        </StartCommunityLink>
       </div>
       <Navbar initialUser={session?.user ?? null} initialProfile={profile} />
       <HomePageClient />

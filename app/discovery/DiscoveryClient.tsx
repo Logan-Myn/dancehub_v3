@@ -23,7 +23,7 @@ export default function DiscoveryClient() {
   const handleCreateCommunity = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!currentUser) {
       e.preventDefault();
-      showAuthModal("signup");
+      showAuthModal("signup", "/onboarding");
     }
   };
 
@@ -49,7 +49,7 @@ export default function DiscoveryClient() {
     e.preventDefault();
     
     if (!currentUser) {
-      showAuthModal("signup");
+      showAuthModal("signup", "/onboarding");
       return;
     }
 
