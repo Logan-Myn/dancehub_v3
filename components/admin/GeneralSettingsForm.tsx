@@ -50,6 +50,13 @@ function formatUrl(url: string): string {
   return `https://${url}`;
 }
 
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
 function normalizeStatus(status: string): CommunityStatus {
   if (status === "pre_registration" || status === "inactive") return status;
   return "active";
@@ -108,6 +115,18 @@ export function GeneralSettingsForm({
   async function handleSaveChanges() {
     if (isSaving) return;
 
+    // The update route writes name and slug unconditionally, so saving a blank
+    // name moves the community to the site root and makes it unreachable.
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error("Please enter a community name");
+      return;
+    }
+    if (!slugify(trimmedName)) {
+      toast.error("The community name needs at least one letter or number");
+      return;
+    }
+
     // Validation for pre-registration (ported from CommunitySettingsModal
     // handleSaveChanges lines 647-671). Runs BEFORE the fetch + loading toast.
     if (communityStatus === "pre_registration") {
@@ -143,13 +162,10 @@ export function GeneralSettingsForm({
 
     try {
       // Regenerate slug from the name, matching the modal behaviour.
-      const newSlug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)+/g, "");
+      const newSlug = slugify(trimmedName);
 
       const requestBody = {
-        name,
+        name: trimmedName,
         description,
         imageUrl,
         customLinks: links,

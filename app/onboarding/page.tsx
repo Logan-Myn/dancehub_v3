@@ -9,13 +9,16 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function OnboardingPage() {
   const { user, session, loading } = useAuth();
   const router = useRouter();
+  const signedOut = !loading && (!session || !user);
 
   React.useEffect(() => {
-    // Only redirect if we've finished loading and there's no session
-    if (!loading && (!session || !user)) {
-      router.push('/');
+    // Nothing here to show a signed-out visitor. Send them back to the home
+    // page, where the sign-up modal opens on top of the landing page instead of
+    // on a bare interstitial. They return here once they're signed in.
+    if (signedOut) {
+      router.replace('/?auth=signup&redirect=%2Fonboarding');
     }
-  }, [user, session, loading, router]);
+  }, [signedOut, router]);
 
   // Show loading state while checking authentication
   if (loading || !user) {

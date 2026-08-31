@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CSSProperties } from "react";
+import { CSSProperties, useEffect, useRef } from "react";
 import MuxPlayer from "@mux/mux-player-react/lazy";
 import {
   ArrowRight,
@@ -1069,6 +1069,19 @@ function FooterBlock() {
 export default function HomePageClient() {
   const { user } = useAuth();
   const { showAuthModal } = useAuthModal();
+  const promptedRef = useRef(false);
+
+  // /onboarding sends signed-out visitors here with ?auth=signup so the modal
+  // opens over the landing page rather than on an empty page of its own.
+  useEffect(() => {
+    if (promptedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth") !== "signup") return;
+    promptedRef.current = true;
+    showAuthModal("signup", params.get("redirect") || "/onboarding");
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [showAuthModal]);
+
   const onCtaSignup = () => {
     if (user) {
       window.location.href = "/onboarding";
