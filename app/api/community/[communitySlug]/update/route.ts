@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryOne, sql } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
+import { userCanManageCommunity } from '@/lib/community-auth';
 
 interface Community {
   id: string;
@@ -34,12 +36,32 @@ export async function PUT(request: Request, props: { params: Promise<{ community
       );
     }
 
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!(await userCanManageCommunity(session.user.id, community.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // This route PUTs every column unconditionally, so a blank name (or one that
+    // slugifies to nothing) would wipe the community's name and move it to the
+    // site root, where every link to it lands on the home page instead.
+    const name = typeof updates.name === 'string' ? updates.name.trim() : '';
+    const slug = typeof updates.slug === 'string' ? updates.slug.trim() : '';
+    if (!name || !slug) {
+      return NextResponse.json(
+        { error: 'Community name is required' },
+        { status: 400 }
+      );
+    }
+
     // If slug is being updated, check if it's already taken
-    if (updates.slug && updates.slug !== communitySlug) {
+    if (slug !== communitySlug) {
       const existingCommunity = await queryOne<Community>`
         SELECT id
         FROM communities
-        WHERE slug = ${updates.slug}
+        WHERE slug = ${slug}
           AND id != ${community.id}
       `;
 
@@ -55,11 +77,11 @@ export async function PUT(request: Request, props: { params: Promise<{ community
     const updatedCommunity = await queryOne<UpdatedCommunity>`
       UPDATE communities
       SET
-        name = ${updates.name},
+        name = ${name},
         description = ${updates.description},
         image_url = ${updates.imageUrl},
         custom_links = ${sql.json(Array.isArray(updates.customLinks) ? updates.customLinks : [])},
-        slug = ${updates.slug},
+        slug = ${slug},
         status = ${updates.status},
         opening_date = ${updates.opening_date},
         updated_at = NOW()

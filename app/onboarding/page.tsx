@@ -2,20 +2,40 @@
 
 import React from 'react';
 import { Rocket, Heart, Smile, Users, Smartphone, Globe } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import OnboardingForm from '@/app/onboarding/OnboardingForm';
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthModal } from "@/contexts/AuthModalContext";
+import { Button } from "@/components/ui/button";
 
 export default function OnboardingPage() {
   const { user, session, loading } = useAuth();
-  const router = useRouter();
+  const { showAuthModal } = useAuthModal();
+  const promptedRef = React.useRef(false);
+  const signedOut = !loading && (!session || !user);
 
   React.useEffect(() => {
-    // Only redirect if we've finished loading and there's no session
-    if (!loading && (!session || !user)) {
-      router.push('/');
+    // Signed-out visitors used to be bounced straight back to the home page,
+    // which made every "Start now" link look like it just reloaded the page.
+    // Ask them to sign up instead, and come back here once they have.
+    if (signedOut && !promptedRef.current) {
+      promptedRef.current = true;
+      showAuthModal("signup", "/onboarding");
     }
-  }, [user, session, loading, router]);
+  }, [signedOut, showAuthModal]);
+
+  if (signedOut) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <h1 className="text-2xl font-semibold">Create your community</h1>
+        <p className="text-gray-600 max-w-sm">
+          Sign up or sign in first, then you can set up your community.
+        </p>
+        <Button onClick={() => showAuthModal("signup", "/onboarding")}>
+          Sign up to continue
+        </Button>
+      </div>
+    );
+  }
 
   // Show loading state while checking authentication
   if (loading || !user) {

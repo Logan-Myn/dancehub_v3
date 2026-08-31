@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql, query, queryOne } from '@/lib/db';
+import { getSession } from '@/lib/auth-session';
 
 interface ExistingCommunity {
   name: string;
@@ -13,8 +14,24 @@ interface NewCommunity {
 
 export async function POST(request: Request) {
   try {
+    // Never trust `createdBy` from the body — anyone could create a community
+    // in someone else's name.
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'You must be signed in to create a community' }, { status: 401 });
+    }
+    const createdBy = session.user.id;
+
     const body = await request.json();
-    const { name, description, imageUrl, createdBy, focalX, focalY, zoom } = body;
+    const { description, imageUrl, focalX, focalY, zoom } = body;
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+
+    if (!name) {
+      return NextResponse.json(
+        { error: 'Please enter a community name' },
+        { status: 400 }
+      );
+    }
 
     const clampInt = (v: unknown, min: number, max: number, fallback: number) => {
       const n = Number(v);
@@ -35,6 +52,16 @@ export async function POST(request: Request) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
+
+    // A name made only of characters the slug rule strips (accents, emoji, a
+    // non-Latin script) would produce an empty slug, and an empty slug makes the
+    // community live at the site root — every link to it lands on the home page.
+    if (!slug) {
+      return NextResponse.json(
+        { error: 'Please use at least one letter or number in the community name' },
+        { status: 400 }
+      );
+    }
 
     // Check if name or slug already exists
     const existingCommunities = await query<ExistingCommunity>`
